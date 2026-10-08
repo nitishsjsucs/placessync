@@ -6,4 +6,5 @@ export const PINNED_HASHES = {
   resources: "70a400aefaf2ca86800823e005ff00f23e6fa0f00502f000a686b99d59821514",
   labeledRequests: "7991302812837696e0385a293ad34cc5f722658047e3953739ea46c344050999",
   seedRequests: "e4ef8922f4a3a7d87c9728608faf6eefa86d4d2c6e9fa4c0fbe92268b3513696",
+  contentionAttempts: "6d0b1ef53403b1c92fdc569221edb508f5093baac74cc6e82590c275a463ef32",
 } as const;

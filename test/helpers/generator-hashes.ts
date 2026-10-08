@@ -1,5 +1,6 @@
 import {
   SEED,
+  generateContentionAttempts,
   generateEmployees,
   generateLabeledRequests,
   generateResources,
@@ -15,5 +16,6 @@ export async function generatorHashes(seed: number = SEED): Promise<Record<keyof
     resources: await sha256Hex(generateResources()),
     labeledRequests: await sha256Hex(generateLabeledRequests(seed)),
     seedRequests: await sha256Hex(generateSeedRequests(seed)),
+    contentionAttempts: await sha256Hex(generateContentionAttempts(seed)),
   };
 }

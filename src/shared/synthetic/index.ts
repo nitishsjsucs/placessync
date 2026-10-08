@@ -47,3 +47,5 @@ export { generateResources, SITE, AMENITIES, siteRulesOf } from "./resources.ts"
 export type { Resource, Site, Amenity } from "./resources.ts";
 export { generateLabeledRequests, generateSeedRequests } from "./requests.ts";
 export type { LabeledRequest, SeedRequest } from "./requests.ts";
+export { generateContentionAttempts, contentionStats, CONTENTION_ATTEMPTS } from "./contention.ts";
+export type { ContentionAttempt, ContentionStats } from "./contention.ts";

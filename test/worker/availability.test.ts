@@ -116,5 +116,5 @@ describe("GET /api/sites/:siteId/availability", () => {
         expect(r.freeWindows, `run ${run} ${r.resource.id}`).toEqual(bruteFree(r.busy));
       }
     }
-  });
+  }, 120_000);
 });

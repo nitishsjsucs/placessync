@@ -3,7 +3,18 @@ import {
   DEPARTMENT_COUNTS,
   generateEmployees,
 } from "../../src/shared/synthetic/employees.ts";
-import { SEED, generateLabeledRequests, generateResources, generateSeedRequests } from "../../src/shared/synthetic/index.ts";
+import {
+  SEED,
+  SITE,
+  contentionStats,
+  generateContentionAttempts,
+  generateLabeledRequests,
+  generateResources,
+  generateSeedRequests,
+  siteRulesOf,
+} from "../../src/shared/synthetic/index.ts";
+import { validate } from "../../src/shared/rules.ts";
+import { addBusinessDays } from "../../src/shared/time.ts";
 import { EVAL_TEMPLATES, FEWSHOT_EXAMPLES, FEWSHOT_TEMPLATES } from "../../src/shared/synthetic/request-templates.ts";
 import { CATEGORIES } from "../../src/shared/triage/categories.ts";
 import { generatorHashes } from "../helpers/generator-hashes.ts";
@@ -130,6 +141,45 @@ describe("request generators (SPEC 11.1)", () => {
   });
 });
 
+describe("contention attempts (SPEC 11.3)", () => {
+  const attempts = generateContentionAttempts(SEED);
+  const rules = siteRulesOf(SITE);
+
+  it("has exactly 1,000 attempts, att_0001..att_1000, 700 on date A and 300 on date B", () => {
+    expect(attempts).toHaveLength(1000);
+    expect(attempts.map((a) => a.attemptId)).toEqual(Array.from({ length: 1000 }, (_, i) => `att_${String(i + 1).padStart(4, "0")}`));
+    expect(countBy(attempts, (a) => String(a.dayOffset))).toEqual({ "2": 700, "3": 300 });
+    for (const a of attempts) expect(a.idempotencyKey).toBe(a.attemptId);
+  });
+
+  it("covers all 100 employees and all 20 resources", () => {
+    const stats = contentionStats(attempts);
+    expect(stats.distinctEmployees).toBe(100);
+    expect(stats.distinctResources).toBe(20);
+  });
+
+  it("is contested: at least 900 attempts overlap another attempt on the same resource and date", () => {
+    const stats = contentionStats(attempts);
+    expect(stats.contestedAttempts).toBeGreaterThanOrEqual(900);
+    expect(stats.attemptsPerDate).toEqual({ A: 700, B: 300 });
+    expect(stats.peakSlotDemand).toBeGreaterThan(1);
+  });
+
+  it("every attempt passes the booking rules, so every rejection must be a conflict", () => {
+    // Thursday 2026-10-08 08:00 in Los Angeles; dates A and B are business days 2 and 3.
+    const now = Date.parse("2026-10-08T15:00:00Z");
+    const byId = new Map(generateResources().map((r) => [r.id, r]));
+    for (const a of attempts) {
+      const r = byId.get(a.resourceId);
+      if (!r) throw new Error(a.resourceId);
+      const date = addBusinessDays("2026-10-08", a.dayOffset);
+      const issues = validate({ resourceId: a.resourceId, date, startMin: a.startMin, endMin: a.endMin, attendees: a.attendees }, r, rules, now);
+      expect(issues, a.attemptId).toEqual([]);
+      expect(a.kind).toBe(r.kind);
+    }
+  });
+});
+
 describe("determinism (SPEC 11)", () => {
   it("same seed gives the pinned SHA-256 for every generator", async () => {
     expect(await generatorHashes(SEED)).toEqual(PINNED_HASHES);
@@ -140,5 +190,6 @@ describe("determinism (SPEC 11)", () => {
     expect(other.employees).not.toBe(PINNED_HASHES.employees);
     expect(other.labeledRequests).not.toBe(PINNED_HASHES.labeledRequests);
     expect(other.seedRequests).not.toBe(PINNED_HASHES.seedRequests);
+    expect(other.contentionAttempts).not.toBe(PINNED_HASHES.contentionAttempts);
   });
 });
