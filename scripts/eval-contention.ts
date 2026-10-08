@@ -155,20 +155,29 @@ interface Outcome {
 }
 
 /**
- * A burst of 1,000 connects can overflow the local listen queue (macOS caps it at
- * kern.ipc.somaxconn, 128 by default), which refuses a connection before the request is
- * sent. Those are retried with the same Idempotency-Key, which also makes a retry after
- * an ambiguous failure safe: the ledger replays the stored response. Retries are counted.
+ * Transport failures below the Worker are retried with the same Idempotency-Key, which
+ * the ledger replays safely, and counted:
+ * - a burst of 1,000 connects can overflow the local listen queue (macOS caps it at
+ *   kern.ipc.somaxconn, 128 by default), which refuses the connection;
+ * - the vite preview server proxies to workerd and, under that burst, can answer an HTML
+ *   500 "fetch failed" page of its own. The Worker always answers JSON, so an HTML 500
+ *   never comes from the application.
  */
 async function postWithRetry(url: string, init: RequestInit, onRetry: () => void): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
+    let res: Response | null = null;
     try {
-      return await fetch(url, init);
+      res = await fetch(url, init);
     } catch (err) {
       if (attempt >= 8) throw err;
-      onRetry();
-      await new Promise((r) => setTimeout(r, 50 * 2 ** Math.min(attempt, 5)));
     }
+    if (res) {
+      const proxyFailure = res.status === 500 && !(res.headers.get("content-type") ?? "").includes("application/json");
+      if (!proxyFailure || attempt >= 8) return res;
+      await res.body?.cancel();
+    }
+    onRetry();
+    await new Promise((r) => setTimeout(r, 50 * 2 ** Math.min(attempt, 5)));
   }
 }
 
