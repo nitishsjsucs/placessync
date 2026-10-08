@@ -88,6 +88,7 @@ function contentionSection(r: Record<string, unknown> & { meta: Meta }): string 
     `| D1 projection mismatches | ${range("projectionMismatches")} |`,
     `| Live observers: date-version gaps, foreign-date messages, final-state mismatches | ${range("observerDateVersionGaps")}, ${range("observerForeignDateMessages")}, ${range("observerFinalStateMismatches")} |`,
     `| Slot-key backstop activations | ${range("backstopHits")} |`,
+    `| Client connection retries (refused connects, resent with the same Idempotency-Key) | ${runs.every((x) => x.transportRetries !== undefined) ? range("transportRetries") : "not recorded"} |`,
     `| Negative control (naive read-then-write D1): accepted, overlapping pairs | ${control ? `${num(control.accepted)}, ${num(control.overlappingPairs)}` : "not run"} |`,
     `| Latency p50 / p95 / p99, run 1 (local, single machine) | ${lat?.p50} / ${lat?.p95} / ${lat?.p99} ms |`,
     "",
