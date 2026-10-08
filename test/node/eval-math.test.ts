@@ -46,3 +46,12 @@ describe("eval math", () => {
     expect(percentile([3, 1, 2], 100)).toBe(3);
   });
 });
+
+describe("run meta dirty flag", () => {
+  it("ignores result files but not code", async () => {
+    const { dirtyPaths } = await import("../../scripts/lib/meta.ts");
+    expect(dirtyPaths(" M evals/results/contention.json\n M evals/results/e2e.json\n")).toEqual([]);
+    expect(dirtyPaths(" M scripts/eval-contention.ts\n M evals/results/e2e.json\n")).toEqual(["scripts/eval-contention.ts"]);
+    expect(dirtyPaths("M  src/worker/app.ts\n")).toEqual(["src/worker/app.ts"]);
+  });
+});

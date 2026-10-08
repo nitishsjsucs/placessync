@@ -1,6 +1,6 @@
 # Evals
 
-Two evals and the end-to-end suite write JSON to `evals/results/`. Every file carries a `meta` block (git SHA, dirty flag, timestamp, command, Node and wrangler versions, OS and CPU, seed, input SHA-256). `npm run results` renders the README Results block from the committed files and refuses any file produced on a dirty tree or at a commit that is not an ancestor of `HEAD`. A test fails if the README block differs from the rendered output, so numbers cannot be edited by hand.
+Two evals and the end-to-end suite write JSON to `evals/results/`. Every file carries a `meta` block (git SHA, dirty flag, timestamp, command, Node and wrangler versions, OS and CPU, seed, input SHA-256). `npm run results` renders the README Results block from the committed files and refuses any file produced on a dirty tree or at a commit that is not an ancestor of `HEAD`. "Dirty" means a tracked change outside `evals/results/`, so running several evals in one session (each rewriting its own result file) still counts as clean code. A test fails if the README block differs from the rendered output, so numbers cannot be edited by hand.
 
 All runs are local: workerd through `vite preview` on one machine, and a local llama.cpp server for the LLM. No number here comes from Cloudflare's production services.
 
