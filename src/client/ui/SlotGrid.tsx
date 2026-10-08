@@ -60,9 +60,12 @@ export function SlotGrid(props: SlotGridProps) {
   useEffect(() => {
     if (!selection) return;
     const row = rows.find((r) => r.id === selection.rowId);
-    if (overlapsBusy(row, selection)) {
-      onSelect(null);
-      setAnnouncement(`${formatMinutes(selection.startMin)} to ${formatMinutes(selection.endMin)} on ${row?.label ?? "that resource"} was just booked by someone else. Pick another time.`);
+    if (!row || !overlapsBusy(row, selection)) return;
+    onSelect(null);
+    // The viewer's own booking arriving live is not news; someone else's is.
+    const othersBooked = row.busy.some((b) => !b.mine && b.startMin < selection.endMin && selection.startMin < b.endMin);
+    if (othersBooked) {
+      setAnnouncement(`${formatMinutes(selection.startMin)} to ${formatMinutes(selection.endMin)} on ${row.label} was just booked by someone else. Pick another time.`);
     }
   }, [rows, selection, onSelect]);
 

@@ -112,6 +112,15 @@ describe("SlotGrid", () => {
     expect(live.textContent).toContain("08:00 to 08:30 on Desk 2A-01 was just booked");
   });
 
+  it("clears silently when the viewer's own booking arrives live", async () => {
+    const { rerender } = render(<Harness />);
+    await userEvent.setup().click(screen.getByRole("gridcell", { name: "Desk 2A-01, 08:00 to 08:30, available" }));
+    const updated: SlotRow[] = [{ ...ROWS[0]!, busy: [...ROWS[0]!.busy, { startMin: 480, endMin: 510, mine: true }] }, ROWS[1]!];
+    await act(async () => rerender(<Harness rows={updated} />));
+    expect(sel()).toBe("none");
+    expect(screen.getByTestId("slotgrid-live").textContent).toBe("");
+  });
+
   it("switches to a single-resource chip list under 640 px (matchMedia stub)", async () => {
     setMediaMatches("(max-width: 639px)", true);
     render(<Harness />);
