@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 11 of 32 (availability, calendar and reservation routes).
-Next: commit 12 (per-date WebSocket availability protocol with hibernation and session expiry).
+Last completed commit: 12 of 32 (per-date WebSocket live protocol).
+Next: commit 13 (1,000-attempt two-date contention generator, runtime contention test, naive control).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 12 (per-date WebSocket availability protocol with hibernation and s
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (19 files, 218 tests) |
+| `npm test` | pass (21 files, 231 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -29,6 +29,7 @@ Next: commit 12 (per-date WebSocket availability protocol with hibernation and s
 9. Ledger: idempotency by `(employee_id, key)` with a SHA-256 request hash (stored responses replay byte-identical, a different body gives `idempotency_key_reuse`), employee SELECT plus `employee_slots` PK (one desk and one room at a time per employee), `date_versions` bumped with `RETURNING` in the same transaction, `cancel` (owner or admin, confirmed, not started, frees slots); `ledger.cancel.test.ts` and new reserve and rollback cases.
 10. Outbox row per committed mutation in the same transaction (I5); `alarm()` flushes up to 50 rows with a version-guarded `DB.batch` upsert into `reservation_facts` plus `projection_state`, catches errors, counts `meta.flush_failures` and backs off `min(2^n s, 60 s)`, purges idempotency rows older than 24 h; the constructor re-arms when the outbox is non-empty; admin routes `/api/admin/reports/utilization|reservations`, `/api/admin/ledger/export`, `/api/admin/projection/status` (added here because the eval and reports need them); `projection.test.ts` (table-rename failure path, replay, version guard, eviction), `reports.test.ts`.
 11. `GET /api/sites/:siteId/availability` (filters, busy with `mine`, free windows, fit for an optional from/to window; `version` is the date version), `GET /api/resources/:id/calendar` (7 days from a Monday, ids only for the viewer's own bookings), `POST /api/reservations` (Idempotency-Key 8 to 64 chars, D1 resource lookup before the ledger), `GET /api/reservations` (admin-only `employeeId`), `POST /api/reservations/:id/cancel`; ledger `reservationsFor` and `calendar`; `availability.test.ts` (oracle filters, 200 random ledgers vs a brute-force slot scan), `calendar.test.ts`, `reservations.api.test.ts`.
+12. `src/shared/live-protocol.ts` (zod client and server messages), `ledger/live.ts` (attachment with employeeId, role, staff, exp, dates; expiry check before every send; deltas only to that date's subscribers), SiteLedger `fetch` upgrade with hibernatable `acceptWebSocket`, ping auto-response, `webSocketMessage` (subscribe with snapshot, unsubscribe, subscribe_staff, 14-date cap, 4001 on expiry), `notifyStaff`; `GET /api/sites/:siteId/live` builds a fresh Request with the actor header and rewraps the 101 so middleware can add headers; `test/ws/live.test.ts` (cross-date, hibernation, expiry) and `test/ws/staff-events.test.ts` in the `worker-ws` project.
 
 ## Deviations from SPEC.md
 

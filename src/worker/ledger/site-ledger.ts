@@ -10,6 +10,27 @@ import type { Role } from "../../shared/roles.ts";
 import { type ReserveInput, type ResourceKind, type SiteRules, hasStarted, validate } from "../../shared/rules.ts";
 import { addDays, slotsFor } from "../../shared/time.ts";
 import { newId } from "../ids.ts";
+import {
+  ClientMessage,
+  MAX_SUBSCRIBED_DATES,
+  PING,
+  PONG,
+  type SnapshotMessage,
+  type StaffEventMessage,
+} from "../../shared/live-protocol.ts";
+import { isStaff } from "../../shared/roles.ts";
+import {
+  ACTOR_HEADER,
+  type LiveActor,
+  type LiveAttachment,
+  type ReservationChange,
+  attachmentOf,
+  broadcastDelta,
+  broadcastStaff,
+  closeExpired,
+  isExpired,
+  send,
+} from "./live.ts";
 import { FLUSH_BATCH, type FactPayload, flushBackoffMs, projectionStatements } from "./outbox.ts";
 import { DATA_TABLES, META_DEFAULTS, applySchema } from "./schema.ts";
 
@@ -70,6 +91,10 @@ export function toReservation(r: ReservationRow): Reservation {
   };
 }
 
+function changeOf(op: "booked" | "released", r: Reservation, ledgerVersion: number, dateVersion: number): ReservationChange {
+  return { op, date: r.date, dateVersion, ledgerVersion, resourceId: r.resourceId, employeeId: r.employeeId, startMin: r.startMin, endMin: r.endMin };
+}
+
 class BackstopConflict extends Error {
   readonly table: "resource_slots" | "employee_slots";
   constructor(table: "resource_slots" | "employee_slots", message: string) {
@@ -107,6 +132,8 @@ export class SiteLedger extends DurableObject<Env> {
         this.alarmPending = true;
       }
     });
+    // Keepalives are answered without waking a hibernated object.
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING, PONG));
   }
 
   private now(): number {
@@ -251,6 +278,7 @@ export class SiteLedger extends DurableObject<Env> {
     await this.ensureCatalog();
     const hash = await requestHash(input);
     const now = this.now();
+    let replayed = false;
     try {
       const committed = this.ctx.storage.transactionSync((): ReserveResult => {
         // (1) Idempotency: the same key and body replays the stored response.
@@ -259,13 +287,14 @@ export class SiteLedger extends DurableObject<Env> {
           .toArray()[0];
         if (prior) {
           if (prior.request_hash !== hash) return { ok: false, status: 422, error: "idempotency_key_reuse" };
+          replayed = true;
           return JSON.parse(String(prior.response)) as ReserveResult;
         }
         const result = this.reserveInTransaction(actor, input, now);
         this.storeIdempotent(actor.employeeId, idempotencyKey, hash, result, now);
         return result;
       });
-      if (committed.ok) await this.afterCommit();
+      if (committed.ok && !replayed) await this.afterCommit(changeOf("booked", committed.reservation, committed.ledgerVersion, committed.dateVersion));
       return committed;
     } catch (err) {
       if (!(err instanceof BackstopConflict)) throw err;
@@ -386,13 +415,104 @@ export class SiteLedger extends DurableObject<Env> {
       this.enqueueFact(updated, now);
       return { ok: true, status: 200, reservation: toReservation(updated), ledgerVersion: version, dateVersion };
     });
-    if (result.ok) await this.afterCommit();
+    if (result.ok) await this.afterCommit(changeOf("released", result.reservation, result.ledgerVersion, result.dateVersion));
     return result;
   }
 
-  /** Post-commit work for every mutation: schedule the D1 flush. */
-  private async afterCommit(): Promise<void> {
+  /** Post-commit work for every mutation: live delta to that date's subscribers, then the D1 flush. */
+  private async afterCommit(change: ReservationChange): Promise<void> {
+    broadcastDelta(this.ctx.getWebSockets(), change, this.now());
     await this.scheduleFlush();
+  }
+
+  /** WebSocket upgrade only. The Worker authenticated the caller and set the actor header. */
+  async fetch(request: Request): Promise<Response> {
+    if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return new Response("expected a WebSocket upgrade", { status: 426 });
+    let actor: LiveActor;
+    try {
+      actor = JSON.parse(request.headers.get(ACTOR_HEADER) ?? "") as LiveActor;
+    } catch {
+      return new Response("missing actor", { status: 400 });
+    }
+    if (!actor?.employeeId || !actor.role || typeof actor.exp !== "number") return new Response("missing actor", { status: 400 });
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
+    this.ctx.acceptWebSocket(server);
+    const attachment: LiveAttachment = { employeeId: actor.employeeId, role: actor.role, staff: false, exp: actor.exp, dates: [] };
+    server.serializeAttachment(attachment);
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    const att = attachmentOf(ws);
+    if (!att) return;
+    if (isExpired(att, this.now())) {
+      closeExpired(ws);
+      return;
+    }
+    let parsed;
+    try {
+      parsed = ClientMessage.safeParse(JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)));
+    } catch {
+      parsed = null;
+    }
+    if (!parsed?.success) {
+      send(ws, { type: "error", code: "bad_message" });
+      return;
+    }
+    const msg = parsed.data;
+    switch (msg.type) {
+      case "ping":
+        send(ws, { type: "pong" });
+        return;
+      case "subscribe": {
+        if (!att.dates.includes(msg.date)) {
+          if (att.dates.length >= MAX_SUBSCRIBED_DATES) {
+            send(ws, { type: "error", code: "too_many_dates" });
+            return;
+          }
+          att.dates.push(msg.date);
+          ws.serializeAttachment(att);
+        }
+        const snap = await this.availability(msg.date, undefined, att.employeeId);
+        const snapshot: SnapshotMessage = { type: "snapshot", ...snap };
+        send(ws, snapshot);
+        return;
+      }
+      case "unsubscribe":
+        att.dates = att.dates.filter((d) => d !== msg.date);
+        ws.serializeAttachment(att);
+        return;
+      case "subscribe_staff":
+        if (!isStaff(att.role)) {
+          send(ws, { type: "error", code: "forbidden" });
+          return;
+        }
+        att.staff = true;
+        ws.serializeAttachment(att);
+        return;
+    }
+  }
+
+  async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
+    try {
+      ws.close(code === 1005 || code === 1006 ? 1000 : code, reason);
+    } catch {
+      // Already closed.
+    }
+  }
+
+  async webSocketError(ws: WebSocket): Promise<void> {
+    try {
+      ws.close(1011, "error");
+    } catch {
+      // Already closed.
+    }
+  }
+
+  /** Sends a staff event to sockets that subscribed to staff events (called by the Workflow and the sweep). */
+  notifyStaff(event: Omit<StaffEventMessage, "type">): { delivered: number } {
+    return { delivered: broadcastStaff(this.ctx.getWebSockets(), event, this.now()) };
   }
 
   /**

@@ -13,6 +13,7 @@ import { availabilityRoutes } from "./routes/availability.ts";
 import { calendarRoutes } from "./routes/calendar.ts";
 import { devRoutes } from "./routes/dev.ts";
 import { healthRoutes } from "./routes/health.ts";
+import { liveRoutes } from "./routes/live.ts";
 import { meRoutes } from "./routes/me.ts";
 import { reservationRoutes } from "./routes/reservations.ts";
 import { resourceRoutes } from "./routes/resources.ts";
@@ -65,6 +66,7 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
   app.route("/", availabilityRoutes);
   app.route("/", calendarRoutes);
   app.route("/", reservationRoutes);
+  app.route("/", liveRoutes);
   app.route("/", adminRoutes);
 
   app.notFound((c) => {
