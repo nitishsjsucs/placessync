@@ -1,8 +1,8 @@
 {
   "meta": {
-    "gitSha": "3726a4a03ebc83ef9f1dc2b971cf11d3bd92b33a",
+    "gitSha": "a5b243c5abec26d4936d1075e917c8849c44bf82",
     "dirty": false,
-    "timestamp": "2026-10-08T22:31:37.934Z",
+    "timestamp": "2026-10-08T23:05:21.944Z",
     "node": "v25.9.0",
     "wrangler": "4.149.0",
     "os": "Darwin 25.5.0 arm64",
@@ -15,10 +15,10 @@
   },
   "summary": {
     "status": "passed",
-    "tests": 50,
-    "passed": 50,
+    "tests": 53,
+    "passed": 53,
     "failed": 0,
-    "axeScans": 28,
+    "axeScans": 32,
     "axeViolations": 0,
     "overflowChecks": 20,
     "overflowFailures": 0,
@@ -27,7 +27,12 @@
         "test": "chromium > keyboard-booking.spec.ts > book a desk and cancel it using only the keyboard",
         "passed": true
       }
-    ]
+    ],
+    "realtimeLatencyMs": {
+      "bookings": 20,
+      "p50": 12,
+      "p95": 13
+    }
   },
   "attachments": {
     "axe": [
@@ -144,6 +149,24 @@
         "status": "passed",
         "data": {
           "scan": "ui-dialog-open@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > admin Resources tab and staff Today's bookings tab have no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "admin-resources@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > admin Resources tab and staff Today's bookings tab have no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "staff-today@mobile",
           "violations": 0,
           "details": []
         }
@@ -270,6 +293,24 @@
         "status": "passed",
         "data": {
           "scan": "ui-dialog-open@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > admin Resources tab and staff Today's bookings tab have no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "admin-resources@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > admin Resources tab and staff Today's bookings tab have no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "staff-today@tablet",
           "violations": 0,
           "details": []
         }
@@ -537,7 +578,40 @@
         }
       }
     ],
-    "latency": []
+    "latency": [
+      {
+        "test": "chromium > realtime.spec.ts > realtime propagation latency over 20 bookings",
+        "status": "passed",
+        "data": {
+          "bookings": 20,
+          "samplesMs": [
+            12,
+            13,
+            12,
+            12,
+            12,
+            12,
+            13,
+            12,
+            12,
+            13,
+            12,
+            12,
+            13,
+            11,
+            12,
+            12,
+            11,
+            12,
+            11,
+            11
+          ],
+          "p50": 12,
+          "p95": 13,
+          "note": "request start in one context to busy cell visible in another, local Chromium"
+        }
+      }
+    ]
   },
   "outcomes": [
     {
@@ -590,6 +664,10 @@
     },
     {
       "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > gallery with an open Dialog has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > admin Resources tab and staff Today's bookings tab have no axe violations",
       "status": "passed"
     },
     {
@@ -646,6 +724,10 @@
     },
     {
       "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > gallery with an open Dialog has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > admin Resources tab and staff Today's bookings tab have no axe violations",
       "status": "passed"
     },
     {
@@ -738,6 +820,10 @@
     },
     {
       "title": "chromium > realtime.spec.ts > a booking in one browser shows as busy in another",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > realtime.spec.ts > realtime propagation latency over 20 bookings",
       "status": "passed"
     }
   ]

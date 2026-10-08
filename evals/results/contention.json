@@ -1,17 +1,17 @@
 {
   "meta": {
-    "gitSha": "3726a4a03ebc83ef9f1dc2b971cf11d3bd92b33a",
+    "gitSha": "a5b243c5abec26d4936d1075e917c8849c44bf82",
     "dirty": false,
-    "timestamp": "2026-10-08T22:32:22.098Z",
+    "timestamp": "2026-10-08T23:06:11.188Z",
     "node": "v25.9.0",
     "wrangler": "4.149.0",
     "os": "Darwin 25.5.0 arm64",
     "cpu": "Apple M5",
     "seed": 20261008,
     "inputSha256": "4fe23990d3759a75f350c0fd1357ce2e7ed8c085715edef4d35e52075ae444bb",
-    "command": "node scripts/eval-contention.ts --base-url http://localhost:8783 --runs 1 --observers 4 --control naive-d1 --out evals/results/contention.json",
+    "command": "node scripts/eval-contention.ts --base-url http://localhost:8783 --runs 5 --observers 4 --control naive-d1 --out evals/results/contention.json",
     "baseUrl": "http://localhost:8783",
-    "runs": 1,
+    "runs": 5,
     "observers": 4,
     "control": "naive-d1",
     "label": "local workerd via vite preview, single machine"
@@ -42,13 +42,13 @@
       },
       "distinctEmployees": 100,
       "distinctResources": 20,
-      "accepted": 135,
+      "accepted": 133,
       "acceptedPerDate": {
-        "A": 80,
-        "B": 55
+        "A": 77,
+        "B": 56
       },
-      "rejectedResourceConflict": 857,
-      "rejectedEmployeeConflict": 8,
+      "rejectedResourceConflict": 861,
+      "rejectedEmployeeConflict": 6,
       "rejectedValidation": 0,
       "serverErrors": 0,
       "otherStatuses": 0,
@@ -58,20 +58,20 @@
       "phantomAcceptances": 0,
       "lostAcceptances": 0,
       "projectionMismatches": 0,
-      "projectionDrainMs": 6,
+      "projectionDrainMs": 3,
       "observerDeltas": {
         "obs1_A": {
-          "2026-10-12": 80
+          "2026-10-12": 77
         },
         "obs2_A": {
-          "2026-10-12": 80
+          "2026-10-12": 77
         },
         "obs3_B": {
-          "2026-10-13": 55
+          "2026-10-13": 56
         },
         "obs4_AB": {
-          "2026-10-12": 80,
-          "2026-10-13": 55
+          "2026-10-12": 77,
+          "2026-10-13": 56
         }
       },
       "observerDeltaMismatches": 0,
@@ -81,24 +81,269 @@
       "observerErrors": 0,
       "observerFinalStateMismatches": 0,
       "backstopHits": 0,
+      "transportRetries": 59,
       "latencyMs": {
-        "p50": 1125.4,
-        "p95": 2402.7,
-        "p99": 2409.6
+        "p50": 1416.2,
+        "p95": 2548.3,
+        "p99": 2610.2
       },
-      "wallMs": 2421,
-      "throughputRps": 413
+      "wallMs": 2650,
+      "throughputRps": 377.4
+    },
+    {
+      "run": 2,
+      "dates": {
+        "A": "2026-10-12",
+        "B": "2026-10-13"
+      },
+      "attempts": 1000,
+      "attemptsPerDate": {
+        "A": 700,
+        "B": 300
+      },
+      "distinctEmployees": 100,
+      "distinctResources": 20,
+      "accepted": 143,
+      "acceptedPerDate": {
+        "A": 81,
+        "B": 62
+      },
+      "rejectedResourceConflict": 854,
+      "rejectedEmployeeConflict": 3,
+      "rejectedValidation": 0,
+      "serverErrors": 0,
+      "otherStatuses": 0,
+      "overlappingConfirmedPairs": 0,
+      "employeeDoubleBookingPairs": 0,
+      "unjustifiedRejections": 0,
+      "phantomAcceptances": 0,
+      "lostAcceptances": 0,
+      "projectionMismatches": 0,
+      "projectionDrainMs": 3,
+      "observerDeltas": {
+        "obs1_A": {
+          "2026-10-12": 81
+        },
+        "obs2_A": {
+          "2026-10-12": 81
+        },
+        "obs3_B": {
+          "2026-10-13": 62
+        },
+        "obs4_AB": {
+          "2026-10-12": 81,
+          "2026-10-13": 62
+        }
+      },
+      "observerDeltaMismatches": 0,
+      "observerDateVersionGaps": 0,
+      "observerResubscribes": 0,
+      "observerForeignDateMessages": 0,
+      "observerErrors": 0,
+      "observerFinalStateMismatches": 0,
+      "backstopHits": 0,
+      "transportRetries": 0,
+      "latencyMs": {
+        "p50": 2121.5,
+        "p95": 2418.9,
+        "p99": 2479.3
+      },
+      "wallMs": 2518,
+      "throughputRps": 397.1
+    },
+    {
+      "run": 3,
+      "dates": {
+        "A": "2026-10-12",
+        "B": "2026-10-13"
+      },
+      "attempts": 1000,
+      "attemptsPerDate": {
+        "A": 700,
+        "B": 300
+      },
+      "distinctEmployees": 100,
+      "distinctResources": 20,
+      "accepted": 136,
+      "acceptedPerDate": {
+        "A": 78,
+        "B": 58
+      },
+      "rejectedResourceConflict": 858,
+      "rejectedEmployeeConflict": 6,
+      "rejectedValidation": 0,
+      "serverErrors": 0,
+      "otherStatuses": 0,
+      "overlappingConfirmedPairs": 0,
+      "employeeDoubleBookingPairs": 0,
+      "unjustifiedRejections": 0,
+      "phantomAcceptances": 0,
+      "lostAcceptances": 0,
+      "projectionMismatches": 0,
+      "projectionDrainMs": 11,
+      "observerDeltas": {
+        "obs1_A": {
+          "2026-10-12": 78
+        },
+        "obs2_A": {
+          "2026-10-12": 78
+        },
+        "obs3_B": {
+          "2026-10-13": 58
+        },
+        "obs4_AB": {
+          "2026-10-12": 78,
+          "2026-10-13": 58
+        }
+      },
+      "observerDeltaMismatches": 0,
+      "observerDateVersionGaps": 0,
+      "observerResubscribes": 0,
+      "observerForeignDateMessages": 0,
+      "observerErrors": 0,
+      "observerFinalStateMismatches": 0,
+      "backstopHits": 0,
+      "transportRetries": 0,
+      "latencyMs": {
+        "p50": 1253,
+        "p95": 1640.8,
+        "p99": 1641.5
+      },
+      "wallMs": 1664,
+      "throughputRps": 601.1
+    },
+    {
+      "run": 4,
+      "dates": {
+        "A": "2026-10-12",
+        "B": "2026-10-13"
+      },
+      "attempts": 1000,
+      "attemptsPerDate": {
+        "A": 700,
+        "B": 300
+      },
+      "distinctEmployees": 100,
+      "distinctResources": 20,
+      "accepted": 135,
+      "acceptedPerDate": {
+        "A": 79,
+        "B": 56
+      },
+      "rejectedResourceConflict": 858,
+      "rejectedEmployeeConflict": 7,
+      "rejectedValidation": 0,
+      "serverErrors": 0,
+      "otherStatuses": 0,
+      "overlappingConfirmedPairs": 0,
+      "employeeDoubleBookingPairs": 0,
+      "unjustifiedRejections": 0,
+      "phantomAcceptances": 0,
+      "lostAcceptances": 0,
+      "projectionMismatches": 0,
+      "projectionDrainMs": 3,
+      "observerDeltas": {
+        "obs1_A": {
+          "2026-10-12": 79
+        },
+        "obs2_A": {
+          "2026-10-12": 79
+        },
+        "obs3_B": {
+          "2026-10-13": 56
+        },
+        "obs4_AB": {
+          "2026-10-12": 79,
+          "2026-10-13": 56
+        }
+      },
+      "observerDeltaMismatches": 0,
+      "observerDateVersionGaps": 0,
+      "observerResubscribes": 0,
+      "observerForeignDateMessages": 0,
+      "observerErrors": 0,
+      "observerFinalStateMismatches": 0,
+      "backstopHits": 0,
+      "transportRetries": 0,
+      "latencyMs": {
+        "p50": 1537.5,
+        "p95": 1561.8,
+        "p99": 1563.3
+      },
+      "wallMs": 1583,
+      "throughputRps": 631.8
+    },
+    {
+      "run": 5,
+      "dates": {
+        "A": "2026-10-12",
+        "B": "2026-10-13"
+      },
+      "attempts": 1000,
+      "attemptsPerDate": {
+        "A": 700,
+        "B": 300
+      },
+      "distinctEmployees": 100,
+      "distinctResources": 20,
+      "accepted": 140,
+      "acceptedPerDate": {
+        "A": 80,
+        "B": 60
+      },
+      "rejectedResourceConflict": 853,
+      "rejectedEmployeeConflict": 7,
+      "rejectedValidation": 0,
+      "serverErrors": 0,
+      "otherStatuses": 0,
+      "overlappingConfirmedPairs": 0,
+      "employeeDoubleBookingPairs": 0,
+      "unjustifiedRejections": 0,
+      "phantomAcceptances": 0,
+      "lostAcceptances": 0,
+      "projectionMismatches": 0,
+      "projectionDrainMs": 3,
+      "observerDeltas": {
+        "obs1_A": {
+          "2026-10-12": 80
+        },
+        "obs2_A": {
+          "2026-10-12": 80
+        },
+        "obs3_B": {
+          "2026-10-13": 60
+        },
+        "obs4_AB": {
+          "2026-10-12": 80,
+          "2026-10-13": 60
+        }
+      },
+      "observerDeltaMismatches": 0,
+      "observerDateVersionGaps": 0,
+      "observerResubscribes": 0,
+      "observerForeignDateMessages": 0,
+      "observerErrors": 0,
+      "observerFinalStateMismatches": 0,
+      "backstopHits": 0,
+      "transportRetries": 0,
+      "latencyMs": {
+        "p50": 1699.5,
+        "p95": 1736.8,
+        "p99": 1738.2
+      },
+      "wallMs": 1752,
+      "throughputRps": 570.9
     }
   ],
   "summary": {
-    "runs": 1,
+    "runs": 5,
     "overlappingConfirmedPairs": {
       "min": 0,
       "max": 0
     },
     "accepted": {
-      "min": 135,
-      "max": 135
+      "min": 133,
+      "max": 143
     },
     "employeeDoubleBookingPairs": {
       "max": 0
@@ -112,9 +357,10 @@
   },
   "control": {
     "naiveD1": {
-      "accepted": 310,
+      "accepted": 305,
       "serverErrors": 0,
-      "overlappingPairs": 538
+      "transportRetries": 0,
+      "overlappingPairs": 575
     }
   },
   "gates": {
