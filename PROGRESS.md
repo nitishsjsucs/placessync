@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 8 of 32 (SiteLedger reserve, single-flight catalog, slot claims, backstop).
-Next: commit 9 (cancellation, idempotency keys, per-employee rules, per-date versions).
+Last completed commit: 9 of 32 (cancel, idempotency, per-employee slots, per-date versions).
+Next: commit 10 (outbox and alarm projection with failure counter backoff into reservation_facts and utilization view).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 9 (cancellation, idempotency keys, per-employee rules, per-date ver
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (13 files, 140 tests) |
+| `npm test` | pass (14 files, 156 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -26,6 +26,7 @@ Next: commit 9 (cancellation, idempotency keys, per-employee rules, per-date ver
 6. `config.ts` (zod, rejects `SET_ME` and `REPLACE_WITH` placeholders, non-Access hosts, unknown modes), `auth/access-verifier.ts` (jose RS256, iss, aud, exp, 30 s tolerance; `makeVerifierFactory({ fetchImpl })` passes `[customFetch]`), `auth/dev-tokens.ts`, `auth/middleware.ts` (config, same-origin, dev-only, authenticate, requireRole, requireKnownSite), `createApp(deps)` with per-app memoized verifiers, `/api/health`, `/api/me`, `/api/dev/users|login|logout|seed` (seed writes the D1 catalog), `scripts/dev-keys.ts`; `config.test.ts`, `auth.test.ts` (dev and access modes).
 7. `GET /api/sites/:siteId/resources` with kind, floor, all-of amenity, minCapacity and q filters (`src/shared/resource-filter.ts`); `requireKnownSite` on `/api/sites/:siteId/*`; `ledger/ledger-for.ts` as the single `getByName` call site with `test/node/ledger-for-guard.test.ts`; `resources.test.ts` (brute-force oracle), `rbac.test.ts` (matrix grows with each route), unknown-site cases in `auth.test.ts` assert no Durable Object is created.
 8. `src/worker/ledger/schema.ts` (full DO SQLite DDL from SPEC 6.2), `site-ledger.ts` with async `reserve` (single-flight `ensureCatalog`, then one `transactionSync`: rules from the ledger `site` row, overlap SELECT, reservation INSERT, `resource_slots` PK claims; a PK violation rolls everything back and counts `backstop_hits`), `syncCatalog` by `ctx.id.name`, `availability`, `exportDay`, `resetForDev`; the dev seed resets and syncs the ledger; `ledger.reserve.test.ts`, `ledger.transaction.test.ts` (rollback, single-flight with 50 concurrent calls).
+9. Ledger: idempotency by `(employee_id, key)` with a SHA-256 request hash (stored responses replay byte-identical, a different body gives `idempotency_key_reuse`), employee SELECT plus `employee_slots` PK (one desk and one room at a time per employee), `date_versions` bumped with `RETURNING` in the same transaction, `cancel` (owner or admin, confirmed, not started, frees slots); `ledger.cancel.test.ts` and new reserve and rollback cases.
 
 ## Deviations from SPEC.md
 

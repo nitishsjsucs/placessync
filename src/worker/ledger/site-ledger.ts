@@ -7,7 +7,7 @@ import type { BusyInterval, Reservation } from "../../shared/api.ts";
 import type { Issue } from "../../shared/errors.ts";
 import type { Interval } from "../../shared/intervals.ts";
 import type { Role } from "../../shared/roles.ts";
-import { type ReserveInput, type ResourceKind, type SiteRules, validate } from "../../shared/rules.ts";
+import { type ReserveInput, type ResourceKind, type SiteRules, hasStarted, validate } from "../../shared/rules.ts";
 import { slotsFor } from "../../shared/time.ts";
 import { newId } from "../ids.ts";
 import { DATA_TABLES, META_DEFAULTS, applySchema } from "./schema.ts";
@@ -18,10 +18,18 @@ export interface Actor {
 }
 
 export type ReserveResult =
-  | { ok: true; status: 201; reservation: Reservation; ledgerVersion: number }
+  | { ok: true; status: 201; reservation: Reservation; ledgerVersion: number; dateVersion: number }
   | { ok: false; status: 409; error: "resource_conflict"; conflicts: Interval[] }
+  | { ok: false; status: 409; error: "employee_conflict"; conflicts: Interval[] }
   | { ok: false; status: 422; error: "validation"; issues: Issue[] }
+  | { ok: false; status: 422; error: "idempotency_key_reuse" }
   | { ok: false; status: 404; error: "resource_not_found" };
+
+export type CancelResult =
+  | { ok: true; status: 200; reservation: Reservation; ledgerVersion: number; dateVersion: number }
+  | { ok: false; status: 404; error: "reservation_not_found" }
+  | { ok: false; status: 403; error: "not_owner" }
+  | { ok: false; status: 409; error: "not_confirmed" | "already_started" };
 
 interface ReservationRow {
   id: string;
@@ -61,7 +69,22 @@ export function toReservation(r: ReservationRow): Reservation {
   };
 }
 
-class BackstopConflict extends Error {}
+class BackstopConflict extends Error {
+  readonly table: "resource_slots" | "employee_slots";
+  constructor(table: "resource_slots" | "employee_slots", message: string) {
+    super(message);
+    this.table = table;
+  }
+}
+
+/** Canonical request fingerprint for idempotency: same key with a different body is rejected. */
+async function requestHash(input: ReserveInput): Promise<string> {
+  const canonical = JSON.stringify([input.resourceId, input.date, input.startMin, input.endMin, input.attendees ?? 1, input.title ?? null]);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 
 export class SiteLedger extends DurableObject<Env> {
   private readonly sql: SqlStorage;
@@ -96,6 +119,29 @@ export class SiteLedger extends DurableObject<Env> {
       .exec("UPDATE meta SET value = CAST(value AS INTEGER) + 1 WHERE key = 'ledger_version' RETURNING value")
       .one();
     return Number(row.value);
+  }
+
+  /** Bumps the per-date live version (ADR 0007) inside the caller's transaction. */
+  private bumpDateVersion(date: string): number {
+    const row = this.sql
+      .exec("INSERT INTO date_versions (date, version) VALUES (?, 1) ON CONFLICT(date) DO UPDATE SET version = version + 1 RETURNING version", date)
+      .one();
+    return Number(row.version);
+  }
+
+  private dateVersion(date: string): number {
+    return Number(this.sql.exec("SELECT version FROM date_versions WHERE date = ?", date).toArray()[0]?.version ?? 0);
+  }
+
+  private storeIdempotent(employeeId: string, key: string, hash: string, result: ReserveResult, now: number): void {
+    this.sql.exec(
+      "INSERT OR REPLACE INTO idempotency (employee_id, key, request_hash, response, created_at) VALUES (?, ?, ?, ?, ?)",
+      employeeId,
+      key,
+      hash,
+      JSON.stringify(result),
+      now,
+    );
   }
 
   private siteRules(): SiteRules {
@@ -157,67 +203,141 @@ export class SiteLedger extends DurableObject<Env> {
     return { resources: results.length };
   }
 
-  async reserve(actor: Actor, input: ReserveInput, _idempotencyKey: string): Promise<ReserveResult> {
+  async reserve(actor: Actor, input: ReserveInput, idempotencyKey: string): Promise<ReserveResult> {
     await this.ensureCatalog();
+    const hash = await requestHash(input);
     const now = this.now();
     try {
       return this.ctx.storage.transactionSync((): ReserveResult => {
-        const res = this.sql.exec("SELECT id, kind, capacity, active FROM resources WHERE id = ?", input.resourceId).toArray()[0];
-        if (!res) return { ok: false, status: 404, error: "resource_not_found" };
-        const resource = { id: String(res.id), kind: res.kind as ResourceKind, capacity: Number(res.capacity), active: Number(res.active) === 1 };
-        const issues = validate(input, resource, this.siteRules(), now);
-        if (issues.length > 0) return { ok: false, status: 422, error: "validation", issues };
-
-        const conflicts = this.sql
-          .exec(
-            `SELECT start_min AS startMin, end_min AS endMin FROM reservations
-             WHERE resource_id = ? AND date = ? AND status = 'confirmed' AND start_min < ? AND end_min > ?
-             ORDER BY start_min`,
-            input.resourceId,
-            input.date,
-            input.endMin,
-            input.startMin,
-          )
-          .toArray() as unknown as Interval[];
-        if (conflicts.length > 0) return { ok: false, status: 409, error: "resource_conflict", conflicts };
-
-        const version = this.bumpLedgerVersion();
-        const id = newId("rsv", now);
-        const attendees = input.attendees ?? 1;
-        const title = resource.kind === "room" && input.title ? input.title : null;
-        this.sql.exec(
-          `INSERT INTO reservations (id, resource_id, employee_id, kind, date, start_min, end_min, attendees, title, status, created_at, version)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?)`,
-          id,
-          input.resourceId,
-          actor.employeeId,
-          resource.kind,
-          input.date,
-          input.startMin,
-          input.endMin,
-          attendees,
-          title,
-          now,
-          version,
-        );
-        try {
-          for (const slot of slotsFor(input.startMin, input.endMin)) {
-            this.sql.exec("INSERT INTO resource_slots (resource_id, date, slot, reservation_id) VALUES (?, ?, ?, ?)", input.resourceId, input.date, slot, id);
-          }
-        } catch (err) {
-          // The PK backstop (ADR 0002): throwing rolls back the reservation row too.
-          throw new BackstopConflict(err instanceof Error ? err.message : String(err));
+        // (1) Idempotency: the same key and body replays the stored response.
+        const prior = this.sql
+          .exec("SELECT request_hash, response FROM idempotency WHERE employee_id = ? AND key = ?", actor.employeeId, idempotencyKey)
+          .toArray()[0];
+        if (prior) {
+          if (prior.request_hash !== hash) return { ok: false, status: 422, error: "idempotency_key_reuse" };
+          return JSON.parse(String(prior.response)) as ReserveResult;
         }
-        const row = this.sql.exec("SELECT * FROM reservations WHERE id = ?", id).one() as unknown as ReservationRow;
-        return { ok: true, status: 201, reservation: toReservation(row), ledgerVersion: version };
+        const result = this.reserveInTransaction(actor, input, now);
+        this.storeIdempotent(actor.employeeId, idempotencyKey, hash, result, now);
+        return result;
       });
     } catch (err) {
       if (!(err instanceof BackstopConflict)) throw err;
+      // Everything above rolled back. Record the hit and the conflict as the keyed response.
+      const result: ReserveResult = { ok: false, status: 409, error: err.table === "employee_slots" ? "employee_conflict" : "resource_conflict", conflicts: [] };
       this.ctx.storage.transactionSync(() => {
         this.sql.exec("UPDATE meta SET value = CAST(value AS INTEGER) + 1 WHERE key = 'backstop_hits'");
+        this.storeIdempotent(actor.employeeId, idempotencyKey, hash, result, now);
       });
-      return { ok: false, status: 409, error: "resource_conflict", conflicts: [] };
+      return result;
     }
+  }
+
+  /** Steps 2 to 7 of SPEC 7.1; runs inside reserve's transactionSync with no await. */
+  private reserveInTransaction(actor: Actor, input: ReserveInput, now: number): ReserveResult {
+    const res = this.sql.exec("SELECT id, kind, capacity, active FROM resources WHERE id = ?", input.resourceId).toArray()[0];
+    if (!res) return { ok: false, status: 404, error: "resource_not_found" };
+    const resource = { id: String(res.id), kind: res.kind as ResourceKind, capacity: Number(res.capacity), active: Number(res.active) === 1 };
+    const issues = validate(input, resource, this.siteRules(), now);
+    if (issues.length > 0) return { ok: false, status: 422, error: "validation", issues };
+
+    const conflicts = this.sql
+      .exec(
+        `SELECT start_min AS startMin, end_min AS endMin FROM reservations
+         WHERE resource_id = ? AND date = ? AND status = 'confirmed' AND start_min < ? AND end_min > ?
+         ORDER BY start_min`,
+        input.resourceId,
+        input.date,
+        input.endMin,
+        input.startMin,
+      )
+      .toArray() as unknown as Interval[];
+    if (conflicts.length > 0) return { ok: false, status: 409, error: "resource_conflict", conflicts };
+
+    // One desk at a time per employee; one room at a time per organizer (I2, I3).
+    const mine = this.sql
+      .exec(
+        `SELECT start_min AS startMin, end_min AS endMin FROM reservations
+         WHERE employee_id = ? AND kind = ? AND date = ? AND status = 'confirmed' AND start_min < ? AND end_min > ?
+         ORDER BY start_min`,
+        actor.employeeId,
+        resource.kind,
+        input.date,
+        input.endMin,
+        input.startMin,
+      )
+      .toArray() as unknown as Interval[];
+    if (mine.length > 0) return { ok: false, status: 409, error: "employee_conflict", conflicts: mine };
+
+    const version = this.bumpLedgerVersion();
+    const dateVersion = this.bumpDateVersion(input.date);
+    const id = newId("rsv", now);
+    const attendees = input.attendees ?? 1;
+    const title = resource.kind === "room" && input.title ? input.title : null;
+    this.sql.exec(
+      `INSERT INTO reservations (id, resource_id, employee_id, kind, date, start_min, end_min, attendees, title, status, created_at, version)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?)`,
+      id,
+      input.resourceId,
+      actor.employeeId,
+      resource.kind,
+      input.date,
+      input.startMin,
+      input.endMin,
+      attendees,
+      title,
+      now,
+      version,
+    );
+    // The PK backstop (ADR 0002): a duplicate slot throws, which rolls back the
+    // reservation row and both version bumps with it.
+    for (const slot of slotsFor(input.startMin, input.endMin)) {
+      try {
+        this.sql.exec("INSERT INTO resource_slots (resource_id, date, slot, reservation_id) VALUES (?, ?, ?, ?)", input.resourceId, input.date, slot, id);
+      } catch (err) {
+        throw new BackstopConflict("resource_slots", err instanceof Error ? err.message : String(err));
+      }
+      try {
+        this.sql.exec(
+          "INSERT INTO employee_slots (employee_id, kind, date, slot, reservation_id) VALUES (?, ?, ?, ?, ?)",
+          actor.employeeId,
+          resource.kind,
+          input.date,
+          slot,
+          id,
+        );
+      } catch (err) {
+        throw new BackstopConflict("employee_slots", err instanceof Error ? err.message : String(err));
+      }
+    }
+    const row = this.sql.exec("SELECT * FROM reservations WHERE id = ?", id).one() as unknown as ReservationRow;
+    return { ok: true, status: 201, reservation: toReservation(row), ledgerVersion: version, dateVersion };
+  }
+
+  async cancel(actor: Actor, reservationId: string, reason?: string): Promise<CancelResult> {
+    await this.ensureCatalog();
+    const now = this.now();
+    return this.ctx.storage.transactionSync((): CancelResult => {
+      const row = this.sql.exec("SELECT * FROM reservations WHERE id = ?", reservationId).toArray()[0] as unknown as ReservationRow | undefined;
+      if (!row) return { ok: false, status: 404, error: "reservation_not_found" };
+      if (row.employee_id !== actor.employeeId && actor.role !== "facilities_admin") return { ok: false, status: 403, error: "not_owner" };
+      if (row.status !== "confirmed") return { ok: false, status: 409, error: "not_confirmed" };
+      if (hasStarted(row.date, row.start_min, this.siteRules(), now)) return { ok: false, status: 409, error: "already_started" };
+      this.sql.exec("DELETE FROM resource_slots WHERE reservation_id = ?", reservationId);
+      this.sql.exec("DELETE FROM employee_slots WHERE reservation_id = ?", reservationId);
+      const version = this.bumpLedgerVersion();
+      const dateVersion = this.bumpDateVersion(row.date);
+      this.sql.exec(
+        "UPDATE reservations SET status = 'cancelled', cancelled_at = ?, cancelled_by = ?, cancel_reason = ?, version = ? WHERE id = ?",
+        now,
+        actor.employeeId,
+        reason?.slice(0, 200) ?? null,
+        version,
+        reservationId,
+      );
+      const updated = this.sql.exec("SELECT * FROM reservations WHERE id = ?", reservationId).one() as unknown as ReservationRow;
+      return { ok: true, status: 200, reservation: toReservation(updated), ledgerVersion: version, dateVersion };
+    });
   }
 
   /** Read-only busy intervals per resource for one date. */
@@ -233,7 +353,7 @@ export class SiteLedger extends DurableObject<Env> {
       const list = busy[String(r.resource_id)];
       if (list) list.push({ startMin: Number(r.start_min), endMin: Number(r.end_min), mine: viewerId !== undefined && r.employee_id === viewerId });
     }
-    return { date, ledgerVersion: Number(this.meta("ledger_version")), busy };
+    return { date, dateVersion: this.dateVersion(date), ledgerVersion: Number(this.meta("ledger_version")), busy };
   }
 
   /** Admin and eval: every confirmed reservation on a date. */
@@ -249,6 +369,12 @@ export class SiteLedger extends DurableObject<Env> {
       ledgerVersion: Number(this.meta("ledger_version")),
       backstopHits: Number(this.meta("backstop_hits")),
     };
+  }
+
+  dateVersions(): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const r of this.sql.exec("SELECT date, version FROM date_versions ORDER BY date").toArray()) out[String(r.date)] = Number(r.version);
+    return out;
   }
 
   /** Dev seed only: drops all ledger data, keeps the schema. */

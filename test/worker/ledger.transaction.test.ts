@@ -18,7 +18,9 @@ describe("transactional slot claims (SPEC 7.1, ADR 0002)", () => {
     const date = bizDay(2);
     const stub = hqLedger();
     await stub.syncCatalog();
+    await stub.reserve({ employeeId: "emp_002", role: "employee" }, { resourceId: "res_2a02", date, startMin: 540, endMin: 600 }, "backstop-0");
     const before = await stub.ledgerStats();
+    const versionsBefore = await stub.dateVersions();
     // A stray slot claim with no reservation: the overlap SELECT sees nothing, so only
     // the PRIMARY KEY can stop the booking.
     await runInDurableObject(stub, (_i: SiteLedger, state) => {
@@ -29,11 +31,14 @@ describe("transactional slot claims (SPEC 7.1, ADR 0002)", () => {
     const after = await stub.ledgerStats();
     expect(after.ledgerVersion).toBe(before.ledgerVersion);
     expect(after.backstopHits).toBe(before.backstopHits + 1);
+    expect(await stub.dateVersions()).toEqual(versionsBefore);
     const counts = await runInDurableObject(stub, (_i: SiteLedger, state) => ({
       reservations: state.storage.sql.exec("SELECT COUNT(*) AS n FROM reservations").one().n,
       slots: state.storage.sql.exec("SELECT COUNT(*) AS n FROM resource_slots").one().n,
+      employeeSlots: state.storage.sql.exec("SELECT COUNT(*) AS n FROM employee_slots").one().n,
     }));
-    expect(counts).toEqual({ reservations: 0, slots: 1 });
+    // Only the earlier res_2a02 booking (4 slots) and the stray row remain.
+    expect(counts).toEqual({ reservations: 1, slots: 5, employeeSlots: 4 });
   });
 
   it("claims one resource slot per 15 minutes", async () => {

@@ -97,4 +97,74 @@ describe("SiteLedger.reserve", () => {
     const rows = await hqLedger().exportDay(date);
     expect(rows.map((r) => r.resourceId)).toEqual(["res_2a01", "res_alder"]);
   });
+
+  it("rejects a second desk for the same employee at an overlapping time", async () => {
+    const date = bizDay(2);
+    await hqLedger().reserve(emp, { resourceId: "res_2a01", date, startMin: 540, endMin: 660 }, k());
+    const r = await hqLedger().reserve(emp, { resourceId: "res_2a02", date, startMin: 600, endMin: 720 }, k());
+    expect(r).toEqual({ ok: false, status: 409, error: "employee_conflict", conflicts: [{ startMin: 540, endMin: 660 }] });
+  });
+
+  it("rejects a second room for the same organizer at an overlapping time", async () => {
+    const date = bizDay(2);
+    await hqLedger().reserve(emp, { resourceId: "res_redwood", date, startMin: 540, endMin: 600 }, k());
+    const r = await hqLedger().reserve(emp, { resourceId: "res_juniper", date, startMin: 570, endMin: 630 }, k());
+    expect(r).toMatchObject({ ok: false, status: 409, error: "employee_conflict" });
+  });
+
+  it("allows a desk and a room to overlap for the same employee", async () => {
+    const date = bizDay(2);
+    const desk = await hqLedger().reserve(emp, { resourceId: "res_2a01", date, startMin: 540, endMin: 720 }, k());
+    const room = await hqLedger().reserve(emp, { resourceId: "res_redwood", date, startMin: 600, endMin: 660 }, k());
+    expect([desk.ok, room.ok]).toEqual([true, true]);
+  });
+
+  it("replays an idempotent request with the identical body and no new row", async () => {
+    const date = bizDay(2);
+    const input = { resourceId: "res_2a03", date, startMin: 540, endMin: 660 };
+    const first = await hqLedger().reserve(emp, input, "same-key-1");
+    const second = await hqLedger().reserve(emp, input, "same-key-1");
+    expect(second).toEqual(first);
+    expect(await hqLedger().exportDay(date)).toHaveLength(1);
+    expect((await hqLedger().ledgerStats()).ledgerVersion).toBe(1);
+  });
+
+  it("replays a stored conflict for the same key", async () => {
+    const date = bizDay(2);
+    await hqLedger().reserve(emp2, { resourceId: "res_2a03", date, startMin: 540, endMin: 660 }, k());
+    const input = { resourceId: "res_2a03", date, startMin: 600, endMin: 660 };
+    const first = await hqLedger().reserve(emp, input, "conflict-key");
+    expect(first).toMatchObject({ error: "resource_conflict" });
+    expect(await hqLedger().reserve(emp, input, "conflict-key")).toEqual(first);
+  });
+
+  it("rejects the same key with a different body as idempotency_key_reuse", async () => {
+    const date = bizDay(2);
+    await hqLedger().reserve(emp, { resourceId: "res_2a03", date, startMin: 540, endMin: 660 }, "reuse-key");
+    const r = await hqLedger().reserve(emp, { resourceId: "res_2a03", date, startMin: 720, endMin: 780 }, "reuse-key");
+    expect(r).toEqual({ ok: false, status: 422, error: "idempotency_key_reuse" });
+  });
+
+  it("scopes idempotency keys per employee", async () => {
+    const date = bizDay(2);
+    const a = await hqLedger().reserve(emp, { resourceId: "res_2a03", date, startMin: 540, endMin: 660 }, "shared-key");
+    const b = await hqLedger().reserve(emp2, { resourceId: "res_2a04", date, startMin: 540, endMin: 660 }, "shared-key");
+    expect([a.ok, b.ok]).toEqual([true, true]);
+  });
+
+  it("bumps the per-date version only for the booked date", async () => {
+    const a = bizDay(2);
+    const b = bizDay(3);
+    const r1 = await hqLedger().reserve(emp, { resourceId: "res_2a01", date: a, startMin: 540, endMin: 660 }, k());
+    const r2 = await hqLedger().reserve(emp2, { resourceId: "res_2a02", date: a, startMin: 540, endMin: 660 }, k());
+    const r3 = await hqLedger().reserve(emp, { resourceId: "res_2a01", date: b, startMin: 540, endMin: 660 }, k());
+    expect([r1, r2, r3].map((r) => (r.ok ? [r.ledgerVersion, r.dateVersion] : null))).toEqual([
+      [1, 1],
+      [2, 2],
+      [3, 1],
+    ]);
+    expect(await hqLedger().dateVersions()).toEqual({ [a]: 2, [b]: 1 });
+    expect((await hqLedger().availability(bizDay(4))).dateVersion).toBe(0);
+  });
 });
+

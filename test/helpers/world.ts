@@ -57,3 +57,16 @@ export function hqLedger() {
 export function bizDay(n: number): string {
   return addBusinessDays(siteToday(TZ, Date.now()), n);
 }
+
+import { siteClock } from "../../src/shared/time.ts";
+
+/** The UTC instant at which the site-local clock reads (date, minutes). */
+export function siteInstant(date: string, minutes: number): number {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  for (let off = -14 * 60; off <= 14 * 60; off += 15) {
+    const ms = Date.UTC(y, m - 1, d) + (minutes - off) * 60_000;
+    const c = siteClock(TZ, ms);
+    if (c.date === date && c.minutes === minutes) return ms;
+  }
+  throw new Error(`no instant for ${date} ${minutes}`);
+}
