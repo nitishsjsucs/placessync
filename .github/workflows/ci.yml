@@ -1,0 +1,22 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # render-results ancestry check (SPEC 12.3)
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run types:check # --env-file .dev.vars.example; no .dev.vars exists in CI
+      - run: npm run typecheck
+      - run: npm test # worker, worker-ws, ui, node
+      - run: npm run build
