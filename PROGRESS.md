@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 27 of 32 (README, CONTEXT.md, ADRs 0001 to 0008, local-vs-production matrix).
-Next: commit 28 (docs: results from local eval runs, from a clean tree: contention, triage with Qwen3-1.7B and the keyword stub, e2e; then npm run results).
+Last completed commit: 28 of 32 (docs: results from local eval runs). **Tier 1 (SPEC 19.1) is complete.**
+Next: commit 29, Tier 2 (history import with `importHistory`, hourly occupancy and daily summary in the admin dashboard), then 30 to 32.
 
 ## Status at the last commit
 
@@ -13,7 +13,9 @@ Next: commit 28 (docs: results from local eval runs, from a clean tree: contenti
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (53 files, 467 tests) |
+| `npm test` | pass (53 files, 466 tests) |
+| `npm run test:e2e` | pass (50 of 50), run from a clean tree at `3726a4a` for commit 28 |
+| Evals | contention (1 run, 4 observers, naive control) and triage (Qwen3-1.7B and keyword stub) run from a clean tree at `3726a4a`; all contention gates passed |
 | `npm run build` | pass |
 
 ## Done
@@ -45,6 +47,19 @@ Next: commit 28 (docs: results from local eval runs, from a clean tree: contenti
 25. `UiGalleryPage` (all 8 components in their states), Playwright 1.63.0 config against `npm run preview` on 8783 with `reuseExistingServer`, `e2e/global-setup.ts` (migrate local D1, seed), `a11y.spec.ts` (axe with wcag2a, wcag2aa, wcag21aa, wcag22aa on every page, the login page, the gallery with an open Combobox and an open Dialog, and the booking Dialog, at 375x812 and 768x1024; any violation fails; no exclusions), `mobile-layout.spec.ts` (no horizontal scroll, 44x44 primary controls), `keyboard-booking.spec.ts` (book and cancel by keyboard only), `realtime.spec.ts` (two contexts, live busy cell), `e2e/results-reporter.ts` writing `evals/results/e2e.json` with the run meta (`scripts/lib/meta.ts`); CI `e2e` job (the contention eval step is added with the eval script in commit 26). `playwright-core@1.63.0` is pinned as a dev dependency so `@axe-core/playwright` shares Playwright's copy. Scroll wrappers are `position: relative` so visually hidden headers cannot widen the page.
 26. `scripts/eval-contention.ts` (SPEC 13.1: seed, 100 tokens, 2 or 4 observers on dates A and B, 1,000 concurrent POSTs with the production header, quiet wait, ledger export, outbox drain and D1 parity, every gate, naive D1 control; exit 1 on any violation), `scripts/eval-triage.ts` (classifier mode; llama-server pre-flight through /props, /apply-template and /tokenize; up to 3 attempts then keyword fallback; context overflow fails the run; keyword baseline in every file; model path stored as a basename), `scripts/render-results.ts` (only git-tracked results; refuses dirty trees and non-ancestor SHAs), `scripts/lib/eval-math.ts`, `scripts/seed-local.ts`, `scripts/export-catalog-sql.ts` (requires --admin-email), `evals/README.md`, `evals/triage-labeling-guide.md`, `evals/data/triage-hard.jsonl` (40 items, AI-assisted, labeled per the guide); CI e2e job runs the contention eval after e2e; `eval-math.test.ts`, `readme-results.test.ts` (refusals; the README equality check lands with the README), `triage-hard-set.test.ts`. Dev runs of both evals passed their gates locally; those runs were on a dirty tree and are not results.
 27. `README.md` (what it does, architecture, the local-versus-production matrix from SPEC 16 with the 8,192-token slot noted, what is simulated, how to run, tests, evals, a generated Results block between markers, deploy steps, known gaps), `CONTEXT.md` glossary, `docs/adr/0001` to `0008`, `design/FIGMA.md` placeholder; `readme-results.test.ts` now also asserts the README block equals the rendered output of the committed results.
+
+28. `evals/results/contention.json`, `triage-qwen3-1.7b.json`, `triage-keyword.json`, `e2e.json` produced from a clean tree at `3726a4a` and rendered into the README by `npm run results` (the README test passes against them).
+
+## How the commit-28 results were produced (repeat after any change)
+
+1. Clean tree (`git status --porcelain --untracked-files=no` empty); delete any untracked `evals/results/*.json`.
+2. `npm run build`, `npm run db:migrate:local`, start `npx vite preview --port 8783 --strictPort` in the background.
+3. `npx playwright test` (reuses the running server; writes `evals/results/e2e.json`).
+4. `node scripts/eval-contention.ts --base-url http://localhost:8783 --runs 1 --observers 4 --control naive-d1 --out evals/results/contention.json`.
+5. Stop the preview. Start `llama-server -m ~/Developer/projects/_models/Qwen3-1.7B-Q4_0-rtn.gguf --host 127.0.0.1 --port 8130 --reasoning off -c 8192 -np 1 -ngl 99`; run `node scripts/eval-triage.ts --provider openai-compat --base-url http://127.0.0.1:8130/v1 --model qwen3-1.7b --set all --out evals/results/triage-qwen3-1.7b.json` (about 3 minutes); stop llama-server; run `node scripts/eval-triage.ts --provider stub --set all --out evals/results/triage-keyword.json`.
+6. `git add evals/results/*.json && npm run results`, run `npm test`, commit the JSON and README together.
+
+Any later code commit makes the README block's commit an ancestor, which is still accepted; re-run the evals when the code they measure changes.
 
 ## Deviations from SPEC.md
 
