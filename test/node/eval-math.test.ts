@@ -53,5 +53,8 @@ describe("run meta dirty flag", () => {
     expect(dirtyPaths(" M evals/results/contention.json\n M evals/results/e2e.json\n")).toEqual([]);
     expect(dirtyPaths(" M scripts/eval-contention.ts\n M evals/results/e2e.json\n")).toEqual(["scripts/eval-contention.ts"]);
     expect(dirtyPaths("M  src/worker/app.ts\n")).toEqual(["src/worker/app.ts"]);
+    // git output trimmed by the caller loses the first line's leading space.
+    expect(dirtyPaths("M evals/results/e2e.json\n M evals/results/contention.json")).toEqual([]);
+    expect(dirtyPaths("R  old.ts -> evals/results/x.json")).toEqual([]);
   });
 });

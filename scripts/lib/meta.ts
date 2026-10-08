@@ -35,7 +35,8 @@ export function dirtyPaths(porcelain: string): string[] {
   return porcelain
     .split("\n")
     .filter((l) => l.trim().length > 0)
-    .map((l) => l.slice(3).trim())
+    // "XY path" (or "X path" when the caller trimmed the first line); renames keep the new path.
+    .map((l) => l.replace(/^[ MADRCUT?!]{1,2}\s+/, "").replace(/^.* -> /, "").trim())
     .filter((p) => !p.startsWith("evals/results/"));
 }
 
