@@ -12,7 +12,7 @@
     "moduleResolution": "bundler",
     "target": "es2024",
     "skipLibCheck": true,
-    "lib": ["es2024"],
+    "lib": ["es2024", "DOM"],
     "types": ["node"]
   },
   "include": ["scripts", "e2e", "test/node", "src/shared", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"]

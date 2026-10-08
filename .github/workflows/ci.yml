@@ -20,3 +20,36 @@ jobs:
       - run: npm run typecheck
       - run: npm test # worker, worker-ws, ui, node
       - run: npm run build
+
+  e2e:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run setup:dev # writes .dev.vars BEFORE build (vite build copies it into dist)
+      - run: npm run build
+      - run: npm run db:migrate:local
+      - name: Start preview server in the background
+        run: |
+          nohup npm run preview > preview.log 2>&1 &
+          echo $! > preview.pid
+          curl --silent --fail --retry-connrefused --retry 60 --retry-delay 1 http://localhost:8783/api/health
+      - run: npm run test:e2e # webServer.reuseExistingServer: true, so Playwright uses this server and does not stop it
+      - if: always()
+        run: kill "$(cat preview.pid)" 2>/dev/null; pkill -f "vite preview" || true # npm does not always forward the signal to vite
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-and-eval
+          path: |
+            playwright-report/
+            evals/results/e2e.json
+            preview.log

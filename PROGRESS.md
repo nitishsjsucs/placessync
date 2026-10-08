@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 24 of 32 (staff and admin dashboards).
-Next: commit 25 (e2e: mobile layout, keyboard booking, axe gate and realtime specs with results reporter; CI e2e job; also the /ui gallery).
+Last completed commit: 25 of 32 (e2e specs, results reporter, CI e2e job, /ui gallery).
+Next: commit 26 (contention and classifier triage eval scripts with llama-server pre-flight and guarded results rendering).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 25 (e2e: mobile layout, keyboard booking, axe gate and realtime spe
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (50 files, 451 tests) |
+| `npm test` | pass (50 files, 451 tests); e2e: 50 of 50 passed locally (dirty tree, not a result) |
 | `npm run build` | pass |
 
 ## Done
@@ -42,6 +42,7 @@ Next: commit 25 (e2e: mobile layout, keyboard booking, axe gate and realtime spe
 22. `ResourcePage` (details, week SlotGrid with the 7 days as rows, past and closed days disabled, live overlay for the week's weekdays, previous and next week, DateGrid jump, booking through `BookingDialog`), `MyBookingsPage` (Upcoming, Past and Cancelled tabs over DataTable, cancel Dialog with an optional reason, row moves tabs, announcement); `vite.config.ts` pins preview and dev to 8783 and the Workers inspector to 9233; `resource-calendar.test.tsx`, `my-bookings.test.tsx`. Manual smoke on `vite preview` (port 8783): seed, dev login, Find a space, book a desk, live cell turned "your booking".
 23. `ReportIssuePage` (TextFields with counters, optional space Combobox and location note, client validation with the shared zod schema, an error summary that takes focus and links to fields, server 422 mapped to fields, navigates to the new request with a started or pending message), `MyRequestsPage` (Open and Closed tabs, status, suggestion with provider label, final category), `RequestDetailPage` (details, suggestion, timeline in order, reporter cancel); `requests-ui.ts` labels; `report-issue.test.tsx`, `my-requests.test.tsx`. The timeline was listed as Tier 2 in SPEC 19.1 but its test is in the Tier 1 page test list (12.2), so it is built now.
 24. `StaffDashboardPage` (Triage queue with suggestion, confidence and provider label, Accept and Reassign for suggested rows, only Categorize for pending and unavailable rows, review Dialog with a category Combobox, 409 shows "Already reviewed" and refreshes, In progress and Resolved tabs with Start work and Resolve, live `staff_event`s through `useStaffEvents`), `AdminDashboardPage` (date range, utilization table with a CSS bar column, agreement per provider labelled "<provider label> agreement", median minutes to review, requests by category and status); report zod schemas in `src/shared/api.ts`; `staff-dashboard.test.tsx`, `admin-dashboard.test.tsx`. Today's bookings tab, hourly occupancy and resource admin are Tier 2 and not built.
+25. `UiGalleryPage` (all 8 components in their states), Playwright 1.63.0 config against `npm run preview` on 8783 with `reuseExistingServer`, `e2e/global-setup.ts` (migrate local D1, seed), `a11y.spec.ts` (axe with wcag2a, wcag2aa, wcag21aa, wcag22aa on every page, the login page, the gallery with an open Combobox and an open Dialog, and the booking Dialog, at 375x812 and 768x1024; any violation fails; no exclusions), `mobile-layout.spec.ts` (no horizontal scroll, 44x44 primary controls), `keyboard-booking.spec.ts` (book and cancel by keyboard only), `realtime.spec.ts` (two contexts, live busy cell), `e2e/results-reporter.ts` writing `evals/results/e2e.json` with the run meta (`scripts/lib/meta.ts`); CI `e2e` job (the contention eval step is added with the eval script in commit 26). `playwright-core@1.63.0` is pinned as a dev dependency so `@axe-core/playwright` shares Playwright's copy. Scroll wrappers are `position: relative` so visually hidden headers cannot widen the page.
 
 ## Deviations from SPEC.md
 
