@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 13 of 32 (contention generator, runtime contention test, naive control).
-Next: commit 14 (triage categories, provider labels, LLM provider interface, stub, OpenAI-compatible and Workers AI providers).
+Last completed commit: 14 of 32 (triage categories, labels, provider interface and providers).
+Next: commit 15 (TriageWorkflow, facilities request API with pending triage, conditional staff review).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 14 (triage categories, provider labels, LLM provider interface, stu
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (23 files, 246 tests) |
+| `npm test` | pass (26 files, 267 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -31,6 +31,7 @@ Next: commit 14 (triage categories, provider labels, LLM provider interface, stu
 11. `GET /api/sites/:siteId/availability` (filters, busy with `mine`, free windows, fit for an optional from/to window; `version` is the date version), `GET /api/resources/:id/calendar` (7 days from a Monday, ids only for the viewer's own bookings), `POST /api/reservations` (Idempotency-Key 8 to 64 chars, D1 resource lookup before the ledger), `GET /api/reservations` (admin-only `employeeId`), `POST /api/reservations/:id/cancel`; ledger `reservationsFor` and `calendar`; `availability.test.ts` (oracle filters, 200 random ledgers vs a brute-force slot scan), `calendar.test.ts`, `reservations.api.test.ts`.
 12. `src/shared/live-protocol.ts` (zod client and server messages), `ledger/live.ts` (attachment with employeeId, role, staff, exp, dates; expiry check before every send; deltas only to that date's subscribers), SiteLedger `fetch` upgrade with hibernatable `acceptWebSocket`, ping auto-response, `webSocketMessage` (subscribe with snapshot, unsubscribe, subscribe_staff, 14-date cap, 4001 on expiry), `notifyStaff`; `GET /api/sites/:siteId/live` builds a fresh Request with the actor header and rewraps the 101 so middleware can add headers; `test/ws/live.test.ts` (cross-date, hibernation, expiry) and `test/ws/staff-events.test.ts` in the `worker-ws` project.
 13. `src/shared/synthetic/contention.ts`: exactly 1,000 attempts (700 on date A, 300 on date B), Zipf (s = 1.1) resource choice, peak windows, `contentionStats` (generator test asserts `contestedAttempts >= 900` and that every attempt passes the rules; hash pinned); dev-only naive read-then-write D1 control (`/api/dev/naive/reset|reserve|export`, table created on reset, in no migration); `contention.test.ts` (1,000 concurrent requests through the Worker: 0 overlaps, 0 employee double bookings, no phantom or lost acceptances, no unjustified 409s, date versions equal 201 counts, D1 equals the ledger, 0 backstop hits) and `overlap-detector.test.ts` (planted overlaps, adjacency, naive control overlaps > 0).
+14. `src/shared/triage/`: JSON Schema and zod output parser (clamped confidence, rationale truncated to 160), keyword classifier, system prompt with 8 few-shots from the disjoint pool, `classifyRequest`, provider labels ("AI" only for workers-ai), providers (`StubProvider`, `OpenAiCompatProvider` with `context_overflow` mapping, `WorkersAiProvider` over an Ai-shaped object); `src/worker/triage/provider-factory.ts` (workers-ai without `AI` is misconfigured, and `/api/health` uses it); `triage.categories|classify|providers.test.ts`.
 
 ## Deviations from SPEC.md
 
