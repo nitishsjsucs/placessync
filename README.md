@@ -219,7 +219,6 @@ Nothing has been deployed from this repository. The steps, for an account holder
 - **Single ledger per site** is a throughput ceiling by design (ADR 0001); v1 has one site.
 - **Role changes** take effect on open WebSockets no later than token expiry (8 hours for dev tokens; the Access session length in production); v1 has no role-change API.
 - **Rate limiting** is not implemented (a production follow-up using the Workers rate limiting binding).
-- Not built in v1 (Tier 2 in SPEC 19): the workflow-mode triage eval, realtime latency measurement, and five-run contention evals.
 
 ## License
 

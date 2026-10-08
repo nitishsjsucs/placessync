@@ -31,11 +31,13 @@ const { values: args } = parseArgs({
     set: { type: "string", default: "all" },
     out: { type: "string" },
     mode: { type: "string", default: "classifier" },
+    "app-url": { type: "string", default: "http://localhost:8783" },
+    n: { type: "string", default: "20" },
   },
 });
 
-if (args.mode !== "classifier") {
-  console.error("Only --mode classifier is implemented in v1 (workflow mode is Tier 2).");
+if (args.mode !== "classifier" && args.mode !== "workflow") {
+  console.error("--mode must be classifier or workflow");
   process.exit(2);
 }
 
@@ -70,6 +72,10 @@ const allItems = Object.values(sets).flat();
 const server = String(args["base-url"]).replace(/\/v1\/?$/, "");
 
 async function preflight(provider: OpenAiCompatProvider) {
+  return preflightFor(provider, allItems);
+}
+
+async function preflightFor(provider: OpenAiCompatProvider, items: readonly Item[]) {
   const props = (await (await fetch(`${server}/props`)).json()) as {
     default_generation_settings?: { n_ctx?: number };
     total_slots?: number;
@@ -79,7 +85,7 @@ async function preflight(provider: OpenAiCompatProvider) {
   const totalSlots = props.total_slots ?? 1;
   if (!nCtx) throw new Error("pre-flight: /props has no default_generation_settings.n_ctx");
   const counts: number[] = [];
-  for (const item of allItems) {
+  for (const item of items) {
     const body = provider.body({ ...triageRequest(item), maxTokens: MAX_TOKENS });
     const tmpl = (await (await fetch(`${server}/apply-template`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ messages: body.messages, chat_template_kwargs: body.chat_template_kwargs }) })).json()) as { prompt?: string };
     if (typeof tmpl.prompt !== "string") throw new Error("pre-flight: /apply-template returned no prompt");
@@ -182,6 +188,71 @@ function keywordBaseline() {
   }
   return out;
 }
+
+// ---------- workflow mode (Tier 2) ----------
+//   node scripts/eval-triage.ts --mode workflow --app-url http://localhost:8783 --n 20 \
+//     --base-url http://127.0.0.1:8130/v1 --out evals/results/triage-workflow-local.json
+// Submits N requests through the API of a local server built with
+// TRIAGE_PROVIDER=openai-compat, waits for each to reach awaiting_review, and reports how
+// many did, which provider produced each suggestion, and end-to-end latency.
+
+async function workflowMode(): Promise<never> {
+  const app = String(args["app-url"]).replace(/\/$/, "");
+  const n = Number(args.n);
+  const items = generateLabeledRequests(SEED).slice(0, n).map((r) => ({ id: r.id, category: r.category, title: r.title, description: r.description, locationNote: r.locationNote }));
+  const meta = runMeta({ seed: SEED, input: items, extra: { command: `node scripts/eval-triage.ts ${process.argv.slice(2).join(" ")}`, mode: "workflow", appUrl: app } });
+  const llm = await preflightFor(new OpenAiCompatProvider(String(args["base-url"]), String(args.model)), items);
+  const health = (await (await fetch(`${app}/api/health`)).json()) as { triage: string };
+  const seeded = await fetch(`${app}/api/dev/seed`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reset: true }) });
+  if (!seeded.ok) throw new Error(`seed failed: ${seeded.status}`);
+  const login = (await (await fetch(`${app}/api/dev/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ employeeId: "emp_001" }) })).json()) as { token: string };
+  const headers = { "content-type": "application/json", "Cf-Access-Jwt-Assertion": login.token };
+  const outcomes: { id: string; truth: string; requestId: string; reached: boolean; provider: string | null; category: string | null; latencyMs: number }[] = [];
+  for (const item of items) {
+    const t0 = performance.now();
+    const res = await fetch(`${app}/api/requests`, { method: "POST", headers, body: JSON.stringify({ siteId: "hq", title: item.title, description: item.description, locationNote: item.locationNote }) });
+    const created = (await res.json()) as { request: { id: string } };
+    let reached = false;
+    let suggestion: { provider: string; category: string } | null = null;
+    const deadline = Date.now() + 120_000;
+    while (Date.now() < deadline) {
+      const d = (await (await fetch(`${app}/api/requests/${created.request.id}`, { headers })).json()) as { request: { status: string }; suggestion: { provider: string; category: string } | null };
+      if (d.request.status === "awaiting_review" && d.suggestion) {
+        reached = true;
+        suggestion = d.suggestion;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    outcomes.push({ id: item.id, truth: item.category, requestId: created.request.id, reached, provider: suggestion?.provider ?? null, category: suggestion?.category ?? null, latencyMs: performance.now() - t0 });
+    console.log(`${outcomes.length} / ${n}: ${reached ? `${suggestion?.provider} ${suggestion?.category}` : "did not reach review"}`);
+  }
+  const reachedReview = outcomes.filter((o) => o.reached).length;
+  const providerCounts: Record<string, number> = {};
+  for (const o of outcomes) if (o.provider) providerCounts[o.provider] = (providerCounts[o.provider] ?? 0) + 1;
+  const categoryInEnum = outcomes.filter((o) => o.category && (CATEGORIES as readonly string[]).includes(o.category)).length;
+  const latencies = outcomes.filter((o) => o.reached).map((o) => o.latencyMs);
+  const result = {
+    meta: { ...meta, llm, appTriage: health.triage },
+    mode: "workflow",
+    n,
+    reachedReview,
+    providerCounts,
+    categoryInEnum,
+    agreementWithLabel: round(outcomes.filter((o) => o.category === o.truth).length / n),
+    endToEndLatencyMs: { p50: round(percentile(latencies, 50), 1), p95: round(percentile(latencies, 95), 1) },
+    gates: { passed: reachedReview === n && categoryInEnum === n },
+    items: outcomes,
+  };
+  const out = path.join(ROOT, String(args.out ?? "evals/results/triage-workflow-local.json"));
+  mkdirSync(path.dirname(out), { recursive: true });
+  writeFileSync(out, `${JSON.stringify(result, null, 2)}\n`);
+  console.log(JSON.stringify({ reachedReview, providerCounts, categoryInEnum, endToEndLatencyMs: result.endToEndLatencyMs }, null, 2));
+  console.log(`wrote ${path.relative(ROOT, out)}${meta.dirty ? " (dirty tree: npm run results will refuse it)" : ""}`);
+  process.exit(result.gates.passed ? 0 : 1);
+}
+
+if (args.mode === "workflow") await workflowMode();
 
 // ---------- main ----------
 

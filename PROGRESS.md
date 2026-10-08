@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 31 of 32 (Tier 2: DataTable sorting; the request timeline was already built in 23).
-Next: commit 32 (Tier 2: workflow-mode triage eval, realtime propagation latency over 20 bookings, 5-run contention eval), then a fresh docs: results commit.
+Last completed commit: 32 of 32, code part (workflow-mode triage eval, realtime latency, 5-run contention support). The fresh results commit follows.
+Next: a fresh docs: results commit from a clean tree (5-run contention, Qwen3 and keyword triage, workflow-mode triage, e2e with latency).
 
 ## Status at the last commit
 
@@ -63,6 +63,7 @@ Any later code commit makes the README block's commit an ancestor, which is stil
 29. Tier 2: `src/shared/synthetic/history.ts` (`generateHistory`, 20 business days before siteToday, invariant-respecting, about 5% cancelled, hash pinned at `HISTORY_PIN_DATE`), ledger `importHistory` (same rules except the past, same overlap and slot-claim transaction through a shared `commitReservation`, outbox facts), `/api/dev/seed { history: true }` and `seed:local -- --history`, the utilization report adds `daily` from `v_daily_booking_summary`, the admin dashboard shows hourly occupancy averages (CSS bars) and bookings per day; `history.test.ts`, new synthetic, report and admin page cases. The admin a11y and layout e2e checks pass after the change.
 30. Tier 2: `PATCH /api/admin/resources/:id` (active, capacity for rooms, description; updates D1 then `syncCatalog`), admins can list inactive resources (`includeInactive=1`), `GET /api/staff/bookings?date` (the day's bookings with employee and resource names), an admin Resources tab (activate, deactivate, edit in a Dialog) and a staff "Today's bookings" tab; `admin-resources.test.ts`, RBAC rows, UI cases, and an e2e axe scan of both new tabs at both viewports (passing).
 31. Tier 2: DataTable sorting (`sortValue` per column; header buttons with `aria-sort` on wide screens; a native "Sort by" select in the stacked layout under 640 px so no focusable control hides in the clipped header row), sortable columns on My bookings, the staff queue and admin utilization; sorting tests (aria-sort, keyboard, compact select with axe); e2e a11y and layout re-checked on the affected pages.
+32. Tier 2: `eval-triage.ts --mode workflow` (submits N requests through the API of a server built with `TRIAGE_PROVIDER=openai-compat`, pre-flights the same llama-server, waits for `awaiting_review`, reports reached, provider counts, categories in the enum, agreement with the label, submit-to-review latency), realtime propagation latency over 20 bookings in `e2e/realtime.spec.ts` (attached as `latency`, summarized by the reporter), render-results sections for both, `evals/README.md` updated; the ui project's test timeout is 30 s because full-page tests ran past 5 s on a loaded machine (assertions unchanged).
 
 ## Deviations from SPEC.md
 

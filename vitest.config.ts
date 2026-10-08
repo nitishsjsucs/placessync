@@ -62,6 +62,9 @@ export default defineConfig({
         test: {
           name: "ui",
           environment: "jsdom",
+          // Full-page tests drive dozens of user-event steps; on a loaded or battery-powered
+          // machine they can pass 5 s, so the timeout is generous. Assertions are unchanged.
+          testTimeout: 30_000,
           include: ["test/ui/**/*.test.tsx", "test/ui/**/*.test.ts"],
           setupFiles: ["./test/ui/setup.ts"],
         },

@@ -44,6 +44,10 @@ export default class ResultsReporter implements Reporter {
       overflowChecks: overflow.length,
       overflowFailures: overflow.filter((o) => !(o.data as { ok?: boolean }).ok).length,
       keyboardPaths: (this.attachments.keyboard ?? []).map((k) => ({ test: k.test, passed: k.status === "passed" })),
+      realtimeLatencyMs: (this.attachments.latency ?? []).map((l) => {
+        const d = l.data as { bookings: number; p50: number; p95: number };
+        return { bookings: d.bookings, p50: d.p50, p95: d.p95 };
+      })[0] ?? null,
     };
     mkdirSync(path.dirname(this.out), { recursive: true });
     writeFileSync(this.out, `${JSON.stringify({ meta: this.meta, summary, attachments: this.attachments, outcomes: this.outcomes }, null, 2)}\n`);

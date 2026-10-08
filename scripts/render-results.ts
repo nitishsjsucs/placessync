@@ -118,6 +118,27 @@ function triageSection(name: string, r: Record<string, unknown> & { meta: Meta }
   ].join("\n");
 }
 
+function workflowSection(r: Record<string, unknown> & { meta: Meta }): string {
+  const lat = r.endToEndLatencyMs as { p50: number; p95: number };
+  const counts = Object.entries(r.providerCounts as Record<string, number>)
+    .map(([k, v]) => `${k}: ${num(v)}`)
+    .join(", ");
+  return [
+    "### Triage through the Workflow (local server, Qwen3-1.7B via llama.cpp)",
+    "",
+    provenance(r.meta),
+    "",
+    "| Metric | Value |",
+    "|---|---|",
+    `| Requests submitted through the API | ${num(r.n)} |`,
+    `| Reached awaiting_review with a suggestion | ${num(r.reachedReview)} |`,
+    `| Suggestion providers | ${counts || "none"} |`,
+    `| Category inside the four-category enum | ${num(r.categoryInEnum)} |`,
+    `| Suggestion equals the template label | ${pct(r.agreementWithLabel)} |`,
+    `| Submit to awaiting_review, p50 / p95 (local) | ${lat.p50} / ${lat.p95} ms |`,
+  ].join("\n");
+}
+
 function e2eSection(r: Record<string, unknown> & { meta: Meta }): string {
   const s = r.summary as Record<string, unknown>;
   return [
@@ -131,6 +152,11 @@ function e2eSection(r: Record<string, unknown> & { meta: Meta }): string {
     `| axe scans (WCAG 2.0 A/AA, 2.1 AA, 2.2 AA) and violations | ${num(s.axeScans)} scans, ${num(s.axeViolations)} violations |`,
     `| Layout checks at 375x812 and 768x1024 and failures | ${num(s.overflowChecks)} checks, ${num(s.overflowFailures)} failures |`,
     `| Keyboard-only booking and cancellation | ${(s.keyboardPaths as { passed: boolean }[]).every((k) => k.passed) ? "passed" : "failed"} |`,
+    ...(s.realtimeLatencyMs
+      ? [
+          `| Live update propagation, ${num((s.realtimeLatencyMs as { bookings: number }).bookings)} bookings, p50 / p95 (local Chromium, booking request to busy cell in a second browser) | ${Math.round((s.realtimeLatencyMs as { p50: number }).p50)} / ${Math.round((s.realtimeLatencyMs as { p95: number }).p95)} ms |`,
+        ]
+      : []),
   ].join("\n");
 }
 
@@ -139,9 +165,10 @@ export function renderBlock(results: Record<string, { meta: Meta } & Record<stri
   if (names.length === 0) return "No results have been recorded yet. Numbers appear here only after `npm run results` renders committed, clean-tree eval output.";
   const parts: string[] = [];
   if (results.contention) parts.push(contentionSection(results.contention));
-  for (const n of names.filter((n) => n.startsWith("triage-")).sort((a, b) => (a === "triage-keyword" ? 1 : b === "triage-keyword" ? -1 : a.localeCompare(b)))) {
+  for (const n of names.filter((n) => n.startsWith("triage-") && n !== "triage-workflow-local").sort((a, b) => (a === "triage-keyword" ? 1 : b === "triage-keyword" ? -1 : a.localeCompare(b)))) {
     parts.push(triageSection(n, results[n] as { meta: Meta } & Record<string, unknown>));
   }
+  if (results["triage-workflow-local"]) parts.push(workflowSection(results["triage-workflow-local"]));
   if (results.e2e) parts.push(e2eSection(results.e2e));
   return parts.join("\n\n");
 }

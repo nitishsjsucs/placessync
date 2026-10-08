@@ -8,7 +8,7 @@ All runs are local: workerd through `vite preview` on one machine, and a local l
 
 ```
 npm run build && npm run preview     # separate terminal, port 8783
-node scripts/eval-contention.ts --base-url http://localhost:8783 --runs 1 --observers 4 --control naive-d1 --out evals/results/contention.json
+node scripts/eval-contention.ts --base-url http://localhost:8783 --runs 5 --observers 4 --control naive-d1 --out evals/results/contention.json
 ```
 
 Per run: reset and seed (100 employees, 20 resources), sign in all 100 employees, open WebSocket observers (two on date A, one on date B, one on both), fire the 1,000 generated attempts at once (700 on date A, 300 on date B, each with its own Idempotency-Key and the production `Cf-Access-Jwt-Assertion` header), wait for the observers to go quiet, export the ledger, wait for the outbox to drain to D1, and compare.
@@ -42,6 +42,16 @@ Before classifying anything with `openai-compat`, the script reads the per-slot 
 
 Reported per set: accuracy, macro-F1, per-class precision, recall and F1, the 4x4 confusion matrix (rows are the true label), schema-valid output on the first try, retry rate, keyword-fallback rate, latency p50 and p95, and the keyword baseline next to the model, so the difficulty of the synthetic set is visible. Every number is labeled with the model that produced it. No Workers AI accuracy is measured or claimed.
 
+## Triage through the Workflow (`scripts/eval-triage.ts --mode workflow`)
+
+```
+echo TRIAGE_PROVIDER=openai-compat >> .dev.vars && npm run build && npm run preview   # vite build copies .dev.vars into dist
+npm run llm:serve
+node scripts/eval-triage.ts --mode workflow --app-url http://localhost:8783 --n 20 --base-url http://127.0.0.1:8130/v1 --out evals/results/triage-workflow-local.json
+```
+
+Submits the first N templated requests through `POST /api/requests` on the local server, so each one runs the real `TriageWorkflow` on Miniflare's local Workflows engine against llama-server, and waits for `awaiting_review`. It runs the same pre-flight against the llama-server the Worker calls. Reported: `reachedReview`, `providerCounts` (any `keyword-fallback` shows the LLM path failed), `categoryInEnum` (must equal N), agreement with the template label, and submit-to-review latency. Remove the `TRIAGE_PROVIDER` line and rebuild afterwards.
+
 ## End to end (`npm run test:e2e`)
 
-Playwright (Chromium) against `npm run preview`: an axe gate on every page and on the UI kit gallery with an open Combobox and an open Dialog at 375x812 and 768x1024 (any violation fails, no rule excluded), layout checks (no horizontal scroll, 44x44 px primary controls), a keyboard-only book-and-cancel path, and a two-browser live update. `e2e/results-reporter.ts` writes `evals/results/e2e.json`.
+Playwright (Chromium) against `npm run preview`: an axe gate on every page and on the UI kit gallery with an open Combobox and an open Dialog at 375x812 and 768x1024 (any violation fails, no rule excluded), layout checks (no horizontal scroll, 44x44 px primary controls), a keyboard-only book-and-cancel path, a two-browser live update, and live propagation latency over 20 bookings (from the booking request in one browser context to the busy cell in another; local Chromium only). `e2e/results-reporter.ts` writes `evals/results/e2e.json`.
