@@ -72,12 +72,19 @@ export const devRoutes = new Hono<AppEnv>()
       return errorResponse(c, 409, "resource_conflict", "Overlaps an existing naive booking.", { conflicts: clash.results });
     }
     // ...then write, with no transaction spanning both: concurrent requests interleave here.
-    const id = deps.newId("naive");
-    await c.env.DB.prepare(
-      "INSERT INTO naive_reservations (id, resource_id, employee_id, date, start_min, end_min, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    // The row id comes from the Idempotency-Key, so an attempt the eval resends after a
+    // transport failure can never add a second row and overlap itself. This only removes
+    // self-duplicates; the read-then-write race between different attempts stays.
+    const key = c.req.header("Idempotency-Key");
+    const id = key ? `naive_${key}` : deps.newId("naive");
+    const inserted = await c.env.DB.prepare(
+      "INSERT OR IGNORE INTO naive_reservations (id, resource_id, employee_id, date, start_min, end_min, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
       .bind(id, input.resourceId, c.get("principal").employeeId, input.date, input.startMin, input.endMin, new Date(deps.now()).toISOString())
       .run();
+    if (inserted.meta.changes === 0) {
+      return errorResponse(c, 409, "resource_conflict", "This attempt already has a naive booking.", { conflicts: [] });
+    }
     return c.json({ reservation: { id, ...input } }, 201);
   })
   .get("/api/dev/naive/export", queryParams(DateQuery), async (c) => {
