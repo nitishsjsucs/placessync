@@ -55,6 +55,18 @@ for (const vp of VIEWPORTS) {
       await scan(page, testInfo, `ui-dialog-open@${vp.name}`);
     });
 
+    test("admin Resources tab and staff Today's bookings tab have no axe violations", async ({ page }, testInfo) => {
+      await page.goto("/admin");
+      await page.getByRole("tab", { name: "Resources" }).click();
+      await expect(page.getByRole("table", { name: "Resources" })).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Deactivate/ }).first()).toBeVisible();
+      await scan(page, testInfo, `admin-resources@${vp.name}`);
+      await page.goto("/staff");
+      await page.getByRole("tab", { name: "Today's bookings" }).click();
+      await expect(page.getByRole("table", { name: /^Bookings today/ })).toBeVisible();
+      await scan(page, testInfo, `staff-today@${vp.name}`);
+    });
+
     test("booking dialog has no axe violations", async ({ page }, testInfo) => {
       await page.goto("/resources/res_madrone");
       await expect(page.getByRole("heading", { level: 1, name: "Madrone" })).toBeVisible();

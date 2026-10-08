@@ -40,6 +40,8 @@ const MATRIX: Row[] = [
   { method: "POST", path: "/api/staff/requests/req_none/review", body: { decision: "accept" }, employee: "deny", staff: "allow", admin: "allow" },
   { method: "POST", path: "/api/staff/requests/req_none/status", body: { status: "resolved" }, employee: "deny", staff: "allow", admin: "allow" },
   { method: "GET", path: "/api/admin/reports/requests?from=2026-10-01&to=2026-10-31", employee: "deny", staff: "deny", admin: "allow" },
+  { method: "GET", path: "/api/staff/bookings?date=2026-10-12", employee: "deny", staff: "allow", admin: "allow" },
+  { method: "PATCH", path: "/api/admin/resources/res_2b04", body: { description: "Bookable desk on floor 2, south side." }, employee: "deny", staff: "deny", admin: "allow" },
   { method: "GET", path: "/api/admin/reports/utilization?from=2026-10-01&to=2026-10-31", employee: "deny", staff: "deny", admin: "allow" },
   { method: "GET", path: "/api/admin/reports/reservations?date=2026-10-12", employee: "deny", staff: "deny", admin: "allow" },
   { method: "GET", path: "/api/admin/ledger/export?date=2026-10-12", employee: "deny", staff: "deny", admin: "allow" },

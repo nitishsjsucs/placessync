@@ -3,7 +3,7 @@
 // resolved requests, and live staff events.
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
-import { StaffQueueResponse } from "../../shared/api.ts";
+import { StaffBookingsResponse, StaffQueueResponse } from "../../shared/api.ts";
 import { CATEGORIES } from "../../shared/triage/categories.ts";
 import { providerLabel } from "../../shared/triage/provider-labels.ts";
 import { ApiClientError, api } from "../api/client.ts";
@@ -16,7 +16,7 @@ import { Dialog } from "../ui/Dialog.tsx";
 import { Tabs } from "../ui/Tabs.tsx";
 import styles from "./pages.module.css";
 import { categoryLabel, statusLabel } from "./requests-ui.ts";
-import { useSite } from "./site.ts";
+import { timeRange, useSite } from "./site.ts";
 import { usePageTitle } from "./usePageTitle.ts";
 
 type QueueItem = StaffQueueResponse["requests"][number];
@@ -26,7 +26,9 @@ const TABS = [
   { id: "queue", label: "Triage queue" },
   { id: "working", label: "In progress" },
   { id: "resolved", label: "Resolved" },
+  { id: "today", label: "Today's bookings" },
 ];
+type Booking = StaffBookingsResponse["bookings"][number];
 const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ value: c, label: categoryLabel(c) }));
 
 function age(minutes: number): string {
@@ -49,6 +51,15 @@ export function StaffDashboardPage() {
   const [pending, setPending] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [today, setToday] = useState<Booking[] | null>(null);
+
+  useEffect(() => {
+    if (tab !== "today") return;
+    api
+      .get(`/api/staff/bookings?date=${site.today}`, StaffBookingsResponse)
+      .then((r) => setToday(r.bookings))
+      .catch(() => setError("Today's bookings could not be loaded."));
+  }, [tab, site.today]);
 
   const load = useCallback(async () => {
     try {
@@ -207,8 +218,21 @@ export function StaffDashboardPage() {
                 </>
               )}
             />
-          ) : (
+          ) : id === "resolved" ? (
             <DataTable caption="Resolved" columns={workColumns} rows={resolved} rowKey={(r) => r.id} empty="Nothing resolved yet." />
+          ) : (
+            <DataTable
+              caption={`Bookings today, ${site.today}`}
+              columns={[
+                { key: "time", header: "Time", render: (b: Booking) => timeRange(b.startMin, b.endMin) },
+                { key: "space", header: "Space", render: (b: Booking) => b.resourceName },
+                { key: "who", header: "Booked by", render: (b: Booking) => b.employeeName },
+                { key: "details", header: "Details", render: (b: Booking) => (b.kind === "room" ? `${b.attendees} attending${b.title ? `, ${b.title}` : ""}` : "Desk") },
+              ]}
+              rows={today ?? []}
+              rowKey={(b) => b.id}
+              empty={today === null ? "Loading…" : "No bookings today."}
+            />
           )
         }
       </Tabs>

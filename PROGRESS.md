@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 29 of 32 (Tier 2: history import, hourly occupancy and daily summary in admin).
-Next: commit 30 (Tier 2: admin resource edits with catalog sync; staff today's bookings).
+Last completed commit: 30 of 32 (Tier 2: admin resource edits with catalog sync; staff today's bookings).
+Next: commit 31 (Tier 2: DataTable sorting with aria-sort and keyboard; the request timeline is already built, see deviation 6).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 30 (Tier 2: admin resource edits with catalog sync; staff today's b
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (54 files, 472 tests) |
+| `npm test` | pass (55 files, 484 tests) |
 | `npm run test:e2e` | pass (50 of 50), run from a clean tree at `3726a4a` for commit 28 |
 | Evals | contention (1 run, 4 observers, naive control) and triage (Qwen3-1.7B and keyword stub) run from a clean tree at `3726a4a`; all contention gates passed |
 | `npm run build` | pass |
@@ -61,6 +61,7 @@ Next: commit 30 (Tier 2: admin resource edits with catalog sync; staff today's b
 
 Any later code commit makes the README block's commit an ancestor, which is still accepted; re-run the evals when the code they measure changes.
 29. Tier 2: `src/shared/synthetic/history.ts` (`generateHistory`, 20 business days before siteToday, invariant-respecting, about 5% cancelled, hash pinned at `HISTORY_PIN_DATE`), ledger `importHistory` (same rules except the past, same overlap and slot-claim transaction through a shared `commitReservation`, outbox facts), `/api/dev/seed { history: true }` and `seed:local -- --history`, the utilization report adds `daily` from `v_daily_booking_summary`, the admin dashboard shows hourly occupancy averages (CSS bars) and bookings per day; `history.test.ts`, new synthetic, report and admin page cases. The admin a11y and layout e2e checks pass after the change.
+30. Tier 2: `PATCH /api/admin/resources/:id` (active, capacity for rooms, description; updates D1 then `syncCatalog`), admins can list inactive resources (`includeInactive=1`), `GET /api/staff/bookings?date` (the day's bookings with employee and resource names), an admin Resources tab (activate, deactivate, edit in a Dialog) and a staff "Today's bookings" tab; `admin-resources.test.ts`, RBAC rows, UI cases, and an e2e axe scan of both new tabs at both viewports (passing).
 
 ## Deviations from SPEC.md
 
@@ -70,6 +71,8 @@ Any later code commit makes the README block's commit an ancestor, which is stil
 3. Added routes not named in the commit plan where a feature needed them earlier: the admin report, ledger export and projection status routes arrived with the projection commit (10), and `/api/admin/reports/requests` with the triage commit (15).
 4. `GET /api/health` adds `seeded: boolean` and returns `siteToday`/`siteRules` as null before the first seed, so readiness probes (CI curl, Playwright webServer) get 200 on an empty database. The availability response field `version` is the per-date version; `ledgerVersion` is also returned.
 5. The Workflow body lives in `runTriage(env, params, step)`, called by `TriageWorkflow.run`. Miniflare refuses to construct a `WorkflowEntrypoint` outside the engine, and a `NonRetryableError` aborts the whole instance even when caught, so the "workers-ai without an AI binding" path skips `classify` and goes straight to `classify-fallback`, tested by running `runTriage` with an in-process fake step.
+
+6. The request event timeline on `/requests/:id` (Tier 2 in SPEC 19.1) was built with commit 23 because the Tier 1 page test list (SPEC 12.2, `my-requests.test.tsx`) asserts it. Commit 31 therefore only needs DataTable sorting.
 
 ## Notes for the next agent
 

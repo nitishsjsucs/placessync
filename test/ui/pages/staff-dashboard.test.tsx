@@ -41,6 +41,10 @@ beforeEach(() => {
     "GET /api/staff/requests?status=in_progress": { requests: [] },
     "GET /api/staff/requests?status=resolved": { requests: [] },
     "POST /api/staff/requests/req_s/review": { request: {} },
+    "GET /api/staff/bookings": {
+      date: "2026-10-08",
+      bookings: [{ id: "rsv_1", resourceId: "res_alder", resourceName: "Alder", kind: "room", employeeId: "emp_001", employeeName: "Noah Yamamoto", startMin: 600, endMin: 660, attendees: 4, title: "Planning" }],
+    },
     "POST /api/staff/requests/req_p/review": { request: {} },
   });
 });
@@ -111,5 +115,14 @@ describe("Staff dashboard (SPEC 14.1)", () => {
     queue = [...queue, { ...suggested, id: "req_new", title: "Lights out in Alder" }];
     await act(async () => ws.receive({ type: "staff_event", event: "triage_ready", requestId: "req_new", category: "electrical_av" }));
     expect(await screen.findByRole("link", { name: "Lights out in Alder" })).toBeTruthy();
+  });
+
+  it("shows today's bookings with employee names (Tier 2)", async () => {
+    renderAt("/staff");
+    await screen.findByRole("link", { name: "Projector dead" });
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Today's bookings" }));
+    const table = await screen.findByRole("table", { name: "Bookings today, 2026-10-08" });
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(2));
+    expect(within(table).getAllByRole("cell").map((c) => c.textContent)).toEqual(["10:00 to 11:00", "Alder", "Noah Yamamoto", "4 attending, Planning"]);
   });
 });

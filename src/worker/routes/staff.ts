@@ -2,17 +2,45 @@
 // changes. Reviews are conditional UPDATEs, so two staff members reviewing at once
 // produce exactly one review.
 import { Hono } from "hono";
-import { ReviewBody, StaffQueueQuery, StatusChangeBody } from "../../shared/api.ts";
+import { DateQuery, ReviewBody, StaffQueueQuery, StatusChangeBody, type StaffBookingsResponse } from "../../shared/api.ts";
 import { type RequestStatus, nextStatus } from "../../shared/request-status.ts";
 import type { AppEnv } from "../app-env.ts";
 import { requireRole } from "../auth/middleware.ts";
 import { errorResponse, jsonBody, queryParams } from "../http.ts";
+import { listResources } from "../repo/catalog.ts";
+import { displayNames } from "../repo/employees.ts";
 import { ledgerFor } from "../ledger/ledger-for.ts";
 import { getRequestWithSuggestion, listStaffQueue } from "../repo/requests.ts";
 import { REVIEW_EVENT } from "../triage/triage-workflow.ts";
 
 export const staffRoutes = new Hono<AppEnv>()
   .use("/api/staff/*", requireRole("facilities_staff", "facilities_admin"))
+  // Today's bookings (Tier 2): an operational view with employee names, staff only.
+  .get("/api/staff/bookings", queryParams(DateQuery), async (c) => {
+    const { date } = c.req.valid("query");
+    const config = c.get("config");
+    const [rows, resources] = await Promise.all([ledgerFor(c.env, config, config.siteId).exportDay(date), listResources(c.env.DB, config.siteId)]);
+    const names = await displayNames(c.env.DB, rows.map((r) => r.employeeId));
+    const resourceNames = new Map(resources.map((r) => [r.id, r.name]));
+    const body: StaffBookingsResponse = {
+      date,
+      bookings: rows
+        .map((r) => ({
+          id: r.id,
+          resourceId: r.resourceId,
+          resourceName: resourceNames.get(r.resourceId) ?? r.resourceId,
+          kind: r.kind,
+          employeeId: r.employeeId,
+          employeeName: names.get(r.employeeId) ?? r.employeeId,
+          startMin: r.startMin,
+          endMin: r.endMin,
+          attendees: r.attendees,
+          title: r.title,
+        }))
+        .sort((a, b) => a.startMin - b.startMin || a.resourceName.localeCompare(b.resourceName)),
+    };
+    return c.json(body);
+  })
   .get("/api/staff/requests", queryParams(StaffQueueQuery), async (c) => {
     const q = c.req.valid("query");
     const requests = await listStaffQueue(c.env.DB, c.get("config").siteId, { ...q, nowMs: c.get("deps").now() });

@@ -14,8 +14,8 @@ A workplace team shares a fixed set of desks and rooms across many employees. As
 - **Resource calendars.** A week view per desk or room, bookable from the grid.
 - **My bookings.** Upcoming, past and cancelled bookings; cancel with an optional reason.
 - **Report an issue and follow it.** Submit a facilities request; see its status, the suggested category with the provider that produced it, the final category, and a timeline.
-- **Facilities staff.** A triage queue with suggestions, confidence and provider labels; accept, reassign, or categorize by hand; move work to in progress and resolved; live notifications.
-- **Facilities admins.** Utilization, hourly occupancy and bookings per day from D1 reporting views; request reports with suggestion agreement shown per provider.
+- **Facilities staff.** A triage queue with suggestions, confidence and provider labels; accept, reassign, or categorize by hand; move work to in progress and resolved; today's bookings with names; live notifications.
+- **Facilities admins.** Utilization, hourly occupancy and bookings per day from D1 reporting views; request reports with suggestion agreement shown per provider; activate, deactivate and edit resources (the ledger's catalog copy resyncs at once).
 - **Synthetic data.** 100 employees (92 employees, 6 facilities staff, 2 facilities admins) and the 20 resources come from seeded generators whose output is pinned by SHA-256 in tests.
 
 ## Architecture
@@ -219,7 +219,7 @@ Nothing has been deployed from this repository. The steps, for an account holder
 - **Single ledger per site** is a throughput ceiling by design (ADR 0001); v1 has one site.
 - **Role changes** take effect on open WebSockets no later than token expiry (8 hours for dev tokens; the Access session length in production); v1 has no role-change API.
 - **Rate limiting** is not implemented (a production follow-up using the Workers rate limiting binding).
-- Not built in v1 (Tier 2 in SPEC 19): admin resource editing, the staff "Today's bookings" tab, DataTable sorting, the workflow-mode triage eval, realtime latency measurement, and five-run contention evals.
+- Not built in v1 (Tier 2 in SPEC 19): DataTable sorting, the workflow-mode triage eval, realtime latency measurement, and five-run contention evals.
 
 ## License
 

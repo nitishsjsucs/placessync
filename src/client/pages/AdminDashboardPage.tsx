@@ -2,11 +2,14 @@
 // the request report, where suggestion agreement is shown per provider with that
 // provider's own label. Nothing aggregates across providers.
 import { useCallback, useEffect, useState } from "react";
-import { RequestsReport, UtilizationReport } from "../../shared/api.ts";
+import { RequestsReport, type Resource, ResourcePatchResponse, ResourcesResponse, UtilizationReport } from "../../shared/api.ts";
 import { addDays } from "../../shared/time.ts";
 import { PROVIDER_LABELS, type SuggestionProvider } from "../../shared/triage/provider-labels.ts";
 import { api, qs } from "../api/client.ts";
+import { ApiClientError } from "../api/client.ts";
+import { useAnnounce } from "../shell/Announcer.tsx";
 import { Button } from "../ui/Button.tsx";
+import { Dialog } from "../ui/Dialog.tsx";
 import { DataTable } from "../ui/DataTable.tsx";
 import { longDate } from "../ui/DateGrid.tsx";
 import { Tabs } from "../ui/Tabs.tsx";
@@ -39,6 +42,7 @@ type AgreementRow = RequestsReport["agreement"][number];
 const TABS = [
   { id: "utilization", label: "Utilization" },
   { id: "requests", label: "Requests" },
+  { id: "resources", label: "Resources" },
 ];
 
 /** "Keyword stub agreement", "Workers AI agreement" and so on: one label per provider. */
@@ -60,6 +64,40 @@ export function AdminDashboardPage() {
   const [reqs, setReqs] = useState<RequestsReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
+  const announce = useAnnounce();
+  const [resources, setResources] = useState<Resource[] | null>(null);
+  const [editing, setEditing] = useState<Resource | null>(null);
+  const [capacity, setCapacity] = useState("");
+  const [description, setDescription] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const loadResources = useCallback(async () => {
+    try {
+      setResources((await api.get(`/api/sites/${site.siteId}/resources?includeInactive=1`, ResourcesResponse)).resources);
+    } catch {
+      setError("Resources could not be loaded.");
+    }
+  }, [site.siteId]);
+
+  useEffect(() => {
+    void loadResources();
+  }, [loadResources]);
+
+  async function patchResource(r: Resource, body: Record<string, unknown>, done: string) {
+    setSaving(true);
+    setEditError(null);
+    try {
+      await api.patch(`/api/admin/resources/${r.id}`, body, ResourcePatchResponse);
+      announce(done);
+      setEditing(null);
+      await loadResources();
+    } catch (err) {
+      setEditError(err instanceof ApiClientError ? (Object.values(err.fieldErrors())[0] ?? err.message) : "The change could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -172,6 +210,41 @@ export function AdminDashboardPage() {
                 empty="No bookings in this range yet."
               />
             </div>
+          ) : id === "resources" ? (
+            <DataTable
+              caption="Resources"
+              columns={[
+                { key: "name", header: "Space", render: (r: Resource) => r.name },
+                { key: "kind", header: "Kind", render: (r: Resource) => (r.kind === "desk" ? "Desk" : "Room") },
+                { key: "where", header: "Location", render: (r: Resource) => `Floor ${r.floor}, ${r.zone}` },
+                { key: "capacity", header: "Capacity", render: (r: Resource) => r.capacity },
+                { key: "status", header: "Status", render: (r: Resource) => (r.active ? "Bookable" : "Inactive") },
+              ]}
+              rows={resources ?? []}
+              rowKey={(r) => r.id}
+              empty={resources === null ? "Loading…" : "No resources."}
+              rowActions={(r) => (
+                <>
+                  <Button size="sm" variant={r.active ? "danger" : "secondary"} onClick={() => void patchResource(r, { active: !r.active }, `${r.name} is now ${r.active ? "inactive" : "bookable"}.`)}>
+                    {r.active ? "Deactivate" : "Activate"}{" "}
+                    <span className="visually-hidden">{r.name}</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setCapacity(String(r.capacity));
+                      setDescription(r.description);
+                      setEditError(null);
+                      setEditing(r);
+                    }}
+                  >
+                    Edit{" "}
+                    <span className="visually-hidden">{r.name}</span>
+                  </Button>
+                </>
+              )}
+            />
           ) : (
             <div className={styles.stack}>
               <DataTable
@@ -205,6 +278,31 @@ export function AdminDashboardPage() {
           )
         }
       </Tabs>
+      <Dialog
+        open={editing !== null}
+        onClose={() => setEditing(null)}
+        dismissable={!saving}
+        title={`Edit ${editing?.name ?? ""}`}
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setEditing(null)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button
+              loading={saving}
+              onClick={() =>
+                editing &&
+                void patchResource(editing, { ...(editing.kind === "room" ? { capacity: Number(capacity) } : {}), description }, `${editing.name} updated.`)
+              }
+            >
+              Save
+            </Button>
+          </>
+        }
+      >
+        {editing?.kind === "room" ? <TextField label="Capacity" type="number" inputMode="numeric" value={capacity} onChange={setCapacity} error={editError} /> : null}
+        <TextField label="Description" value={description} onChange={setDescription} multiline rows={3} maxLength={300} error={editing?.kind === "room" ? null : editError} />
+      </Dialog>
     </section>
   );
 }

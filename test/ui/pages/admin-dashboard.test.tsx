@@ -1,11 +1,15 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HEALTH, installFakeApi, me } from "../fake-api.ts";
+import { generateResources } from "../../../src/shared/synthetic/resources.ts";
+import { type FakeApi, HEALTH, installFakeApi, me } from "../fake-api.ts";
 import { renderAt } from "../render-app.tsx";
 
+let api: FakeApi;
 beforeEach(() => {
-  installFakeApi({
+  api = installFakeApi({
+    "GET /api/sites/hq/resources": { resources: generateResources().slice(0, 2).map((r, i) => ({ ...r, active: i === 0 })) },
+    "PATCH /api/admin/resources/res_2a01": { resource: { ...generateResources()[0], active: false } },
     "GET /api/health": HEALTH,
     "GET /api/me": me("emp_100", "facilities_admin"),
     "GET /api/admin/reports/utilization": {
@@ -93,5 +97,17 @@ describe("Admin dashboard (SPEC 14.1)", () => {
     }
     expect(screen.getByText(/Median time to review: 42.5 minutes \(20 reviewed\)/)).toBeTruthy();
     expect(screen.getByRole("table", { name: "Requests by category and status" })).toBeTruthy();
+  });
+
+  it("toggles a resource through PATCH (Tier 2)", async () => {
+    renderAt("/admin");
+    await screen.findByText("Desk 2A-01");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Resources" }));
+    const table = await screen.findByRole("table", { name: "Resources" });
+    expect(within(table).getByText("Inactive")).toBeTruthy();
+    await user.click(within(table).getByRole("button", { name: "Deactivate Desk 2A-01" }));
+    expect(api.calls.find((c) => c.method === "PATCH")).toMatchObject({ url: "/api/admin/resources/res_2a01", body: { active: false } });
+    expect(within(table).getByRole("button", { name: "Activate Desk 2A-02" })).toBeTruthy();
   });
 });

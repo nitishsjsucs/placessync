@@ -11,7 +11,9 @@ export const resourceRoutes = new Hono<AppEnv>().get(
   async (c) => {
     const filters = c.req.valid("query");
     const [resources, labels] = await Promise.all([listResources(c.env.DB, c.get("config").siteId), amenityLabels(c.env.DB)]);
-    const body: ResourcesResponse = { resources: filterResources(resources.filter((r) => r.active), filters, labels) };
+    // Inactive resources are listed only for admins who ask for them (resource admin).
+    const includeInactive = c.req.query("includeInactive") === "1" && c.get("principal").role === "facilities_admin";
+    const body: ResourcesResponse = { resources: filterResources(includeInactive ? resources : resources.filter((r) => r.active), filters, labels) };
     return c.json(body);
   },
 );

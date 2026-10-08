@@ -327,3 +327,32 @@ export const RequestsReport = z.object({
   reviewedCount: z.number(),
 });
 export type RequestsReport = z.infer<typeof RequestsReport>;
+
+export const ResourcePatchBody = z
+  .object({
+    active: z.boolean().optional(),
+    capacity: z.number().int().min(1).max(50).optional(),
+    description: z.string().trim().max(300).optional(),
+  })
+  .refine((b) => b.active !== undefined || b.capacity !== undefined || b.description !== undefined, "Send at least one field.");
+
+export const StaffBookingsResponse = z.object({
+  date: z.string(),
+  bookings: z.array(
+    z.object({
+      id: z.string(),
+      resourceId: z.string(),
+      resourceName: z.string(),
+      kind: ResourceKindSchema,
+      employeeId: z.string(),
+      employeeName: z.string(),
+      startMin: z.number().int(),
+      endMin: z.number().int(),
+      attendees: z.number().int(),
+      title: z.string().nullable(),
+    }),
+  ),
+});
+export type StaffBookingsResponse = z.infer<typeof StaffBookingsResponse>;
+
+export const ResourcePatchResponse = z.object({ resource: ResourceSchema });
