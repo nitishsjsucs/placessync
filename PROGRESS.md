@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 4 of 32 (synthetic generators and template pools).
-Next: commit 5 (D1 catalog, reporting and facilities migrations).
+Last completed commit: 5 of 32 (D1 migrations).
+Next: commit 6 (Access JWT verifier, dev keys, dev login, fail-closed config).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 5 (D1 catalog, reporting and facilities migrations).
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (5 files, 52 tests) |
+| `npm test` | pass (6 files, 56 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -22,6 +22,7 @@ Next: commit 5 (D1 catalog, reporting and facilities migrations).
 2. Vitest projects `worker`, `worker-ws` (one worker, no isolation, `groupOrder: 1`), `ui` (jsdom with a `matchMedia` stub), `node`; every test var pinned through `miniflare.bindings` with a fresh RS256 key per run; `env-pins.test.ts`; CI `verify` job.
 3. `src/shared/rng.ts` (mulberry32 and helpers), `time.ts` (Intl site clock, business days, slots), `intervals.ts` (overlap, merge, free windows, pair counting), `rules.ts` (all SPEC 7.1 rules driven by `SiteRules`), with `rules.test.ts` and `shared-helpers.test.ts`.
 4. `src/shared/synthetic/`: 100 employees (92/6/2, department split), the fixed 20-resource table, disjoint `eval` and `fewshot` request template pools, 200 labeled eval requests and 40 seed requests; `roles.ts`, `triage/categories.ts`; SHA-256 pins asserted in workerd (`synthetic.test.ts`) and Node (`generators-node.test.ts`). The contention generator lands with commit 13 and the history generator with Tier 2 commit 29, as the commit plan orders.
+5. `migrations/0001_catalog.sql`, `0002_reporting.sql`, `0003_facilities.sql` exactly as SPEC 6.1; `migrations.test.ts` checks tables, views, report hours, the absent naive table and the one-review-event index.
 
 ## Deviations from SPEC.md
 
