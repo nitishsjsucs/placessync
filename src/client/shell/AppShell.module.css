@@ -1,0 +1,129 @@
+.skip {
+  position: absolute;
+  left: var(--space-2);
+  top: -4rem;
+  z-index: 200;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-radius: var(--radius-md);
+}
+
+.skip:focus {
+  top: var(--space-2);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand {
+  font-weight: 800;
+  font-size: var(--text-lg);
+  color: var(--color-text);
+  text-decoration: none;
+  min-height: var(--touch-target);
+  display: inline-flex;
+  align-items: center;
+}
+
+.user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  min-width: 0;
+}
+
+.userName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.navList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+  max-width: 80rem;
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  color: var(--color-text);
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+  font-weight: 600;
+}
+
+.navActive {
+  border-bottom-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.main {
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.footer {
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* Bottom bar under 640 px. */
+@media (max-width: 639px) {
+  .nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    border-top: 1px solid var(--color-border);
+    border-bottom: none;
+  }
+  .navList {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    padding: 0;
+    gap: 0;
+  }
+  .navLink {
+    justify-content: center;
+    text-align: center;
+    padding: var(--space-1);
+    font-size: var(--text-xs);
+    border-bottom: none;
+    border-top: 3px solid transparent;
+    width: 100%;
+  }
+  .navActive {
+    border-top-color: var(--color-primary);
+  }
+  .main,
+  .footer {
+    padding-bottom: 6rem;
+  }
+}

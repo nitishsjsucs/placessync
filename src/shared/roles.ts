@@ -34,3 +34,9 @@ export function isStaff(role: Role): boolean {
 export function isRole(value: unknown): value is Role {
   return typeof value === "string" && (ROLES as readonly string[]).includes(value);
 }
+
+export const ROLE_LABELS: Record<Role, string> = {
+  employee: "Employee",
+  facilities_staff: "Facilities staff",
+  facilities_admin: "Facilities admin",
+};

@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 19 of 32 (DateGrid, SlotGrid, the eight-component kit complete).
-Next: commit 20 (app shell, routing, session, dev login, role-based navigation).
+Last completed commit: 20 of 32 (app shell, routing, session, dev login, role navigation).
+Next: commit 21 (find a space with per-date live availability and booking dialog).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 20 (app shell, routing, session, dev login, role-based navigation).
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (40 files, 414 tests) |
+| `npm test` | pass (42 files, 421 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -37,6 +37,7 @@ Next: commit 20 (app shell, routing, session, dev login, role-based navigation).
 17. `src/client/ui/tokens.css` (color, spacing, radius, type scale; light and dark), `Button` (native, aria-busy and disabled while loading, 44 px targets), `TextField` (label, hint and error via aria-describedby, aria-invalid, counter announced at 80% and 100%, multiline), `Dialog` (portal, aria-modal, focus in, Tab trap, Escape unless not dismissable, focus restore, background inert, full-screen under 640 px); component tests with axe (`test/ui/axe.ts` disables only color-contrast and region in jsdom, with the reason in a comment).
 18. `Combobox` (ARIA 1.2 editable combobox, aria-activedescendant, Arrow, Home, End, Enter, Escape then clear, Tab closes, filtering, full-width popup on mobile), `Tabs` (automatic activation, wrapping arrows, Home and End, every tab controls a rendered panel), `DataTable` (caption, empty state, row actions, `data-label` per cell for stacked rows under 640 px; sorting is Tier 2); tests with axe.
 19. `DateGrid` (role grid, roving tabindex, day and week arrows, PageUp and PageDown, Home and End to week bounds, Enter and Space, disabled dates focusable with a reason in aria-describedby), `SlotGrid` (grid of 30-minute cells, Shift+Arrow range within a row that never crosses busy cells, Enter commits, Escape clears, busy cells aria-disabled, live updates that make the selection busy clear it with a polite announcement, compact chip list under 640 px through `useMediaQuery`), `hooks/useMediaQuery.ts`; `ui-kit.test.ts` asserts exactly 8 exports and 8 component test files.
+20. `api/client.ts` (typed fetch with zod, `ApiClientError` with field errors), `SessionProvider` (health and me; 401 means anonymous), `RequireSession` and `RequireRole` (employees redirected from /staff and /admin), `AppShell` (skip link, header, role-based `Nav` that becomes a bottom bar under 640 px), `Announcer` (one polite live region), `DevLoginPage` (Combobox of the 100 users by role plus quick picks), `NotFoundPage`, router with every SPEC 14.1 route (pages still to build are minimal headings until their commits); `role-nav.test.tsx`, `dev-login.test.tsx` with a fetch fake (`test/ui/fake-api.ts`) and a memory router.
 
 ## Deviations from SPEC.md
 
