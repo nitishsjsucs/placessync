@@ -134,7 +134,7 @@ export function StaffDashboardPage() {
   const base = [
     { key: "title", header: "Request", render: (r: QueueItem) => <Link to={`/requests/${r.id}`}>{r.title}</Link> },
     { key: "where", header: "Where", render: (r: QueueItem) => r.resourceName ?? (r.locationNote || "Not given") },
-    { key: "age", header: "Age", render: (r: QueueItem) => age(r.ageMinutes) },
+    { key: "age", header: "Age", render: (r: QueueItem) => age(r.ageMinutes), sortValue: (r: QueueItem) => r.ageMinutes },
   ];
   const queueColumns = [
     ...base,

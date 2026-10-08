@@ -165,13 +165,14 @@ export function AdminDashboardPage() {
               <DataTable
                 caption={`Utilization, ${longDate(range.from)} to ${longDate(range.to)}`}
                 columns={[
-                  { key: "name", header: "Space", render: (r: UtilizationRow) => r.name },
-                  { key: "date", header: "Date", render: (r: UtilizationRow) => r.date },
+                  { key: "name", header: "Space", render: (r: UtilizationRow) => r.name, sortValue: (r: UtilizationRow) => r.name },
+                  { key: "date", header: "Date", render: (r: UtilizationRow) => r.date, sortValue: (r: UtilizationRow) => r.date },
                   { key: "bookings", header: "Bookings", render: (r: UtilizationRow) => r.bookings },
                   { key: "hours", header: "Booked hours", render: (r: UtilizationRow) => (r.bookedMin / 60).toFixed(1) },
                   {
                     key: "utilization",
                     header: "Utilization",
+                    sortValue: (r: UtilizationRow) => r.utilization,
                     render: (r: UtilizationRow) => (
                       <span className={styles.row}>
                         <span className={styles.barTrack} aria-hidden="true">

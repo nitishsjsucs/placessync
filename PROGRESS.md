@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 30 of 32 (Tier 2: admin resource edits with catalog sync; staff today's bookings).
-Next: commit 31 (Tier 2: DataTable sorting with aria-sort and keyboard; the request timeline is already built, see deviation 6).
+Last completed commit: 31 of 32 (Tier 2: DataTable sorting; the request timeline was already built in 23).
+Next: commit 32 (Tier 2: workflow-mode triage eval, realtime propagation latency over 20 bookings, 5-run contention eval), then a fresh docs: results commit.
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 31 (Tier 2: DataTable sorting with aria-sort and keyboard; the requ
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (55 files, 484 tests) |
+| `npm test` | pass (55 files, 487 tests) |
 | `npm run test:e2e` | pass (50 of 50), run from a clean tree at `3726a4a` for commit 28 |
 | Evals | contention (1 run, 4 observers, naive control) and triage (Qwen3-1.7B and keyword stub) run from a clean tree at `3726a4a`; all contention gates passed |
 | `npm run build` | pass |
@@ -62,6 +62,7 @@ Next: commit 31 (Tier 2: DataTable sorting with aria-sort and keyboard; the requ
 Any later code commit makes the README block's commit an ancestor, which is still accepted; re-run the evals when the code they measure changes.
 29. Tier 2: `src/shared/synthetic/history.ts` (`generateHistory`, 20 business days before siteToday, invariant-respecting, about 5% cancelled, hash pinned at `HISTORY_PIN_DATE`), ledger `importHistory` (same rules except the past, same overlap and slot-claim transaction through a shared `commitReservation`, outbox facts), `/api/dev/seed { history: true }` and `seed:local -- --history`, the utilization report adds `daily` from `v_daily_booking_summary`, the admin dashboard shows hourly occupancy averages (CSS bars) and bookings per day; `history.test.ts`, new synthetic, report and admin page cases. The admin a11y and layout e2e checks pass after the change.
 30. Tier 2: `PATCH /api/admin/resources/:id` (active, capacity for rooms, description; updates D1 then `syncCatalog`), admins can list inactive resources (`includeInactive=1`), `GET /api/staff/bookings?date` (the day's bookings with employee and resource names), an admin Resources tab (activate, deactivate, edit in a Dialog) and a staff "Today's bookings" tab; `admin-resources.test.ts`, RBAC rows, UI cases, and an e2e axe scan of both new tabs at both viewports (passing).
+31. Tier 2: DataTable sorting (`sortValue` per column; header buttons with `aria-sort` on wide screens; a native "Sort by" select in the stacked layout under 640 px so no focusable control hides in the clipped header row), sortable columns on My bookings, the staff queue and admin utilization; sorting tests (aria-sort, keyboard, compact select with axe); e2e a11y and layout re-checked on the affected pages.
 
 ## Deviations from SPEC.md
 

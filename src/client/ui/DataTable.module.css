@@ -38,6 +38,43 @@
   gap: var(--space-2);
 }
 
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--touch-target);
+  min-width: var(--touch-target);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sortIcon {
+  font-size: var(--text-xs);
+}
+
+.sortSelect {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+
+.sortSelect select {
+  min-height: var(--touch-target);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
 .empty {
   padding: var(--space-4);
   color: var(--color-text-muted);

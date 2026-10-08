@@ -86,8 +86,13 @@ export function MyBookingsPage() {
   }
 
   const columns = [
-    { key: "space", header: "Space", render: (r: Reservation) => <Link to={`/resources/${r.resourceId}`}>{names.get(r.resourceId) ?? r.resourceId}</Link> },
-    { key: "date", header: "Date", render: (r: Reservation) => longDate(r.date) },
+    {
+      key: "space",
+      header: "Space",
+      render: (r: Reservation) => <Link to={`/resources/${r.resourceId}`}>{names.get(r.resourceId) ?? r.resourceId}</Link>,
+      sortValue: (r: Reservation) => names.get(r.resourceId) ?? r.resourceId,
+    },
+    { key: "date", header: "Date", render: (r: Reservation) => longDate(r.date), sortValue: (r: Reservation) => `${r.date} ${String(r.startMin).padStart(4, "0")}` },
     { key: "time", header: "Time", render: (r: Reservation) => timeRange(r.startMin, r.endMin) },
     { key: "details", header: "Details", render: (r: Reservation) => (r.kind === "room" ? `${r.attendees} attending${r.title ? `, ${r.title}` : ""}` : "Desk") },
   ];
