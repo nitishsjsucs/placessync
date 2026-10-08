@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 26 of 32 (contention and classifier triage eval scripts, pre-flight, guarded results rendering).
-Next: commit 27 (README, CONTEXT.md, ADRs 0001 to 0008, local-vs-production matrix, design/FIGMA.md).
+Last completed commit: 27 of 32 (README, CONTEXT.md, ADRs 0001 to 0008, local-vs-production matrix).
+Next: commit 28 (docs: results from local eval runs, from a clean tree: contention, triage with Qwen3-1.7B and the keyword stub, e2e; then npm run results).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 27 (README, CONTEXT.md, ADRs 0001 to 0008, local-vs-production matr
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (53 files, 465 tests) |
+| `npm test` | pass (53 files, 467 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -44,6 +44,7 @@ Next: commit 27 (README, CONTEXT.md, ADRs 0001 to 0008, local-vs-production matr
 24. `StaffDashboardPage` (Triage queue with suggestion, confidence and provider label, Accept and Reassign for suggested rows, only Categorize for pending and unavailable rows, review Dialog with a category Combobox, 409 shows "Already reviewed" and refreshes, In progress and Resolved tabs with Start work and Resolve, live `staff_event`s through `useStaffEvents`), `AdminDashboardPage` (date range, utilization table with a CSS bar column, agreement per provider labelled "<provider label> agreement", median minutes to review, requests by category and status); report zod schemas in `src/shared/api.ts`; `staff-dashboard.test.tsx`, `admin-dashboard.test.tsx`. Today's bookings tab, hourly occupancy and resource admin are Tier 2 and not built.
 25. `UiGalleryPage` (all 8 components in their states), Playwright 1.63.0 config against `npm run preview` on 8783 with `reuseExistingServer`, `e2e/global-setup.ts` (migrate local D1, seed), `a11y.spec.ts` (axe with wcag2a, wcag2aa, wcag21aa, wcag22aa on every page, the login page, the gallery with an open Combobox and an open Dialog, and the booking Dialog, at 375x812 and 768x1024; any violation fails; no exclusions), `mobile-layout.spec.ts` (no horizontal scroll, 44x44 primary controls), `keyboard-booking.spec.ts` (book and cancel by keyboard only), `realtime.spec.ts` (two contexts, live busy cell), `e2e/results-reporter.ts` writing `evals/results/e2e.json` with the run meta (`scripts/lib/meta.ts`); CI `e2e` job (the contention eval step is added with the eval script in commit 26). `playwright-core@1.63.0` is pinned as a dev dependency so `@axe-core/playwright` shares Playwright's copy. Scroll wrappers are `position: relative` so visually hidden headers cannot widen the page.
 26. `scripts/eval-contention.ts` (SPEC 13.1: seed, 100 tokens, 2 or 4 observers on dates A and B, 1,000 concurrent POSTs with the production header, quiet wait, ledger export, outbox drain and D1 parity, every gate, naive D1 control; exit 1 on any violation), `scripts/eval-triage.ts` (classifier mode; llama-server pre-flight through /props, /apply-template and /tokenize; up to 3 attempts then keyword fallback; context overflow fails the run; keyword baseline in every file; model path stored as a basename), `scripts/render-results.ts` (only git-tracked results; refuses dirty trees and non-ancestor SHAs), `scripts/lib/eval-math.ts`, `scripts/seed-local.ts`, `scripts/export-catalog-sql.ts` (requires --admin-email), `evals/README.md`, `evals/triage-labeling-guide.md`, `evals/data/triage-hard.jsonl` (40 items, AI-assisted, labeled per the guide); CI e2e job runs the contention eval after e2e; `eval-math.test.ts`, `readme-results.test.ts` (refusals; the README equality check lands with the README), `triage-hard-set.test.ts`. Dev runs of both evals passed their gates locally; those runs were on a dirty tree and are not results.
+27. `README.md` (what it does, architecture, the local-versus-production matrix from SPEC 16 with the 8,192-token slot noted, what is simulated, how to run, tests, evals, a generated Results block between markers, deploy steps, known gaps), `CONTEXT.md` glossary, `docs/adr/0001` to `0008`, `design/FIGMA.md` placeholder; `readme-results.test.ts` now also asserts the README block equals the rendered output of the committed results.
 
 ## Deviations from SPEC.md
 
@@ -55,6 +56,8 @@ Next: commit 27 (README, CONTEXT.md, ADRs 0001 to 0008, local-vs-production matr
 5. The Workflow body lives in `runTriage(env, params, step)`, called by `TriageWorkflow.run`. Miniflare refuses to construct a `WorkflowEntrypoint` outside the engine, and a `NonRetryableError` aborts the whole instance even when caught, so the "workers-ai without an AI binding" path skips `classify` and goes straight to `classify-fallback`, tested by running `runTriage` with an in-process fake step.
 
 ## Notes for the next agent
+
+- **README.md was edited by another process during this build.** Between commits 18 and 21 a status-style README appeared in the working tree (not written by builder 1) and was swept into commits 19 and 21 by `git add -A`. Commit 27 replaced it with the README the spec asks for. Whoever edits README.md must keep the `<!-- results:start -->` and `<!-- results:end -->` markers and must not hand-edit between them: `test/node/readme-results.test.ts` fails if the block differs from `npm run results` output. Check `git status` before committing so another process's edits are not committed by accident.
 
 - The local Workflows engine reports `running` (not `waiting`) while an instance waits for an event; the sweep treats `running` as in flight. Tests wait with `waitForStepResult({ name: "notify-staff" })` instead of `waitForStatus("waiting")`.
 - Miniflare logs "uncaught exception" lines for steps that a test makes fail on purpose (`mockStepError`, forced event timeouts); they are expected noise, not failures.

@@ -56,3 +56,13 @@ describe("render-results refusals (SPEC 12.3)", () => {
     expect(currentBlock(next)).toBe("new block");
   });
 });
+
+describe("README results block (SPEC 12.3)", () => {
+  it("equals render-results output for the committed evals/results/*.json", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { trackedResultFiles } = await import("../../scripts/render-results.ts");
+    const readme = readFileSync(path.join(root, "README.md"), "utf8");
+    const expected = renderBlock(loadResults(trackedResultFiles(root), root));
+    expect(currentBlock(readme)).toBe(expected);
+  });
+});

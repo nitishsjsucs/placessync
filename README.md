@@ -1,329 +1,171 @@
 # PlacesSync
 
-Desk and meeting-room booking on Cloudflare Workers: one Durable Object per site commits every booking in a single SQLite transaction, clients watching a date receive availability changes over hibernatable WebSockets, and a Cloudflare Workflow suggests a service category for each facilities request before staff review it.
+A workplace application for reserving desks and meeting rooms, reporting facilities issues, and following each request until it is resolved. One Cloudflare Durable Object per site is the only writer of reservations and commits every booking in a single SQLite transaction, live availability reaches browsers over hibernatable WebSockets, reporting runs on D1, and a Cloudflare Workflow suggests one of four service categories for each facilities request so staff can accept or change it.
 
-> **v1 is in active development. Nothing is deployed.** The server side (reservation ledger, live updates, reporting projection, auth, triage workflow and its cron sweep) is built and tested through the HTTP API. In the browser, the app shell, dev sign-in and role-based navigation work; the booking, request and dashboard pages still render only their headings. All people, departments and systems in this repo are synthetic. [PROGRESS.md](PROGRESS.md) is the live build log and is always more current than this page.
+Everything in this repository runs and is tested locally on workerd (through Miniflare and the Cloudflare Vite plugin). Nothing here has been deployed, and no number below comes from Cloudflare's production services. See [What runs where](#what-runs-where).
 
 ## Why
 
-A workplace (People and Places) team shares a fixed set of desks and rooms across many employees. Three things go wrong as the office fills up:
+A workplace team shares a fixed set of desks and rooms across many employees. As the office fills up, two requests race for the same desk, booking screens show availability that changed seconds ago, and facilities issues land in one inbox where someone has to read and route each one. PlacesSync treats a booking as a write to a per-site ledger that cannot double-book, pushes each committed change to every screen watching that date, and has a model suggest the service category for each issue while the decision stays with facilities staff.
 
-- Two people end up holding the same desk because two requests raced each other.
-- The booking screen shows availability that changed seconds ago.
-- Facilities issues ("the projector in Sequoia keeps dropping HDMI") arrive in one inbox, and someone has to read each one and route it to the right team.
+## What it does
 
-PlacesSync treats a booking as a write to a per-site ledger that cannot double-book, pushes each committed change to every client watching that date, and has a model suggest the service category for each issue while the decision stays with facilities staff.
-
-## Status
-
-| | |
-|---|---|
-| Build plan | Commit 20 of 32 complete at `41a6d1d` (app shell, routing, session, dev sign-in, role-based navigation). Next: commit 21, Find a space with live availability. [PROGRESS.md](PROGRESS.md) has the live position. |
-| Tests | **421 passing in 42 files**: `npm test` run on a clean export of commit `41a6d1d`, 2026-10-08, about 14 s. |
-| Other checks | `npm run typecheck`, `npm run types:check` and `npm run build` pass on the same export. CI runs all four on every push and pull request. |
-| Deployed | No. Deploying needs a Cloudflare login (see [Local versus production](#local-versus-production)). |
-| Eval results | None yet. The eval scripts are planned; no number in this README is a benchmark. |
-
-**Works today** (server features through the HTTP API; everything below is covered by tests)
-
-- Resource search, availability, week calendars, booking, cancellation and "my bookings" for the 20 synthetic resources at one site.
-- Conflict-safe booking in the `SiteLedger` Durable Object, with idempotency keys and per-employee rules (one desk and one room at a time).
-- Live availability over hibernatable WebSockets, subscribed per date, with session expiry.
-- A transactional outbox that projects reservations into D1 reporting tables, plus admin report routes.
-- Facilities requests, the `TriageWorkflow`, conditional staff review, and a cron sweep that restarts stuck triage and hands a request to staff after 3 attempts, so no request stays in `submitted`.
-- Cloudflare Access JWT verification, a local dev login backed by a generated RS256 key, three roles, and fail-closed config.
-- A test that fires the 1,000 generated booking attempts concurrently through the Worker and asserts zero overlapping bookings, zero employee double bookings, a D1 projection equal to the ledger, and zero backstop hits.
-- All eight UI kit components (Button, TextField, Dialog, Combobox, Tabs, DataTable, DateGrid, SlotGrid) with keyboard and axe tests.
-- The React app shell: a route for every page, session handling, role guards, the dev sign-in page and role-based navigation.
-
-**Still to come**
-
-- The feature pages: Find a space, resource calendar, My bookings, Report issue, My requests, request detail, Staff and Admin dashboards, and the component gallery. Their routes exist and render a heading only.
-- Playwright end-to-end tests (mobile layout, keyboard-only booking, axe gate, realtime).
-- The contention and triage eval scripts, and a generated Results section.
-- The `seed:local` script (seed with `curl` until then, as shown below).
-- `CONTEXT.md` and ADRs.
-- A production deploy, which needs a Cloudflare login.
-
-## Features
-
-| Feature | Status | Where |
-|---|---|---|
-| Resource search by kind, floor, amenities, minimum capacity and free text | Implemented | `GET /api/sites/:siteId/resources` |
-| Availability for a date: busy intervals, free windows, fit for a time window | Implemented | `GET /api/sites/:siteId/availability` |
-| Seven-day booking calendar per resource (other employees' ids never exposed) | Implemented | `GET /api/resources/:resourceId/calendar` |
-| Book a desk or room with an `Idempotency-Key`; 409 lists the conflicting intervals | Implemented | `POST /api/reservations` |
-| Cancel (owner or admin, before the booking starts) and list own bookings | Implemented | `POST /api/reservations/:id/cancel`, `GET /api/reservations` |
-| Live availability: per-date snapshots and deltas over hibernatable WebSockets | Implemented | `GET /api/sites/:siteId/live` |
-| Live staff events (`triage_ready`, `triage_overdue`, `triage_unavailable`, `request_updated`) | Implemented | same socket, `subscribe_staff` |
-| D1 reporting projection and utilization report | Implemented | `/api/admin/reports/utilization`, `/api/admin/reports/reservations` |
-| Ledger export and projection health for admins | Implemented | `/api/admin/ledger/export`, `/api/admin/projection/status` |
-| Report a facilities issue, list own requests, view detail, cancel | Implemented | `/api/requests` |
-| Triage workflow: classify into one of four categories, record suggestion, notify staff, 24-hour review timer | Implemented | `src/worker/triage/triage-workflow.ts` |
-| Cron sweep for requests stuck in `submitted` (create, restart, or hand to staff) | Implemented | `src/worker/triage/sweep.ts` |
-| Staff review: accept, reassign, or categorize by hand; status changes | Implemented | `/api/staff/requests` |
-| Request report: category summary, agreement per provider, median time to review | Implemented | `/api/admin/reports/requests` |
-| Access JWT verification, dev login, role-based access for three roles | Implemented | `src/worker/auth/` |
-| Deterministic synthetic data generators with SHA-256 pins | Implemented | `src/shared/synthetic/` |
-| UI kit: Button, TextField, Dialog, Combobox, Tabs, DataTable, DateGrid, SlotGrid (keyboard and axe tests, layouts for widths under 640 px) | Implemented | `src/client/ui/` |
-| App shell: router, session, role guards, dev sign-in page, role-based navigation (bottom bar under 640 px) | Implemented | `src/client/App.tsx`, `src/client/shell/`, `src/client/session/` |
-| Pages: Find a space, resource calendar, My bookings, Report issue, My requests, request detail, Staff and Admin dashboards | Planned (routes render a heading) | commits 21 to 24 |
-| Component gallery at `/ui` | Planned (route renders a heading) | SPEC 14 |
-| End-to-end tests: mobile layout, keyboard booking, axe gate, realtime | Planned | commit 25 |
-| Contention eval (1,000 attempts, WebSocket observers, unsafe D1 control) and triage classifier eval (local Qwen3-1.7B against a keyword baseline) | Planned | commit 26 |
-| Staff "today's bookings", admin resource edits, history import and hourly occupancy, request timeline, table sorting | Planned (Tier 2) | commits 29 to 31 |
-| Workflow-mode triage eval, realtime latency measurement, 5-run contention eval | Planned (Tier 2) | commit 32 |
-| Production deploy with Workers AI and Cloudflare Access | Planned | needs a Cloudflare login |
+- **Find a space.** Search 20 resources (14 desks, 6 rooms) by date, time window, kind, floor, amenities, seats and free text; pick a range on a slot grid that updates live; confirm in a dialog.
+- **Resource calendars.** A week view per desk or room, bookable from the grid.
+- **My bookings.** Upcoming, past and cancelled bookings; cancel with an optional reason.
+- **Report an issue and follow it.** Submit a facilities request; see its status, the suggested category with the provider that produced it, the final category, and a timeline.
+- **Facilities staff.** A triage queue with suggestions, confidence and provider labels; accept, reassign, or categorize by hand; move work to in progress and resolved; live notifications.
+- **Facilities admins.** Utilization from D1 reporting views; request reports with suggestion agreement shown per provider.
+- **Synthetic data.** 100 employees (92 employees, 6 facilities staff, 2 facilities admins) and the 20 resources come from seeded generators whose output is pinned by SHA-256 in tests.
 
 ## Architecture
 
-Dashed boxes are planned or production-only; everything else exists and is tested locally.
-
 ```mermaid
 flowchart LR
-  subgraph Clients
-    SPA["React 19 SPA<br/>shell, dev sign-in, role nav, UI kit"]
-    PAGES["Feature pages<br/>(planned: commits 21 to 24)"]
-    EVAL["Eval scripts<br/>(planned: commit 26)"]
+  subgraph Browser
+    SPA["React 19 SPA<br/>8-component UI kit"]
   end
-  ACCESS["Cloudflare Access<br/>(production only, not deployed)"]
+  subgraph Edge["Cloudflare edge (production only)"]
+    ACCESS["Cloudflare Access<br/>issues RS256 JWT"]
+  end
   subgraph Worker["Worker: placessync"]
-    API["Hono API /api/*<br/>JWT verify, RBAC, site allowlist, zod"]
     ASSETS["Static assets<br/>SPA fallback"]
+    API["Hono API /api/*<br/>JWT verify, RBAC, site allowlist, zod"]
     CRON["scheduled(): triage sweep<br/>cron */2 * * * *"]
   end
   subgraph DO["SiteLedger Durable Object (one per site)"]
     LEDGER["SQLite: reservations,<br/>resource_slots, employee_slots,<br/>idempotency, outbox"]
-    WS["Hibernatable WebSockets<br/>per-date deltas, staff events"]
+    WS["Hibernatable WebSockets<br/>availability deltas, staff events"]
     ALARM["alarm(): outbox flush"]
   end
   D1[("D1: catalog, requests,<br/>triage_suggestions,<br/>reservation_facts, report views")]
   WF["TriageWorkflow<br/>(Cloudflare Workflows)"]
   LLM{{"LlmProvider"}}
-  STUB["Keyword stub<br/>(default, all tests)"]
-  LLAMA["llama-server, Qwen3-1.7B<br/>(optional, local)"]
-  WAI["Workers AI, llama-3.3-70b<br/>(production; tested with a fake binding)"]
+  WAI["Workers AI<br/>llama-3.3-70b JSON mode<br/>(production)"]
+  LLAMA["llama-server<br/>Qwen3-1.7B GGUF<br/>(local eval)"]
+  STUB["Keyword stub<br/>(tests, offline default)"]
 
-  SPA -.- PAGES
-  SPA -->|"production"| ACCESS
-  ACCESS -->|"Cf-Access-Jwt-Assertion"| API
-  SPA -.->|"local: CF_Authorization cookie from dev login"| API
+  SPA -->|"HTTPS + Cf-Access-Jwt-Assertion"| ACCESS --> API
+  SPA -.->|"local dev: CF_Authorization cookie"| API
   SPA --> ASSETS
-  EVAL --> API
   API -->|"RPC: reserve, cancel, availability"| LEDGER
-  API -->|"WebSocket upgrade"| WS
+  API -->|"WebSocket upgrade /api/sites/:id/live"| WS
   LEDGER --> WS
   LEDGER --> ALARM
   ALARM -->|"batch upsert, version-guarded"| D1
   API -->|"catalog, requests, reports"| D1
   API -->|"create(id = requestId), sendEvent"| WF
-  CRON -->|"create or restart"| WF
-  CRON -->|"hand off to staff after 3 attempts"| D1
-  WF -->|"load request, record suggestion"| D1
+  CRON -->|"stranded 'submitted' rows: create or restart"| WF
+  WF -->|"load, record suggestion"| D1
   WF -->|"notifyStaff RPC"| WS
   WF --> LLM
-  LLM --> STUB
-  LLM --> LLAMA
   LLM --> WAI
-
-  classDef planned stroke-dasharray: 6 4
-  class PAGES,EVAL,ACCESS,WAI planned
+  LLM --> LLAMA
+  LLM --> STUB
 ```
 
-### Reservation write path
+How a booking is kept safe:
 
-```mermaid
-sequenceDiagram
-  participant C as Client
-  participant W as Worker (Hono)
-  participant L as SiteLedger DO
-  participant S as Sockets watching that date
-  participant D as D1
-  C->>W: POST /api/reservations (Idempotency-Key)
-  W->>W: verify JWT, load employee and role from D1,<br/>validate key and body, load resource from D1 (404 before any DO call)
-  W->>L: reserve(actor, input, key)
-  Note over L: await ensureCatalog() (single-flight) and the request hash, then one transactionSync:<br/>idempotency lookup, rule checks, resource and employee overlap SELECTs,<br/>ledger_version++, date_versions[date]++,<br/>INSERT reservation + resource_slots + employee_slots (PK backstop),<br/>INSERT outbox + idempotency
-  L-->>W: reservation + versions, or a conflict result
-  L->>S: delta { date, dateVersion, ledgerVersion, op: "booked", resourceId, startMin, endMin, mine }
-  L->>L: setAlarm(now + 250 ms) if none pending
-  W-->>C: 201, 404, 409 or 422
-  L->>D: alarm(): batch upsert into reservation_facts where the incoming ledger_version is newer
-```
+1. The Worker verifies the token, loads the employee and role from D1, validates the body with zod, and resolves the site from the D1 resource row (404 before any Durable Object call). Durable Object names never come from a request: `ledgerFor` allows only the configured site, and a test fails if `getByName(` appears anywhere else.
+2. The `SiteLedger` loads its catalog once (single-flight), then runs one `transactionSync` with no `await` inside: idempotency lookup, the shared booking rules, an overlap `SELECT` on the resource, an overlap `SELECT` on the employee, the reservation insert, one `resource_slots` and one `employee_slots` row per 15-minute slot under PRIMARY KEYs, the ledger and per-date version bumps, an outbox row and the idempotency record. A duplicate slot throws and rolls everything back.
+3. After commit the object sends a delta to sockets subscribed to that date and arms its alarm, which copies outbox rows to D1 with upserts guarded by version.
 
-## Key design decisions
+Design decisions are recorded in [`docs/adr/`](docs/adr) (one ledger per site, slot claims, the outbox, explicit Access verification, the Vitest integration, the Workflow, per-date live versions, the triage sweep). The domain vocabulary is in [`CONTEXT.md`](CONTEXT.md). The full design is [`SPEC.md`](SPEC.md).
 
-The full reasoning is in [SPEC.md, Section 2](SPEC.md#2-architecture) and Sections 7 to 10. ADR files under `docs/adr/` are planned for the docs commit.
+## What runs where
 
-**One ledger per site, one transaction per booking.** `SiteLedger` is a SQLite-backed Durable Object addressed by site id. `reserve` awaits only the single-flight catalog load and a SHA-256 of the request, then runs one `transactionSync` with no `await` inside, so nothing interleaves between the overlap check and the insert. One object per site, not per resource, because "one desk per employee at a time" spans resources and has to be checked in the same transaction.
+| Capability | Local (this Mac and CI) | Production (after deploy) |
+|---|---|---|
+| Worker and Hono API | workerd via `vite dev` / `vite preview`; tests via `@cloudflare/vitest-plugin` | Cloudflare Workers |
+| Static SPA | Vite build served by local workerd assets | Workers static assets |
+| SiteLedger (DO SQLite, transactions, alarms, WebSocket hibernation) | Miniflare local Durable Objects, persisted in `.wrangler/state/v3` | Durable Objects (SQLite backend). Alarms may be delayed up to a minute in production, so D1 reports lag more than locally. |
+| D1 | local SQLite via Miniflare | D1 database `placessync` |
+| Workflows | local emulated engine (Cloudflare's docs say local behaviour may differ; the local "already exists" and "not found" error texts are Miniflare's) | Cloudflare Workflows |
+| Cron triage sweep | `scheduled()` called directly in tests via `createScheduledController`; not fired on a timer during local dev | Cron Trigger `*/2 * * * *` on `placessync-production` |
+| Triage LLM | `stub` (keyword-v1, not an LLM) by default and always in `npm test`; `openai-compat` against llama-server with Qwen3-1.7B Q4_0 (8,192 tokens per slot, 1 slot) for evals; seeded suggestions are stub output and labeled so | Workers AI `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, optional AI Gateway |
+| Auth | `jose` verifying RS256 tokens signed by a locally generated dev key; dev login page; cookie or header | Cloudflare Access; JWKS from `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`; header only |
+| Contention eval | local workerd, single machine, numbers labeled local | not run (would need an Access service token); none claimed |
+| Triage eval | Qwen3-1.7B via llama.cpp, labeled with the model | not run; no Workers AI accuracy is claimed |
+| PITR, location hints, AI Gateway analytics | unavailable | available, unused in v1 |
 
-**Two independent barriers against double booking.** An overlap `SELECT` produces a useful 409 body with the conflicting intervals. Separately, every booking claims 15-minute rows in `resource_slots (resource_id, date, slot)` and `employee_slots (employee_id, kind, date, slot)` under primary keys. If the `SELECT` were ever wrong, the key violation rolls back the whole transaction, including the reservation row and both version bumps; a second transaction then counts the hit in `backstop_hits` and stores the 409 under the idempotency key. The 1,000-request contention test asserts zero overlapping confirmed bookings, zero employee double bookings, and zero backstop hits (the `SELECT` did the work).
+No local stand-in is the production service. In particular:
 
-**Idempotency inside the transaction.** Keys are scoped to `(employee_id, key)` and stored with a SHA-256 of the request. A retry with the same body replays the stored response byte for byte (tested); the same key with a different body returns 422 `idempotency_key_reuse`. Conflicts are returned as results rather than thrown, so the idempotency row commits with them. Rows older than 24 hours are purged by the alarm.
+- **Access is simulated locally.** The dev login signs a token with a key generated on this machine; the same verifier then checks it. Tests also run the production code path against a fake team JWKS. This proves the verifier's checks, not Cloudflare's login flow.
+- **The keyword stub is not an LLM.** It is the default provider offline and in every test, and the UI labels it "Keyword stub (keyword-v1)". The word "AI" appears only next to Workers AI suggestions.
+- **Workers AI has not run.** The provider is tested against a fake binding. The only model numbers below are from Qwen3-1.7B on a local llama.cpp server.
+- **Workflows, Durable Objects, D1 and cron are Miniflare's local implementations.**
 
-**Per-date live versions.** Each mutation bumps a global `ledger_version` and a `date_versions[date]` counter in the same transaction. Sockets subscribe to dates (up to 14), and deltas go only to sockets watching that date, so a client can detect a gap per date without a booking on another date forcing a resubscribe. Keepalive pings use the WebSocket auto-response, so they never wake the object. Every broadcast and every incoming message first checks the token expiry stored in the socket's attachment and closes an expired session with code 4001.
+## Run it locally
 
-**Transactional outbox instead of a queue.** The reporting fact row is written to an outbox in the same transaction as the booking, which a post-commit `queue.send()` cannot guarantee. The alarm flushes up to 50 rows per run into D1 with upserts guarded by `ledger_version`, so replays and reordering are harmless. Failures are caught, counted, and retried with backoff of `min(2^n s, 60 s)`; rows are never dropped.
-
-**Auth: verify Access tokens explicitly.** Production reads `Cf-Access-Jwt-Assertion` and verifies RS256, issuer, audience and expiry (30 s tolerance) with `jose` against the team's Access certs URL. Locally the same verifier runs against a generated RS256 key, and tests exercise the remote key-set path through an injected fetch. Roles come only from D1, looked up by the verified email; a `role` claim in the token is ignored (tested). Writes and WebSocket upgrades whose `Origin` header names another origin get 403.
-
-**Fail closed.** `parseConfig` rejects unknown auth modes, the `SET_ME` placeholders in the production config and the `REPLACE_WITH` dev-key placeholders, so an unconfigured deploy answers 500 `misconfigured` instead of trusting anything. Dev mode only answers requests addressed to localhost. Durable Object names never come from a request: `ledgerFor()` checks the site allowlist and is the only call site of `getByName`, enforced by a test that scans the source tree.
-
-**Pluggable triage provider.** `LlmProvider` has one method, `completeJson({ system, user, schema, maxTokens, temperature })`, which returns the model's text. Implementations: a deterministic keyword stub (default, and pinned in every test), an OpenAI-compatible client for a local llama-server, and a Workers AI client that uses JSON mode and an optional AI Gateway. Output is parsed with zod into exactly one of four categories; invalid output throws so the Workflow step retries, and after retries the keyword classifier answers and is recorded as `keyword-fallback`. One label map reserves "AI" for `workers-ai` rows, so stub and fallback output is never presented as AI.
-
-**No request left stranded.** The Workflow instance id is the request id, so creating it twice is harmless. Steps are durable and retried; if classification fails, a fallback step runs; the review wait times out after 24 hours and flags the request as overdue if it is still unreviewed. A cron sweep every 2 minutes takes up to 25 requests still `submitted` after 2 minutes: it creates a missing workflow or restarts an errored one, and hands the request to staff for manual categorization after 3 attempts or when its workflow finished without recording a suggestion.
-
-**Exactly one review.** Staff decisions are conditional `UPDATE`s guarded on the current status and triage state, so two staff members reviewing at once produce one review and one 409 `not_reviewable` (tested). A partial unique index allows only one `reviewed` event per request.
-
-## Tech stack
-
-Exact versions from `package.json`.
-
-| Area | Packages |
-|---|---|
-| Runtime | Cloudflare Workers (`compatibility_date` 2026-10-01): Durable Objects (SQLite), D1, Workflows, Cron Triggers; Workers AI in the production config |
-| API | `hono` 4.13.13, `@hono/zod-validator` 0.9.1, `zod` 4.6.5, `jose` 6.2.12 |
-| Client | `react` and `react-dom` 19.3.0, `react-router` 8.4.0, CSS modules with design tokens |
-| Build and dev | `vite` 8.3.4, `@vitejs/plugin-react` 6.1.2, `@cloudflare/vite-plugin` 1.63.1, `wrangler` 4.149.0, `typescript` 7.0.2 (`tsc -b`, strict, `noUncheckedIndexedAccess`) |
-| Tests | `vitest` 4.1.11 with the Workers Vitest integration (`@cloudflare/vitest-plugin` 1.4.0, formerly `@cloudflare/vitest-pool-workers`), `jsdom` 30.1.2, `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `axe-core` 4.14.0 |
-| End-to-end (installed, specs planned) | `@playwright/test` 1.63.0, `@axe-core/playwright` 4.13.0 |
-| Node | 24 in CI (`.nvmrc`); `engines` requires >= 22.22 |
-
-## Getting started
-
-Everything runs offline. No Cloudflare account is needed.
+Requirements: Node 22.22 or later (CI uses 24), npm 11. No Cloudflare account is needed.
 
 ```sh
 npm ci
-npm run setup:dev          # writes .dev.vars with a fresh RS256 dev key pair
-npm run db:migrate:local   # applies migrations/ to the local D1 under .wrangler/state
-npm run dev                # Vite + workerd at http://localhost:5173 (Vite's default port)
+npm run setup:dev          # writes .dev.vars with a fresh RS256 dev key (gitignored)
+npm run build              # vite build copies .dev.vars into dist; rebuild after changing it
+npm run db:migrate:local   # applies migrations/ to local D1
+npm run preview            # http://localhost:8783
+npm run seed:local         # in another terminal: 100 employees, 20 resources, 40 demo requests
 ```
 
-`.dev.vars.example` lists the two secret keys (`DEV_ACCESS_PRIVATE_JWK`, `DEV_ACCESS_JWKS`) with placeholder values. The config rejects those placeholders, so run `npm run setup:dev` rather than copying the example. `.dev.vars` is gitignored.
+Open http://localhost:8783, pick a user on the dev sign-in page (admins and staff are listed first), and book. `npm run dev` runs the Vite dev server on the same port.
 
-In a second terminal, seed the synthetic world through the dev-only endpoint:
+To use the local LLM for triage in the app, put `TRIAGE_PROVIDER=openai-compat` in `.dev.vars`, run `npm run llm:serve` (llama-server on port 8130 with `~/Developer/projects/_models/Qwen3-1.7B-Q4_0-rtn.gguf`), and rebuild before `npm run preview`.
+
+## Tests
 
 ```sh
-B=http://localhost:5173
-curl -s -X POST $B/api/dev/seed -H 'content-type: application/json' -d '{"reset": true}'
-# {"employees":100,"resources":20,"historyReservations":0,"requests":40}
+npm run types:check   # generated runtime types are current
+npm run typecheck     # tsc -b over app, worker and node projects (TypeScript 7)
+npm test              # Vitest: worker, worker-ws, ui (jsdom), node
+npm run test:e2e      # Playwright (Chromium) against npm run preview
 ```
 
-Open `http://localhost:5173/login` to sign in as any of the 100 synthetic users and see the navigation for that role. The feature pages are still headings, so drive the booking flow through the API. Log in as a synthetic employee and book a desk:
+- **worker** runs inside workerd with the real Durable Object, D1 and Workflows bindings: booking rules, the ledger's transactions and rollback, idempotency, cancellation, the outbox and its failure backoff, reports, auth in dev and access modes, the role matrix, the site allowlist, the triage workflow with forced step failures and timeouts, the cron sweep, and a test that fires all 1,000 generated attempts through the Worker at once.
+- **worker-ws** holds every test that opens a WebSocket (one worker, no storage isolation, as Cloudflare recommends): per-date deltas, the cross-date case, hibernation, expiry, staff events.
+- **ui** tests each of the eight components for its keyboard contract and with axe, and each page against a fetch fake and a fake WebSocket.
+- **node** checks the README results block, the `getByName` guard, generator hashes in Node, eval math, and the hard triage set.
 
-```sh
-TOKEN=$(curl -s -X POST $B/api/dev/login -H 'content-type: application/json' \
-  -d '{"employeeId":"emp_001"}' | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
+The Workers Vitest integration is `@cloudflare/vitest-plugin` (formerly `@cloudflare/vitest-pool-workers`, which npm marks deprecated and which cannot start with this compatibility date; see [ADR 0005](docs/adr/0005-vitest-plugin.md)).
 
-curl -s $B/api/me -H "Cf-Access-Jwt-Assertion: $TOKEN"
+## Evals
 
-# Desk 2A-01, 09:00 to 11:00 (minutes after midnight). DATE must be a weekday
-# within the next 14 days; GET /api/health returns siteToday.
-DATE=YYYY-MM-DD
-curl -s -X POST $B/api/reservations -H "Cf-Access-Jwt-Assertion: $TOKEN" \
-  -H 'Idempotency-Key: demo-booking-0001' -H 'content-type: application/json' \
-  -d "{\"resourceId\":\"res_2a01\",\"date\":\"$DATE\",\"startMin\":540,\"endMin\":660}"
+How each eval runs and what each metric means is in [`evals/README.md`](evals/README.md). In short:
 
-curl -s "$B/api/sites/hq/availability?date=$DATE&kind=desk&floor=2" -H "Cf-Access-Jwt-Assertion: $TOKEN"
-```
+- **Contention:** 1,000 generated reservation attempts (700 on one date, 300 on the next, by all 100 employees over all 20 resources, at least 900 of them contested) fired at once at a running local server, with live observers on both dates and a deliberately unsafe read-then-write D1 booker as a negative control that must produce overlaps.
+- **Triage:** 200 templated and 40 hand-authored ambiguous requests classified into the four categories, with the keyword baseline beside every model number. The 40 were written during the build with AI assistance and labeled per [`evals/triage-labeling-guide.md`](evals/triage-labeling-guide.md).
 
-Repeating the booking with the same key returns the same reservation. Logging in as `emp_002` and booking an overlapping time returns 409 `resource_conflict` with the conflicting intervals.
+## Results
 
-Report a facilities issue, which starts the triage workflow:
+This block is generated by `npm run results` from the committed `evals/results/*.json`. The command refuses files produced on a dirty tree or at a commit that is not an ancestor of `HEAD`, and a test fails if this block differs from its output. All numbers are from local runs on one machine.
 
-```sh
-curl -s -X POST $B/api/requests -H "Cf-Access-Jwt-Assertion: $TOKEN" -H 'content-type: application/json' \
-  -d '{"siteId":"hq","title":"Projector in Sequoia drops HDMI","description":"The projector in Sequoia keeps dropping the HDMI signal during meetings."}'
-```
+<!-- results:start -->
+No results have been recorded yet. Numbers appear here only after `npm run results` renders committed, clean-tree eval output.
+<!-- results:end -->
 
-The keyword stub suggests `electrical_av` for this one, and the request then appears in `GET /api/staff/requests` for a staff token. Staff are `emp_093` to `emp_098` and admins are `emp_099` and `emp_100`.
+## Deploy (not done yet)
 
-Tests and checks:
+Nothing has been deployed from this repository. The steps, for an account holder:
 
-```sh
-npm test               # all Vitest projects: worker, worker-ws, ui, node
-npm run test:worker    # one project (also test:ws, test:ui, test:node)
-npm run typecheck      # tsc -b over the app, worker and node configs
-npm run types:check    # generated Workers types match wrangler.jsonc
-```
+1. `npx wrangler login`
+2. `npx wrangler d1 create placessync` and paste the `database_id` into `env.production.d1_databases[0]` in `wrangler.jsonc`.
+3. In Zero Trust, create a self-hosted Access application for `placessync-production.<account-subdomain>.workers.dev` (the `production` environment suffix is part of the Worker name). Copy the Application Audience tag and the team domain into `ACCESS_AUD` and `ACCESS_TEAM_DOMAIN`, replacing the `SET_ME` placeholders. Until then every API route answers 500 `misconfigured` by design.
+4. Optional: create an AI Gateway and set `AI_GATEWAY_ID`.
+5. `npx wrangler d1 migrations apply DB --remote -c wrangler.jsonc --env production`
+6. `mkdir -p .seed && node scripts/export-catalog-sql.ts --admin-email <your-email> > .seed/catalog.sql`, then `npx wrangler d1 execute DB --remote -c wrangler.jsonc --env production --file .seed/catalog.sql`. `.seed/` is gitignored.
+7. `npm run deploy` (rebuilds with `CLOUDFLARE_ENV=production`, then `wrangler deploy`).
+8. Through Access: book a desk, watch the live update in a second browser, submit a facilities request, and confirm a `triage_suggestions` row with `provider = 'workers-ai'`. Check that the Cron Triggers tab shows `*/2 * * * *`.
 
-Build and preview the production bundle locally (local environment, not production config):
+## Known gaps
 
-```sh
-npm run build
-npm run preview        # http://localhost:8783
-```
-
-`vite build` copies `.dev.vars` into `dist/placessync/`, so rebuild after changing `.dev.vars`. `vite dev`, `vite preview` and the local migrations share the same `.wrangler/state`.
-
-Optional local LLM for triage: add `TRIAGE_PROVIDER=openai-compat` to `.dev.vars` and run `npm run llm:serve`, which needs `llama-server` on your `PATH` and the Qwen3-1.7B Q4_0 GGUF at the path in `package.json`; it listens on `127.0.0.1:8130`. Without it, triage uses the deterministic keyword stub, and `npm test` always does.
-
-Not runnable yet: `seed:local`, `test:e2e`, `eval:contention`, `eval:triage` and `results` are declared in `package.json`, but their scripts and specs land in later commits. `deploy` needs a Cloudflare login and real values for the production placeholders.
-
-## Local versus production
-
-Nothing is deployed yet. Deploying needs `wrangler login`, a D1 database id, a Cloudflare Access application whose audience tag and team domain replace the `SET_ME` placeholders in `wrangler.jsonc` (until then the production config fails closed), and the production catalog seed script, which is not written yet. No local stand-in below is the production service. The full deploy procedure is in [SPEC.md, Section 17](SPEC.md#17-deploy-steps-for-when-nitish-logs-in).
-
-| Cloudflare service | Role in PlacesSync | Local stand-in today |
-|---|---|---|
-| Workers | Hono API and static SPA assets | workerd through `vite dev` and `vite preview`; tests through the Workers Vitest integration |
-| Durable Objects | `SiteLedger`: SQLite ledger, transactions, alarms, WebSocket hibernation | Miniflare local Durable Objects, persisted in `.wrangler/state` |
-| D1 | Catalog, facilities requests, triage suggestions, reporting facts and views | Local SQLite through Miniflare |
-| Workflows | `TriageWorkflow` | Miniflare's local Workflows engine (Cloudflare notes local behaviour can differ) |
-| Cron Triggers | Stranded-request sweep every 2 minutes | Not fired on a timer locally; tests call the `scheduled` handler directly |
-| Workers AI | Triage with `@cf/meta/llama-3.3-70b-instruct-fp8-fast` in JSON mode | Never called. The provider is unit-tested against a fake `AI` binding; local triage uses the keyword stub or llama-server |
-| AI Gateway | Optional, set with `AI_GATEWAY_ID` | Not used; a unit test checks the gateway option is passed only when the id is set |
-| Access | Issues the RS256 JWT the API verifies | The same `jose` verifier against a locally generated key, plus a dev login route and page. This stands in for Access's token checks, not its login flow |
-| AI Search | Not used | None |
-| Queues | Not used: the outbox commits atomically with the booking, which a post-commit send cannot | None |
-| R2 | Not used: no file storage in v1 | None |
-
-## Data
-
-Every person, department, resource and request is synthetic, generated by pure functions of a fixed seed (`20261008`). Tests pin a SHA-256 of each generator's output in both workerd and Node. There is no real employee data and no external system.
-
-| Generator | Exact output |
-|---|---|
-| Site | 1: "PlacesSync HQ", `America/Los_Angeles`, bookable 07:00 to 19:00 on weekdays, 14-day horizon |
-| Employees | 100: 92 `employee` (Engineering 30, Sales 16, Operations 12, Product 10, Finance 10, Design 8, People 6), 6 `facilities_staff` and 2 `facilities_admin` (department Facilities); emails on the reserved `.test` TLD |
-| Resources | 20: 14 desks and 6 meeting rooms (capacity 2 to 12) across floors 2 and 3, with 9 amenity types |
-| Seed requests | 40 facilities requests, 10 per category, in mixed statuses (12 awaiting review, 8 assigned, 8 in progress, 8 resolved, 4 cancelled); their suggestions come from the keyword stub and are stored as `provider = stub` |
-| Labeled requests | 200 (50 per category) for the triage eval, from a template pool disjoint from the prompt's few-shot pool (tested) |
-| Contention attempts | 1,000: exactly 700 on the second business day after today and 300 on the third, Zipf-weighted resources, start times weighted toward the 09:00 and 13:00 peaks; all 100 employees and all 20 resources appear, every attempt passes the booking rules, and 984 overlap another attempt on the same resource and date (the generator test requires at least 900) |
-
-The four triage categories are `building_systems`, `electrical_av`, `furniture_fixtures` and `cleaning_safety`.
-
-## Project layout
-
-```
-src/shared/     runtime-agnostic code (workerd, browser, Node): zod API schemas, booking rules,
-                time and interval math, live protocol, synthetic generators, triage providers
-src/worker/     Worker entry, Hono app and routes, auth, SiteLedger Durable Object, triage workflow and sweep
-src/client/     React app: router, session, app shell, pages (most still headings), UI kit in src/client/ui/
-migrations/     D1 schema: catalog, reporting (facts and views), facilities requests
-scripts/        dev-keys.ts (the seed, eval and results scripts are planned)
-test/           Vitest projects: worker, worker-ws (every WebSocket test), ui (jsdom), node
-SPEC.md         the full v1 build specification
-PROGRESS.md     build log: commit position, check status, deviations from SPEC.md
-```
-
-## Roadmap
-
-Remaining commits from the build plan in [SPEC.md, Section 19](SPEC.md#19-scope-tiers-and-commit-plan-build-phase):
-
-21. Find a space with per-date live availability and booking dialog
-22. Resource calendar, my bookings and cancellation flow
-23. Report issue, my requests, request detail
-24. Staff and admin dashboards with provider-labeled agreement
-25. End-to-end tests: mobile layout, keyboard booking, axe gate, realtime; CI e2e job
-26. Contention and classifier triage eval scripts with llama-server pre-flight and guarded results rendering
-27. README, `CONTEXT.md`, ADRs 0001 to 0008, local versus production matrix
-28. Results from local eval runs, rendered into this README from `evals/results/*.json`
-29. Tier 2: history import, hourly occupancy and daily summary in admin
-30. Tier 2: resource edits with catalog sync; staff today's bookings
-31. Tier 2: request event timeline and DataTable sorting
-32. Tier 2: workflow-mode triage eval, realtime latency, 5-run contention, fresh results
+- **Figma:** no Figma file exists; the UI kit follows the design tokens in `src/client/ui/tokens.css` and the contracts in SPEC 14.2. See [`design/FIGMA.md`](design/FIGMA.md).
+- **Accessibility evidence is automated:** axe on every page and component state at two viewports, component keyboard tests, and a keyboard-only booking path. No manual screen-reader pass has been done.
+- **Mobile layouts** are checked in Chromium emulation at 375x812 and 768x1024, not on devices.
+- **Single ledger per site** is a throughput ceiling by design (ADR 0001); v1 has one site.
+- **Role changes** take effect on open WebSockets no later than token expiry (8 hours for dev tokens; the Access session length in production); v1 has no role-change API.
+- **Rate limiting** is not implemented (a production follow-up using the Workers rate limiting binding).
+- Not built in v1 (Tier 2 in SPEC 19): booking history import and hourly occupancy charts, admin resource editing, the staff "Today's bookings" tab, DataTable sorting, the workflow-mode triage eval, realtime latency measurement, and five-run contention evals.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. Copyright (c) 2026 Nitish Chowdary.
