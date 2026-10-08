@@ -14,6 +14,7 @@ import { SEED, contentionStats, generateContentionAttempts, type ContentionAttem
 import { addBusinessDays } from "../src/shared/time.ts";
 import { percentile, round } from "./lib/eval-math.ts";
 import { ROOT, runMeta } from "./lib/meta.ts";
+import { ObserverModel, type ServerMessage } from "./lib/observer-model.ts";
 
 const { values: args } = parseArgs({
   options: {
@@ -75,64 +76,75 @@ const auth = (token: string) => ({ "Cf-Access-Jwt-Assertion": token });
 
 interface ObserverState {
   name: string;
-  dates: string[];
   ws: WebSocket;
-  last: Record<string, number>;
-  busy: Record<string, Record<string, { startMin: number; endMin: number }[]>>;
-  deltas: Record<string, number>;
-  gaps: number;
-  foreign: number;
-  errors: number;
+  model: ObserverModel;
+  unexpectedCloses: number;
+  closing: boolean;
   lastMessageAt: number;
 }
 
+/**
+ * Opens one admin observer and resolves once every subscribed date has its snapshot.
+ * Messages go through ObserverModel, which applies deltas as the client does and
+ * resubscribes a date after a gap (scripts/lib/observer-model.ts).
+ */
 function openObserver(name: string, dates: string[], token: string): Promise<ObserverState> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`${BASE.replace(/^http/, "ws")}/api/sites/hq/live`, { headers: auth(token) } as never);
-    const state: ObserverState = { name, dates, ws, last: {}, busy: {}, deltas: {}, gaps: 0, foreign: 0, errors: 0, lastMessageAt: Date.now() };
+    const state: ObserverState = { name, ws, model: new ObserverModel(dates), unexpectedCloses: 0, closing: false, lastMessageAt: Date.now() };
     const pending = new Set(dates);
-    const timer = setTimeout(() => reject(new Error(`observer ${name}: no snapshot`)), 15_000);
+    let settled = false;
+    const fail = (message: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        ws.close();
+      } catch {
+        // Never opened.
+      }
+      reject(new Error(message));
+    };
+    const timer = setTimeout(() => fail(`observer ${name}: no snapshot`), 15_000);
     ws.addEventListener("open", () => {
       for (const d of dates) ws.send(JSON.stringify({ type: "subscribe", date: d }));
     });
-    ws.addEventListener("error", () => reject(new Error(`observer ${name}: socket error`)));
+    ws.addEventListener("error", () => fail(`observer ${name}: socket error`));
+    ws.addEventListener("close", () => {
+      if (!settled) fail(`observer ${name}: closed before its snapshots`);
+      else if (!state.closing) state.unexpectedCloses++;
+    });
     ws.addEventListener("message", (e) => {
       state.lastMessageAt = Date.now();
-      const msg = JSON.parse(String(e.data)) as Record<string, unknown> & { type: string; date?: string };
-      if (msg.date && !dates.includes(msg.date)) {
-        state.foreign++;
-        return;
-      }
-      if (msg.type === "snapshot" && msg.date) {
-        state.last[msg.date] = Number(msg.dateVersion);
-        state.busy[msg.date] = Object.fromEntries(
-          Object.entries(msg.busy as Record<string, { startMin: number; endMin: number }[]>).map(([r, list]) => [r, list.map((b) => ({ startMin: b.startMin, endMin: b.endMin }))]),
-        );
-        state.deltas[msg.date] = 0;
-        pending.delete(msg.date);
-        if (pending.size === 0) {
+      const { resubscribe, snapshot } = state.model.handle(JSON.parse(String(e.data)) as ServerMessage);
+      if (resubscribe) ws.send(JSON.stringify({ type: "subscribe", date: resubscribe }));
+      if (snapshot) {
+        pending.delete(snapshot);
+        if (pending.size === 0 && !settled) {
+          settled = true;
           clearTimeout(timer);
           resolve(state);
         }
-      } else if (msg.type === "delta" && msg.date) {
-        const d = msg.date;
-        const v = Number(msg.dateVersion);
-        if (v !== (state.last[d] ?? 0) + 1) state.gaps++;
-        state.last[d] = v;
-        state.deltas[d] = (state.deltas[d] ?? 0) + 1;
-        const r = String(msg.resourceId);
-        const list = (state.busy[d] ??= {})[r] ?? [];
-        if (msg.op === "booked") list.push({ startMin: Number(msg.startMin), endMin: Number(msg.endMin) });
-        else {
-          const i = list.findIndex((b) => b.startMin === msg.startMin && b.endMin === msg.endMin);
-          if (i >= 0) list.splice(i, 1);
-        }
-        (state.busy[d] as Record<string, unknown>)[r] = list;
-      } else if (msg.type === "error") {
-        state.errors++;
       }
     });
   });
+}
+
+/**
+ * Observers connect before any attempt is fired, so retrying a failed connect (a
+ * transient local error under load) cannot change a measured outcome. Retries are counted.
+ */
+async function openObserverWithRetry(name: string, dates: string[], token: string, onRetry: () => void): Promise<ObserverState> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await openObserver(name, dates, token);
+    } catch (err) {
+      if (attempt >= 4) throw err;
+      console.warn(`${err instanceof Error ? err.message : String(err)}; retrying`);
+      onRetry();
+      await new Promise((r) => setTimeout(r, 250 * 2 ** attempt));
+    }
+  }
 }
 
 async function quiet(observers: ObserverState[], quietMs = 500, timeoutMs = 10_000): Promise<void> {
@@ -228,7 +240,8 @@ async function run(index: number): Promise<Record<string, unknown>> {
           ["obs1_A", [dates.A]],
           ["obs2_B", [dates.B]],
         ];
-  const observers = await Promise.all(plan.map(([name, ds]) => openObserver(name, ds, admin)));
+  let observerConnectRetries = 0;
+  const observers = await Promise.all(plan.map(([name, ds]) => openObserverWithRetry(name, ds, admin, () => observerConnectRetries++)));
 
   const { outcomes, wallMs, transportRetries } = await fire("/api/reservations", tokens, dates);
   await quiet(observers);
@@ -276,19 +289,22 @@ async function run(index: number): Promise<Record<string, unknown>> {
   const observerDeltas: Record<string, Record<string, number>> = {};
   let observerFinalStateMismatches = 0;
   for (const o of observers) {
-    observerDeltas[o.name] = { ...o.deltas };
-    for (const d of o.dates) {
-      const expected = ledger.filter((r) => r.date === d);
-      const seen = Object.entries(o.busy[d] ?? {}).flatMap(([resourceId, list]) => list.map((b) => `${resourceId}|${b.startMin}|${b.endMin}`)).sort();
-      const truth = expected.map((r) => `${r.resourceId}|${r.startMin}|${r.endMin}`).sort();
-      if (JSON.stringify(seen) !== JSON.stringify(truth)) observerFinalStateMismatches++;
+    observerDeltas[o.name] = { ...o.model.deltas };
+    for (const d of o.model.dates) {
+      const truth = ledger
+        .filter((r) => r.date === d)
+        .map((r) => `${r.resourceId}|${r.startMin}|${r.endMin}`)
+        .sort();
+      if (JSON.stringify(o.model.stateKeys(d)) !== JSON.stringify(truth)) observerFinalStateMismatches++;
     }
+    o.closing = true;
     o.ws.close();
   }
   const observerDeltaMismatches = observers.reduce(
-    (n, o) => n + o.dates.filter((d) => (o.deltas[d] ?? 0) !== (d === dates.A ? acceptedPerDate.A : acceptedPerDate.B)).length,
+    (n, o) => n + o.model.dates.filter((d) => (o.model.deltas[d] ?? 0) !== (d === dates.A ? acceptedPerDate.A : acceptedPerDate.B)).length,
     0,
   );
+  const sum = (f: (o: ObserverState) => number) => observers.reduce((n, o) => n + f(o), 0);
 
   const latencies = outcomes.map((o) => o.latencyMs);
   return {
@@ -314,10 +330,13 @@ async function run(index: number): Promise<Record<string, unknown>> {
     projectionDrainMs: Math.round(projectionDrainMs),
     observerDeltas,
     observerDeltaMismatches,
-    observerDateVersionGaps: observers.reduce((n, o) => n + o.gaps, 0),
-    observerResubscribes: 0,
-    observerForeignDateMessages: observers.reduce((n, o) => n + o.foreign, 0),
-    observerErrors: observers.reduce((n, o) => n + o.errors, 0),
+    observerDateVersionGaps: sum((o) => o.model.gaps),
+    observerResubscribes: sum((o) => o.model.resubscribes),
+    observerDuplicateDeltas: sum((o) => o.model.duplicates),
+    observerForeignDateMessages: sum((o) => o.model.foreign),
+    observerErrors: sum((o) => o.model.errors),
+    observerUnexpectedCloses: sum((o) => o.unexpectedCloses),
+    observerConnectRetries,
     observerFinalStateMismatches,
     backstopHits: status.backstopHits,
     transportRetries,
@@ -342,6 +361,7 @@ async function control(): Promise<Record<string, unknown>> {
   }
   return {
     accepted: outcomes.filter((o) => o.status === 201).length,
+    rows: rows.length,
     serverErrors: outcomes.filter((o) => o.status >= 500).length,
     transportRetries,
     overlappingPairs: countOverlappingPairsBy(rows, (r) => `${r.resourceId}|${r.date}`),
@@ -368,7 +388,7 @@ for (const r of runs) {
   gate(n("attempts") === 1000, `${label}: attempts ${n("attempts")} != 1000`);
   gate(JSON.stringify(r.attemptsPerDate) === JSON.stringify({ A: 700, B: 300 }), `${label}: attemptsPerDate`);
   gate(n("distinctEmployees") === 100 && n("distinctResources") === 20, `${label}: distinct employees/resources`);
-  for (const k of ["rejectedValidation", "serverErrors", "otherStatuses", "overlappingConfirmedPairs", "employeeDoubleBookingPairs", "unjustifiedRejections", "phantomAcceptances", "lostAcceptances", "projectionMismatches", "observerDeltaMismatches", "observerDateVersionGaps", "observerResubscribes", "observerForeignDateMessages", "observerFinalStateMismatches"]) {
+  for (const k of ["rejectedValidation", "serverErrors", "otherStatuses", "overlappingConfirmedPairs", "employeeDoubleBookingPairs", "unjustifiedRejections", "phantomAcceptances", "lostAcceptances", "projectionMismatches", "observerDeltaMismatches", "observerDateVersionGaps", "observerResubscribes", "observerDuplicateDeltas", "observerForeignDateMessages", "observerErrors", "observerUnexpectedCloses", "observerFinalStateMismatches"]) {
     gate(n(k) === 0, `${label}: ${k} = ${n(k)}`);
   }
 }

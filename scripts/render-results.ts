@@ -87,6 +87,15 @@ function contentionSection(r: Record<string, unknown> & { meta: Meta }): string 
     `| Validation errors, server errors | ${range("rejectedValidation")}, ${range("serverErrors")} |`,
     `| D1 projection mismatches | ${range("projectionMismatches")} |`,
     `| Live observers: date-version gaps, foreign-date messages, final-state mismatches | ${range("observerDateVersionGaps")}, ${range("observerForeignDateMessages")}, ${range("observerFinalStateMismatches")} |`,
+    // Earlier results wrote observerResubscribes as a constant 0 (their observers never
+    // resubscribed), so this row appears only for results whose observers measure it; the
+    // same script change added observerConnectRetries.
+    ...(runs.every((x) => x.observerConnectRetries !== undefined)
+      ? [
+          `| Live observers: resubscribes after a gap, duplicate deltas, unexpected closes | ${range("observerResubscribes")}, ${range("observerDuplicateDeltas")}, ${range("observerUnexpectedCloses")} |`,
+          `| Observer connect retries (before any attempt is fired) | ${range("observerConnectRetries")} |`,
+        ]
+      : []),
     `| Slot-key backstop activations | ${range("backstopHits")} |`,
     ...(runs.every((x) => x.transportRetries !== undefined) ? [`| Transport retries (refused connects or dev-proxy failures, resent with the same Idempotency-Key) | ${range("transportRetries")} |`] : []),
     `| Negative control (naive read-then-write D1): accepted, overlapping pairs | ${control ? `${num(control.accepted)}, ${num(control.overlappingPairs)}` : "not run"} |`,

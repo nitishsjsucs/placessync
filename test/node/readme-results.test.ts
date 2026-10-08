@@ -49,6 +49,23 @@ describe("render-results refusals (SPEC 12.3)", () => {
     expect(() => loadResults([file], root)).toThrow(ResultsRefused);
   });
 
+  it("shows observer resubscribes only for contention results whose observers measure them", () => {
+    const run = {
+      attempts: 1000,
+      attemptsPerDate: { A: 700, B: 300 },
+      latencyMs: { p50: 1, p95: 2, p99: 3 },
+      observerResubscribes: 0,
+      observerDuplicateDeltas: 0,
+      observerUnexpectedCloses: 0,
+    };
+    const body = (extra: Record<string, unknown>) => ({ generator: { contestedAttempts: 984 }, runs: [{ ...run, ...extra }], control: null, gates: { passed: true } });
+    const older = renderBlock(loadResults([fixture("contention", { gitSha: head, dirty: false }, body({}))], root));
+    expect(older).not.toContain("resubscribes after a gap");
+    const newer = renderBlock(loadResults([fixture("contention", { gitSha: head, dirty: false }, body({ observerConnectRetries: 2 }))], root));
+    expect(newer).toContain("| Live observers: resubscribes after a gap, duplicate deltas, unexpected closes | 0, 0, 0 |");
+    expect(newer).toContain("| Observer connect retries (before any attempt is fired) | 2 |");
+  });
+
   it("replaces only the block between the markers", () => {
     const readme = "# T\n\n<!-- results:start -->\nold\n<!-- results:end -->\n\nafter\n";
     const next = replaceBlock(readme, "new block");
