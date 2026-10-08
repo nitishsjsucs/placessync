@@ -66,6 +66,30 @@ describe("render-results refusals (SPEC 12.3)", () => {
     expect(newer).toContain("| Observer connect retries (before any attempt is fired) | 2 |");
   });
 
+  it("names the model in the workflow section only when its suggestions came from it", () => {
+    const meta = { gitSha: head, dirty: false, llm: { modelPath: "Qwen3-1.7B-Q4_0-rtn.gguf" } };
+    const body = (providerCounts: Record<string, number>, gates: Record<string, unknown>) => ({
+      mode: "workflow",
+      n: 2,
+      reachedReview: 2,
+      providerCounts,
+      categoryInEnum: 2,
+      agreementWithLabel: 1,
+      endToEndLatencyMs: { p50: 1, p95: 2 },
+      gates,
+    });
+    const model = renderBlock(loadResults([fixture("triage-workflow-local", meta, body({ "openai-compat": 2 }, { passed: true, failures: [] }))], root));
+    expect(model).toContain("### Triage through the Workflow (local server, Qwen3-1.7B-Q4_0-rtn.gguf via llama.cpp)");
+    expect(model).toContain("and every suggestion came from openai-compat or its keyword fallback) passed.");
+    const stub = renderBlock(loadResults([fixture("triage-workflow-local", meta, body({ stub: 2 }, { passed: false, failures: ["no suggestion came from openai-compat"] }))], root));
+    expect(stub).toContain("### Triage through the Workflow (local server, no suggestion from a model)");
+    expect(stub).not.toContain("llama.cpp");
+    expect(stub).toContain("| Suggestion providers | stub: 2 |");
+    expect(stub).toContain(") FAILED.");
+    const older = renderBlock(loadResults([fixture("triage-workflow-local", meta, body({ "openai-compat": 2 }, { passed: true }))], root));
+    expect(older).toContain("Workflow-mode gates of that script version (every request reached review, every category in the enum) passed.");
+  });
+
   it("replaces only the block between the markers", () => {
     const readme = "# T\n\n<!-- results:start -->\nold\n<!-- results:end -->\n\nafter\n";
     const next = replaceBlock(readme, "new block");

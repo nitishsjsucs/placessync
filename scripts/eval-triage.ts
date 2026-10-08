@@ -22,6 +22,7 @@ import { StubProvider } from "../src/shared/triage/providers/stub.ts";
 import { ContextOverflowError, type LlmProvider } from "../src/shared/triage/providers/types.ts";
 import { accuracy, confusionMatrix, macroF1, perClass, percentile, round } from "./lib/eval-math.ts";
 import { ROOT, runMeta } from "./lib/meta.ts";
+import { workflowGates } from "./lib/workflow-gates.ts";
 
 const { values: args } = parseArgs({
   options: {
@@ -227,10 +228,7 @@ async function workflowMode(): Promise<never> {
     outcomes.push({ id: item.id, truth: item.category, requestId: created.request.id, reached, provider: suggestion?.provider ?? null, category: suggestion?.category ?? null, latencyMs: performance.now() - t0 });
     console.log(`${outcomes.length} / ${n}: ${reached ? `${suggestion?.provider} ${suggestion?.category}` : "did not reach review"}`);
   }
-  const reachedReview = outcomes.filter((o) => o.reached).length;
-  const providerCounts: Record<string, number> = {};
-  for (const o of outcomes) if (o.provider) providerCounts[o.provider] = (providerCounts[o.provider] ?? 0) + 1;
-  const categoryInEnum = outcomes.filter((o) => o.category && (CATEGORIES as readonly string[]).includes(o.category)).length;
+  const { reachedReview, providerCounts, categoryInEnum, failures } = workflowGates(n, outcomes);
   const latencies = outcomes.filter((o) => o.reached).map((o) => o.latencyMs);
   const result = {
     meta: { ...meta, llm, appTriage: health.triage },
@@ -241,14 +239,14 @@ async function workflowMode(): Promise<never> {
     categoryInEnum,
     agreementWithLabel: round(outcomes.filter((o) => o.category === o.truth).length / n),
     endToEndLatencyMs: { p50: round(percentile(latencies, 50), 1), p95: round(percentile(latencies, 95), 1) },
-    gates: { passed: reachedReview === n && categoryInEnum === n },
+    gates: { passed: failures.length === 0, failures },
     items: outcomes,
   };
   const outArg = String(args.out ?? "evals/results/triage-workflow-local.json");
   const out = path.isAbsolute(outArg) ? outArg : path.join(ROOT, outArg);
   mkdirSync(path.dirname(out), { recursive: true });
   writeFileSync(out, `${JSON.stringify(result, null, 2)}\n`);
-  console.log(JSON.stringify({ reachedReview, providerCounts, categoryInEnum, endToEndLatencyMs: result.endToEndLatencyMs }, null, 2));
+  console.log(JSON.stringify({ reachedReview, providerCounts, categoryInEnum, endToEndLatencyMs: result.endToEndLatencyMs, gates: result.gates }, null, 2));
   console.log(`wrote ${path.relative(ROOT, out)}${meta.dirty ? " (dirty tree: npm run results will refuse it)" : ""}`);
   process.exit(result.gates.passed ? 0 : 1);
 }

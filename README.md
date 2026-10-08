@@ -189,7 +189,7 @@ Command: `node scripts/eval-triage.ts --provider stub --set all --out evals/resu
 
 Source file: `evals/results/triage-keyword.json`.
 
-### Triage through the Workflow (local server, Qwen3-1.7B via llama.cpp)
+### Triage through the Workflow (local server, Qwen3-1.7B-Q4_0-rtn.gguf via llama.cpp)
 
 Command: `node scripts/eval-triage.ts --mode workflow --app-url http://localhost:8783 --n 20 --base-url http://127.0.0.1:8130/v1 --model qwen3-1.7b --out evals/results/triage-workflow-local.json`. Run 2026-10-08 at commit `3d8950b` on Apple M5 (Darwin 25.5.0 arm64, Node v25.9.0).
 
@@ -201,6 +201,8 @@ Command: `node scripts/eval-triage.ts --mode workflow --app-url http://localhost
 | Category inside the four-category enum | 20 |
 | Suggestion equals the template label | 90.0% |
 | Submit to awaiting_review, p50 / p95 (local) | 825.1 / 1037.9 ms |
+
+Workflow-mode gates of that script version (every request reached review, every category in the enum) passed.
 
 ### End-to-end checks (Playwright, Chromium)
 

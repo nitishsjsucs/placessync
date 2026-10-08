@@ -130,11 +130,16 @@ function triageSection(name: string, r: Record<string, unknown> & { meta: Meta }
 
 function workflowSection(r: Record<string, unknown> & { meta: Meta }): string {
   const lat = r.endToEndLatencyMs as { p50: number; p95: number };
-  const counts = Object.entries(r.providerCounts as Record<string, number>)
+  const providerCounts = r.providerCounts as Record<string, number>;
+  const counts = Object.entries(providerCounts)
     .map(([k, v]) => `${k}: ${num(v)}`)
     .join(", ");
+  // Name the model only when the Workflow's suggestions actually came from it.
+  const modelPath = (r.meta as { llm?: { modelPath?: string | null } }).llm?.modelPath;
+  const subject = (providerCounts["openai-compat"] ?? 0) > 0 && modelPath ? `${modelPath} via llama.cpp` : "no suggestion from a model";
+  const gates = r.gates as { passed: boolean; failures?: string[] };
   return [
-    "### Triage through the Workflow (local server, Qwen3-1.7B via llama.cpp)",
+    `### Triage through the Workflow (local server, ${subject})`,
     "",
     provenance(r.meta),
     "",
@@ -146,6 +151,11 @@ function workflowSection(r: Record<string, unknown> & { meta: Meta }): string {
     `| Category inside the four-category enum | ${num(r.categoryInEnum)} |`,
     `| Suggestion equals the template label | ${pct(r.agreementWithLabel)} |`,
     `| Submit to awaiting_review, p50 / p95 (local) | ${lat.p50} / ${lat.p95} ms |`,
+    "",
+    // Results written before the provider gate existed record only `passed`.
+    gates.failures === undefined
+      ? `Workflow-mode gates of that script version (every request reached review, every category in the enum) ${gates.passed ? "passed" : "FAILED"}.`
+      : `Workflow-mode gates (every request reached review with a category in the enum, and every suggestion came from openai-compat or its keyword fallback) ${gates.passed ? "passed" : "FAILED"}.`,
   ].join("\n");
 }
 
