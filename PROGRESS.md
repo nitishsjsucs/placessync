@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 3 of 32 (shared PRNG, time, intervals, site rules).
-Next: commit 4 (synthetic generators for 100 employees, 20 resources and disjoint request template pools).
+Last completed commit: 4 of 32 (synthetic generators and template pools).
+Next: commit 5 (D1 catalog, reporting and facilities migrations).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 4 (synthetic generators for 100 employees, 20 resources and disjoin
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (3 files, 37 tests) |
+| `npm test` | pass (5 files, 52 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -21,6 +21,7 @@ Next: commit 4 (synthetic generators for 100 employees, 20 resources and disjoin
 1. Scaffold: Vite React app, Worker entry with placeholder `SiteLedger` and `TriageWorkflow` classes, `wrangler.jsonc` with local and production environments and the cron trigger, strict tsconfig references, `.dev.vars.example`, generated `worker-configuration.d.ts`.
 2. Vitest projects `worker`, `worker-ws` (one worker, no isolation, `groupOrder: 1`), `ui` (jsdom with a `matchMedia` stub), `node`; every test var pinned through `miniflare.bindings` with a fresh RS256 key per run; `env-pins.test.ts`; CI `verify` job.
 3. `src/shared/rng.ts` (mulberry32 and helpers), `time.ts` (Intl site clock, business days, slots), `intervals.ts` (overlap, merge, free windows, pair counting), `rules.ts` (all SPEC 7.1 rules driven by `SiteRules`), with `rules.test.ts` and `shared-helpers.test.ts`.
+4. `src/shared/synthetic/`: 100 employees (92/6/2, department split), the fixed 20-resource table, disjoint `eval` and `fewshot` request template pools, 200 labeled eval requests and 40 seed requests; `roles.ts`, `triage/categories.ts`; SHA-256 pins asserted in workerd (`synthetic.test.ts`) and Node (`generators-node.test.ts`). The contention generator lands with commit 13 and the history generator with Tier 2 commit 29, as the commit plan orders.
 
 ## Deviations from SPEC.md
 
