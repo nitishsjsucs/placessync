@@ -11,3 +11,7 @@ export { Tabs } from "./Tabs.tsx";
 export type { TabItem, TabsProps } from "./Tabs.tsx";
 export { DataTable } from "./DataTable.tsx";
 export type { Column, DataTableProps } from "./DataTable.tsx";
+export { DateGrid } from "./DateGrid.tsx";
+export type { DateGridProps } from "./DateGrid.tsx";
+export { SlotGrid } from "./SlotGrid.tsx";
+export type { SlotBusy, SlotGridProps, SlotRow, SlotSelection } from "./SlotGrid.tsx";

@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 18 of 32 (Combobox, Tabs, DataTable).
-Next: commit 19 (DateGrid and SlotGrid with keyboard, live-update and compact-mode tests).
+Last completed commit: 19 of 32 (DateGrid, SlotGrid, the eight-component kit complete).
+Next: commit 20 (app shell, routing, session, dev login, role-based navigation).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 19 (DateGrid and SlotGrid with keyboard, live-update and compact-mo
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (37 files, 396 tests) |
+| `npm test` | pass (40 files, 414 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -36,6 +36,7 @@ Next: commit 19 (DateGrid and SlotGrid with keyboard, live-update and compact-mo
 16. `src/worker/triage/sweep.ts` and the exported `scheduled` handler (now = `controller.scheduledTime`): up to 25 `submitted` rows older than 2 minutes; at 3 attempts hand off to staff (`awaiting_review`, `triage_state = 'unavailable'`, `triage_unavailable` event, `notifyStaff`); no instance: create; errored or terminated: restart with `triage_retry`; in flight: leave; complete or unknown: hand off. `sweep.test.ts` cases (a) to (f) plus completed-without-recording and manual categorize after hand-off; a `worker-ws` case shows the hand-off reaches a staff socket. The record-suggestion step returns `{ recorded }` (a bare `false` mock was ignored by the local engine).
 17. `src/client/ui/tokens.css` (color, spacing, radius, type scale; light and dark), `Button` (native, aria-busy and disabled while loading, 44 px targets), `TextField` (label, hint and error via aria-describedby, aria-invalid, counter announced at 80% and 100%, multiline), `Dialog` (portal, aria-modal, focus in, Tab trap, Escape unless not dismissable, focus restore, background inert, full-screen under 640 px); component tests with axe (`test/ui/axe.ts` disables only color-contrast and region in jsdom, with the reason in a comment).
 18. `Combobox` (ARIA 1.2 editable combobox, aria-activedescendant, Arrow, Home, End, Enter, Escape then clear, Tab closes, filtering, full-width popup on mobile), `Tabs` (automatic activation, wrapping arrows, Home and End, every tab controls a rendered panel), `DataTable` (caption, empty state, row actions, `data-label` per cell for stacked rows under 640 px; sorting is Tier 2); tests with axe.
+19. `DateGrid` (role grid, roving tabindex, day and week arrows, PageUp and PageDown, Home and End to week bounds, Enter and Space, disabled dates focusable with a reason in aria-describedby), `SlotGrid` (grid of 30-minute cells, Shift+Arrow range within a row that never crosses busy cells, Enter commits, Escape clears, busy cells aria-disabled, live updates that make the selection busy clear it with a polite announcement, compact chip list under 640 px through `useMediaQuery`), `hooks/useMediaQuery.ts`; `ui-kit.test.ts` asserts exactly 8 exports and 8 component test files.
 
 ## Deviations from SPEC.md
 
