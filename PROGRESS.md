@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 15 of 32 (TriageWorkflow, facilities request API, conditional staff review).
-Next: commit 16 (cron sweep for stranded requests; manual categorize already landed in 15, see deviations).
+Last completed commit: 16 of 32 (cron sweep for stranded requests).
+Next: commit 17 (design tokens and Button, TextField, Dialog with tests).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 16 (cron sweep for stranded requests; manual categorize already lan
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (30 files, 356 tests) |
+| `npm test` | pass (31 files, 365 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -33,6 +33,7 @@ Next: commit 16 (cron sweep for stranded requests; manual categorize already lan
 13. `src/shared/synthetic/contention.ts`: exactly 1,000 attempts (700 on date A, 300 on date B), Zipf (s = 1.1) resource choice, peak windows, `contentionStats` (generator test asserts `contestedAttempts >= 900` and that every attempt passes the rules; hash pinned); dev-only naive read-then-write D1 control (`/api/dev/naive/reset|reserve|export`, table created on reset, in no migration); `contention.test.ts` (1,000 concurrent requests through the Worker: 0 overlaps, 0 employee double bookings, no phantom or lost acceptances, no unjustified 409s, date versions equal 201 counts, D1 equals the ledger, 0 backstop hits) and `overlap-detector.test.ts` (planted overlaps, adjacency, naive control overlaps > 0).
 14. `src/shared/triage/`: JSON Schema and zod output parser (clamped confidence, rationale truncated to 160), keyword classifier, system prompt with 8 few-shots from the disjoint pool, `classifyRequest`, provider labels ("AI" only for workers-ai), providers (`StubProvider`, `OpenAiCompatProvider` with `context_overflow` mapping, `WorkersAiProvider` over an Ai-shaped object); `src/worker/triage/provider-factory.ts` (workers-ai without `AI` is misconfigured, and `/api/health` uses it); `triage.categories|classify|providers.test.ts`.
 15. `TriageWorkflow` (body in `runTriage` so it can also run with a fake step): load-request, classify with retries or straight to `classify-fallback` when the provider is unavailable, idempotent record-suggestion batch, notify-staff, `waitForEvent(review_outcome, 24 h)`, flag-overdue re-reads D1; `start-triage.ts` (already_exists or a successful get counts as started; every attempt increments `triage_attempts`); `/api/requests` (create, own list, detail for owner or staff, reporter cancel with best-effort `sendEvent`), `/api/staff/requests` (queue incl. pending rows older than 2 minutes, conditional accept, reassign and categorize with one `reviewed` event, status machine), `/api/admin/reports/requests` (category summary, agreement per provider, median minutes to review); `request-status.ts`; dev seed adds 40 requests with stub suggestions; `triage.workflow.test.ts`, `requests.api.test.ts`, `request-status.test.ts`, `seed.test.ts`, agreement case in `reports.test.ts`.
+16. `src/worker/triage/sweep.ts` and the exported `scheduled` handler (now = `controller.scheduledTime`): up to 25 `submitted` rows older than 2 minutes; at 3 attempts hand off to staff (`awaiting_review`, `triage_state = 'unavailable'`, `triage_unavailable` event, `notifyStaff`); no instance: create; errored or terminated: restart with `triage_retry`; in flight: leave; complete or unknown: hand off. `sweep.test.ts` cases (a) to (f) plus completed-without-recording and manual categorize after hand-off; a `worker-ws` case shows the hand-off reaches a staff socket. The record-suggestion step returns `{ recorded }` (a bare `false` mock was ignored by the local engine).
 
 ## Deviations from SPEC.md
 
@@ -45,4 +46,6 @@ Next: commit 16 (cron sweep for stranded requests; manual categorize already lan
 
 ## Notes for the next agent
 
+- The local Workflows engine reports `running` (not `waiting`) while an instance waits for an event; the sweep treats `running` as in flight. Tests wait with `waitForStepResult({ name: "notify-staff" })` instead of `waitForStatus("waiting")`.
+- Miniflare logs "uncaught exception" lines for steps that a test makes fail on purpose (`mockStepError`, forced event timeouts); they are expected noise, not failures.
 - Node 25.9.0 locally; `jsdom@30.1.2` prints an EBADENGINE warning on Node 25 (it lists `^22.22.2 || ^24.15.0 || >=26`). Install still succeeds.

@@ -52,4 +52,19 @@ describe("staff events over the live socket (SPEC 7.1, 7.2)", () => {
     expect((await staff.closed).code).toBe(4001);
     expect(staff.messages.filter((m) => m.type === "staff_event")).toHaveLength(0);
   });
+
+  it("the sweep hand-off reaches a subscribed staff socket", async () => {
+    const { createExecutionContext, createScheduledController, waitOnExecutionContext } = await import("cloudflare:test");
+    const worker = (await import("../../src/worker/index.ts")).default;
+    const { insertRequest } = await import("../helpers/requests.ts");
+    await env.DB.exec("UPDATE facilities_requests SET status = 'cancelled' WHERE status = 'submitted'");
+    const id = await insertRequest({ ageMinutes: 5, triageAttempts: 3 });
+    const staff = await connect(await tokenFor(STAFF));
+    staff.send({ type: "subscribe_staff" });
+    await flush(staff);
+    const ctx = createExecutionContext();
+    await worker.scheduled(createScheduledController({ cron: "*/2 * * * *", scheduledTime: Date.now() }), env, ctx);
+    await waitOnExecutionContext(ctx);
+    expect(await staff.next((m) => m.type === "staff_event")).toEqual({ type: "staff_event", event: "triage_unavailable", requestId: id });
+  });
 });

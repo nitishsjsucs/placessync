@@ -70,7 +70,7 @@ describe("TriageWorkflow (SPEC 7.3)", () => {
     await using instance = await introspectWorkflowInstance(env.TRIAGE_WORKFLOW, id);
     await instance.modify(async (m) => {
       await m.disableSleeps();
-      await m.mockStepResult({ name: "record-suggestion" }, true);
+      await m.mockStepResult({ name: "record-suggestion" }, { recorded: true });
       await m.forceEventTimeout({ name: "review-outcome" });
     });
     await env.TRIAGE_WORKFLOW.create({ id, params: params(id) });

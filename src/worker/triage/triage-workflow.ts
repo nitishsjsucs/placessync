@@ -114,10 +114,10 @@ export async function runTriage(env: Env, params: TriageParams, step: WorkflowSt
         .prepare("SELECT status, triage_state AS triageState FROM facilities_requests WHERE id = ?")
         .bind(requestId)
         .first<{ status: string; triageState: string }>();
-      return row?.status === "awaiting_review" && row.triageState === "suggested";
+      return { recorded: row?.status === "awaiting_review" && row.triageState === "suggested" };
     });
 
-    if (!recorded) {
+    if (!recorded.recorded) {
       // Staff categorized it by hand or the reporter cancelled it first: no stale alert.
       return { recorded: false, outcome: "superseded" };
     }
