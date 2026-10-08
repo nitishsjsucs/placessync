@@ -5,12 +5,13 @@ import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
 import type { AppDeps, AppEnv } from "./app-env.ts";
 import { type AccessVerifier, makeVerifierFactory, verifierKey } from "./auth/access-verifier.ts";
-import { authenticate, configMiddleware, devOnly, requireSameOrigin } from "./auth/middleware.ts";
+import { authenticate, configMiddleware, devOnly, requireKnownSite, requireSameOrigin } from "./auth/middleware.ts";
 import { ApiError, errorResponse } from "./http.ts";
 import { newId } from "./ids.ts";
 import { devRoutes } from "./routes/dev.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { meRoutes } from "./routes/me.ts";
+import { resourceRoutes } from "./routes/resources.ts";
 
 export type { AppDeps, AppEnv } from "./app-env.ts";
 
@@ -51,9 +52,12 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
     return authenticate(c, next);
   });
 
+  app.use("/api/sites/:siteId/*", requireKnownSite);
+
   app.route("/", healthRoutes);
   app.route("/", meRoutes);
   app.route("/", devRoutes);
+  app.route("/", resourceRoutes);
 
   app.notFound((c) => {
     if (c.req.path.startsWith("/api/")) return errorResponse(c, 404, "not_found", "Not found.");

@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 6 of 32 (auth: Access verifier, dev keys, dev login, fail-closed config).
-Next: commit 7 (me and resource search routes with RBAC, site allowlist and ledgerFor guard test).
+Last completed commit: 7 of 32 (resource search, RBAC matrix, site allowlist, ledgerFor guard).
+Next: commit 8 (SiteLedger DO with async reserve, single-flight catalog sync, transactional slot claims and backstop).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 7 (me and resource search routes with RBAC, site allowlist and ledg
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (8 files, 99 tests) |
+| `npm test` | pass (11 files, 128 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -24,6 +24,7 @@ Next: commit 7 (me and resource search routes with RBAC, site allowlist and ledg
 4. `src/shared/synthetic/`: 100 employees (92/6/2, department split), the fixed 20-resource table, disjoint `eval` and `fewshot` request template pools, 200 labeled eval requests and 40 seed requests; `roles.ts`, `triage/categories.ts`; SHA-256 pins asserted in workerd (`synthetic.test.ts`) and Node (`generators-node.test.ts`). The contention generator lands with commit 13 and the history generator with Tier 2 commit 29, as the commit plan orders.
 5. `migrations/0001_catalog.sql`, `0002_reporting.sql`, `0003_facilities.sql` exactly as SPEC 6.1; `migrations.test.ts` checks tables, views, report hours, the absent naive table and the one-review-event index.
 6. `config.ts` (zod, rejects `SET_ME` and `REPLACE_WITH` placeholders, non-Access hosts, unknown modes), `auth/access-verifier.ts` (jose RS256, iss, aud, exp, 30 s tolerance; `makeVerifierFactory({ fetchImpl })` passes `[customFetch]`), `auth/dev-tokens.ts`, `auth/middleware.ts` (config, same-origin, dev-only, authenticate, requireRole, requireKnownSite), `createApp(deps)` with per-app memoized verifiers, `/api/health`, `/api/me`, `/api/dev/users|login|logout|seed` (seed writes the D1 catalog), `scripts/dev-keys.ts`; `config.test.ts`, `auth.test.ts` (dev and access modes).
+7. `GET /api/sites/:siteId/resources` with kind, floor, all-of amenity, minCapacity and q filters (`src/shared/resource-filter.ts`); `requireKnownSite` on `/api/sites/:siteId/*`; `ledger/ledger-for.ts` as the single `getByName` call site with `test/node/ledger-for-guard.test.ts`; `resources.test.ts` (brute-force oracle), `rbac.test.ts` (matrix grows with each route), unknown-site cases in `auth.test.ts` assert no Durable Object is created.
 
 ## Deviations from SPEC.md
 

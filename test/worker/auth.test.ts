@@ -1,4 +1,4 @@
-import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
+import { createExecutionContext, listDurableObjectIds, waitOnExecutionContext } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { SignJWT, UnsecuredJWT, exportJWK, generateKeyPair } from "jose";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -139,6 +139,27 @@ describe("request guards", () => {
     });
     expect(res.status).toBe(403);
     expect((await json(res)).error).toBe("forbidden_origin");
+  });
+});
+
+describe("site allowlist (SPEC 7.5)", () => {
+  it.each(["/api/sites/evil/resources", "/api/sites/evil/availability?date=2026-10-12", "/api/sites/HQ/resources"])(
+    "%s is 404 site_not_found and creates no Durable Object",
+    async (path) => {
+      const before = await listDurableObjectIds(env.SITE_LEDGER);
+      const res = await call(path, { headers: authHeaders(await tokenFor(EMPLOYEE)) });
+      expect(res.status).toBe(404);
+      expect((await json(res)).error).toBe("site_not_found");
+      expect(await listDurableObjectIds(env.SITE_LEDGER)).toEqual(before);
+    },
+  );
+
+  it("an unknown site on the live endpoint is 404 and creates no Durable Object", async () => {
+    const before = await listDurableObjectIds(env.SITE_LEDGER);
+    const res = await call("/api/sites/evil/live", { headers: { upgrade: "websocket", ...authHeaders(await tokenFor(EMPLOYEE)) } });
+    expect(res.status).toBe(404);
+    expect((await json(res)).error).toBe("site_not_found");
+    expect(await listDurableObjectIds(env.SITE_LEDGER)).toEqual(before);
   });
 });
 

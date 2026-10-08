@@ -50,3 +50,49 @@ export const DevSeedResponse = z.object({
   requests: z.number().int(),
 });
 export type DevSeedResponse = z.infer<typeof DevSeedResponse>;
+
+export const ResourceKindSchema = z.enum(["desk", "room"]);
+
+export const ResourceSchema = z.object({
+  id: z.string(),
+  siteId: z.string(),
+  kind: ResourceKindSchema,
+  name: z.string(),
+  floor: z.number().int(),
+  zone: z.string(),
+  capacity: z.number().int(),
+  description: z.string(),
+  active: z.boolean(),
+  amenities: z.array(z.string()),
+});
+export type Resource = z.infer<typeof ResourceSchema>;
+
+const optionalInt = (min: number) =>
+  z
+    .string()
+    .regex(/^\d+$/, "must be a whole number")
+    .transform(Number)
+    .pipe(z.number().int().min(min))
+    .optional();
+
+/** Query filters shared by resource search and availability (SPEC 8). */
+export const ResourceFiltersSchema = z.object({
+  kind: ResourceKindSchema.optional(),
+  floor: optionalInt(0),
+  amenity: z
+    .string()
+    .max(200)
+    .transform((s) =>
+      s
+        .split(",")
+        .map((a) => a.trim())
+        .filter(Boolean),
+    )
+    .optional(),
+  minCapacity: optionalInt(1),
+  q: z.string().trim().max(80).optional(),
+});
+export type ResourceFilters = z.output<typeof ResourceFiltersSchema>;
+
+export const ResourcesResponse = z.object({ resources: z.array(ResourceSchema) });
+export type ResourcesResponse = z.infer<typeof ResourcesResponse>;
