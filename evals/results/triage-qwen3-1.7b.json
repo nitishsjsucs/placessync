@@ -1,0 +1,2357 @@
+{
+  "meta": {
+    "gitSha": "3726a4a03ebc83ef9f1dc2b971cf11d3bd92b33a",
+    "dirty": false,
+    "timestamp": "2026-10-08T22:32:33.346Z",
+    "node": "v25.9.0",
+    "wrangler": "4.149.0",
+    "os": "Darwin 25.5.0 arm64",
+    "cpu": "Apple M5",
+    "seed": 20261008,
+    "inputSha256": "2d0b2bb050674f1d063b42fef885b8b49b649e863894320a6986e3a4f8be0f36",
+    "command": "node scripts/eval-triage.ts --provider openai-compat --base-url http://127.0.0.1:8130/v1 --model qwen3-1.7b --set all --out evals/results/triage-qwen3-1.7b.json",
+    "provider": "openai-compat",
+    "set": "all",
+    "llm": {
+      "nCtxPerSlot": 8192,
+      "totalSlots": 1,
+      "maxPromptTokens": 752,
+      "p95PromptTokens": 747.1,
+      "modelPath": "Qwen3-1.7B-Q4_0-rtn.gguf",
+      "modelBytes": 1460395904
+    }
+  },
+  "provider": {
+    "id": "openai-compat",
+    "model": "qwen3-1.7b",
+    "label": "qwen3-1.7b via http://127.0.0.1:8130/v1"
+  },
+  "notes": [
+    "Few-shot examples come from a template pool disjoint from both eval sets (SPEC 10.2).",
+    "The templated set is generated from the eval template pool; the hard set was authored during the build with AI assistance and labeled per evals/triage-labeling-guide.md.",
+    "Each item gets up to 3 attempts, then the keyword fallback, as in the Workflow."
+  ],
+  "sets": {
+    "templated": {
+      "n": 200,
+      "accuracy": 0.84,
+      "macroF1": 0.8453,
+      "perClass": {
+        "building_systems": {
+          "precision": 0.6438,
+          "recall": 0.94,
+          "f1": 0.7642,
+          "support": 50
+        },
+        "electrical_av": {
+          "precision": 0.973,
+          "recall": 0.72,
+          "f1": 0.8276,
+          "support": 50
+        },
+        "furniture_fixtures": {
+          "precision": 0.9333,
+          "recall": 0.84,
+          "f1": 0.8842,
+          "support": 50
+        },
+        "cleaning_safety": {
+          "precision": 0.9556,
+          "recall": 0.86,
+          "f1": 0.9053,
+          "support": 50
+        }
+      },
+      "confusion": {
+        "labels": [
+          "building_systems",
+          "electrical_av",
+          "furniture_fixtures",
+          "cleaning_safety"
+        ],
+        "rowsAreTruth": true,
+        "matrix": [
+          [
+            47,
+            1,
+            0,
+            2
+          ],
+          [
+            14,
+            36,
+            0,
+            0
+          ],
+          [
+            8,
+            0,
+            42,
+            0
+          ],
+          [
+            4,
+            0,
+            3,
+            43
+          ]
+        ]
+      },
+      "schemaValidFirstTry": 1,
+      "retryRate": 0,
+      "fallbackRate": 0,
+      "latencyMs": {
+        "p50": 649.4,
+        "p95": 838.5
+      }
+    },
+    "hard": {
+      "n": 40,
+      "accuracy": 0.775,
+      "macroF1": 0.7872,
+      "perClass": {
+        "building_systems": {
+          "precision": 0.5333,
+          "recall": 0.8,
+          "f1": 0.64,
+          "support": 10
+        },
+        "electrical_av": {
+          "precision": 0.8889,
+          "recall": 0.8,
+          "f1": 0.8421,
+          "support": 10
+        },
+        "furniture_fixtures": {
+          "precision": 1,
+          "recall": 0.8,
+          "f1": 0.8889,
+          "support": 10
+        },
+        "cleaning_safety": {
+          "precision": 0.875,
+          "recall": 0.7,
+          "f1": 0.7778,
+          "support": 10
+        }
+      },
+      "confusion": {
+        "labels": [
+          "building_systems",
+          "electrical_av",
+          "furniture_fixtures",
+          "cleaning_safety"
+        ],
+        "rowsAreTruth": true,
+        "matrix": [
+          [
+            8,
+            1,
+            0,
+            1
+          ],
+          [
+            2,
+            8,
+            0,
+            0
+          ],
+          [
+            2,
+            0,
+            8,
+            0
+          ],
+          [
+            3,
+            0,
+            0,
+            7
+          ]
+        ]
+      },
+      "schemaValidFirstTry": 1,
+      "retryRate": 0,
+      "fallbackRate": 0,
+      "latencyMs": {
+        "p50": 603.1,
+        "p95": 791.4
+      }
+    }
+  },
+  "keywordBaseline": {
+    "templated": {
+      "n": 200,
+      "accuracy": 0.87,
+      "macroF1": 0.8741
+    },
+    "hard": {
+      "n": 40,
+      "accuracy": 0.65,
+      "macroF1": 0.6446
+    }
+  },
+  "contextOverflow": null,
+  "items": [
+    {
+      "id": "tri_001",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_002",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_003",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_004",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_005",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_006",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_007",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_008",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_009",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_010",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_011",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_012",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_013",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_014",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_015",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_016",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_017",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_018",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_019",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_020",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_021",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_022",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_023",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_024",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_025",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_026",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_027",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_028",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_029",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_030",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_031",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_032",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_033",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_034",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_035",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_036",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_037",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_038",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_039",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_040",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_041",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_042",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_043",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_044",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_045",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_046",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_047",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_048",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_049",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_050",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_051",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_052",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_053",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_054",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_055",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_056",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_057",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_058",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_059",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_060",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_061",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_062",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_063",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_064",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_065",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_066",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_067",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_068",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_069",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_070",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_071",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_072",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_073",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_074",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_075",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_076",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_077",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_078",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_079",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_080",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_081",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_082",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_083",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_084",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_085",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_086",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_087",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_088",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_089",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_090",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_091",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_092",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_093",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_094",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_095",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_096",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_097",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_098",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_099",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_100",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_101",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_102",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_103",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_104",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_105",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_106",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_107",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_108",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_109",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_110",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_111",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_112",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_113",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_114",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_115",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_116",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_117",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_118",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_119",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_120",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_121",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_122",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_123",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_124",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_125",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_126",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_127",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_128",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_129",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_130",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_131",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_132",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_133",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_134",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_135",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_136",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_137",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_138",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_139",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_140",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_141",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_142",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_143",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_144",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_145",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_146",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_147",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_148",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_149",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_150",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_151",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_152",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_153",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_154",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_155",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_156",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_157",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_158",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_159",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_160",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_161",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_162",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_163",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_164",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_165",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_166",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_167",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_168",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_169",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_170",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_171",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_172",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_173",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_174",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_175",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_176",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_177",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_178",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_179",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_180",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_181",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_182",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_183",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_184",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_185",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_186",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_187",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_188",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_189",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_190",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_191",
+      "set": "templated",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_192",
+      "set": "templated",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_193",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_194",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_195",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_196",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_197",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_198",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_199",
+      "set": "templated",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "tri_200",
+      "set": "templated",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_01",
+      "set": "hard",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_02",
+      "set": "hard",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_03",
+      "set": "hard",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_04",
+      "set": "hard",
+      "truth": "building_systems",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_05",
+      "set": "hard",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_06",
+      "set": "hard",
+      "truth": "building_systems",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_07",
+      "set": "hard",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_08",
+      "set": "hard",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_09",
+      "set": "hard",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_10",
+      "set": "hard",
+      "truth": "building_systems",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_11",
+      "set": "hard",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_12",
+      "set": "hard",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_13",
+      "set": "hard",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_14",
+      "set": "hard",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_15",
+      "set": "hard",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_16",
+      "set": "hard",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_17",
+      "set": "hard",
+      "truth": "electrical_av",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_18",
+      "set": "hard",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_19",
+      "set": "hard",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_20",
+      "set": "hard",
+      "truth": "electrical_av",
+      "predicted": "electrical_av",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_21",
+      "set": "hard",
+      "truth": "furniture_fixtures",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_22",
+      "set": "hard",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_23",
+      "set": "hard",
+      "truth": "furniture_fixtures",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_24",
+      "set": "hard",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_25",
+      "set": "hard",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_26",
+      "set": "hard",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_27",
+      "set": "hard",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_28",
+      "set": "hard",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_29",
+      "set": "hard",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_30",
+      "set": "hard",
+      "truth": "furniture_fixtures",
+      "predicted": "furniture_fixtures",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_31",
+      "set": "hard",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_32",
+      "set": "hard",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_33",
+      "set": "hard",
+      "truth": "cleaning_safety",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_34",
+      "set": "hard",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_35",
+      "set": "hard",
+      "truth": "cleaning_safety",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_36",
+      "set": "hard",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_37",
+      "set": "hard",
+      "truth": "cleaning_safety",
+      "predicted": "building_systems",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_38",
+      "set": "hard",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_39",
+      "set": "hard",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    },
+    {
+      "id": "hard_40",
+      "set": "hard",
+      "truth": "cleaning_safety",
+      "predicted": "cleaning_safety",
+      "attempts": 1,
+      "fallback": false,
+      "errors": []
+    }
+  ]
+}

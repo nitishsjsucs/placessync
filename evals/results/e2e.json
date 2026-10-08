@@ -1,0 +1,744 @@
+{
+  "meta": {
+    "gitSha": "3726a4a03ebc83ef9f1dc2b971cf11d3bd92b33a",
+    "dirty": false,
+    "timestamp": "2026-10-08T22:31:37.934Z",
+    "node": "v25.9.0",
+    "wrangler": "4.149.0",
+    "os": "Darwin 25.5.0 arm64",
+    "cpu": "Apple M5",
+    "seed": null,
+    "inputSha256": null,
+    "command": "npm run test:e2e",
+    "runner": "playwright 1.63.0",
+    "browser": "chromium (Playwright build 1243)"
+  },
+  "summary": {
+    "status": "passed",
+    "tests": 50,
+    "passed": 50,
+    "failed": 0,
+    "axeScans": 28,
+    "axeViolations": 0,
+    "overflowChecks": 20,
+    "overflowFailures": 0,
+    "keyboardPaths": [
+      {
+        "test": "chromium > keyboard-booking.spec.ts > book a desk and cancel it using only the keyboard",
+        "passed": true
+      }
+    ]
+  },
+  "attachments": {
+    "axe": [
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > find has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "find@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > resource has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "resource@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > bookings has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "bookings@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > report-issue has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "report-issue@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > my-requests has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "my-requests@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > request-detail has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "request-detail@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > staff has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "staff@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > admin has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "admin@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > ui-gallery has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "ui-gallery@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > not-found has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "not-found@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > login page has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "login@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > gallery with an open Combobox has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "ui-combobox-open@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > gallery with an open Dialog has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "ui-dialog-open@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > booking dialog has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "booking-dialog@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > find has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "find@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > resource has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "resource@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > bookings has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "bookings@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > report-issue has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "report-issue@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > my-requests has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "my-requests@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > request-detail has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "request-detail@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > staff has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "staff@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > admin has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "admin@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > ui-gallery has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "ui-gallery@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > not-found has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "not-found@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > login page has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "login@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > gallery with an open Combobox has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "ui-combobox-open@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > gallery with an open Dialog has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "ui-dialog-open@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > booking dialog has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "booking-dialog@tablet",
+          "violations": 0,
+          "details": []
+        }
+      }
+    ],
+    "overflow": [
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > find: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "find",
+          "viewport": "mobile",
+          "ok": true,
+          "scrollWidth": 375,
+          "clientWidth": 375,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > resource: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "resource",
+          "viewport": "mobile",
+          "ok": true,
+          "scrollWidth": 375,
+          "clientWidth": 375,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > bookings: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "bookings",
+          "viewport": "mobile",
+          "ok": true,
+          "scrollWidth": 375,
+          "clientWidth": 375,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > report-issue: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "report-issue",
+          "viewport": "mobile",
+          "ok": true,
+          "scrollWidth": 375,
+          "clientWidth": 375,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > my-requests: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "my-requests",
+          "viewport": "mobile",
+          "ok": true,
+          "scrollWidth": 375,
+          "clientWidth": 375,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > request-detail: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "request-detail",
+          "viewport": "mobile",
+          "ok": true,
+          "scrollWidth": 375,
+          "clientWidth": 375,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > staff: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "staff",
+          "viewport": "mobile",
+          "ok": true,
+          "scrollWidth": 375,
+          "clientWidth": 375,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > admin: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "admin",
+          "viewport": "mobile",
+          "ok": true,
+          "scrollWidth": 375,
+          "clientWidth": 375,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > ui-gallery: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "ui-gallery",
+          "viewport": "mobile",
+          "ok": true,
+          "scrollWidth": 375,
+          "clientWidth": 375,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > not-found: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "not-found",
+          "viewport": "mobile",
+          "ok": true,
+          "scrollWidth": 375,
+          "clientWidth": 375,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > find: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "find",
+          "viewport": "tablet",
+          "ok": true,
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > resource: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "resource",
+          "viewport": "tablet",
+          "ok": true,
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > bookings: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "bookings",
+          "viewport": "tablet",
+          "ok": true,
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > report-issue: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "report-issue",
+          "viewport": "tablet",
+          "ok": true,
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > my-requests: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "my-requests",
+          "viewport": "tablet",
+          "ok": true,
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > request-detail: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "request-detail",
+          "viewport": "tablet",
+          "ok": true,
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > staff: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "staff",
+          "viewport": "tablet",
+          "ok": true,
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > admin: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "admin",
+          "viewport": "tablet",
+          "ok": true,
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > ui-gallery: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "ui-gallery",
+          "viewport": "tablet",
+          "ok": true,
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > not-found: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "not-found",
+          "viewport": "tablet",
+          "ok": true,
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "small": []
+        }
+      }
+    ],
+    "keyboard": [
+      {
+        "test": "chromium > keyboard-booking.spec.ts > book a desk and cancel it using only the keyboard",
+        "status": "passed",
+        "data": {
+          "path": "book-and-cancel",
+          "date": "2026-10-12",
+          "ok": true
+        }
+      }
+    ],
+    "latency": []
+  },
+  "outcomes": [
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > find has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > resource has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > bookings has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > report-issue has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > my-requests has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > request-detail has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > staff has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > admin has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > ui-gallery has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > not-found has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > login page has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > gallery with an open Combobox has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > gallery with an open Dialog has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > booking dialog has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > find has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > resource has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > bookings has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > report-issue has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > my-requests has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > request-detail has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > staff has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > admin has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > ui-gallery has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > not-found has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > login page has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > gallery with an open Combobox has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > gallery with an open Dialog has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > booking dialog has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > keyboard-booking.spec.ts > book a desk and cancel it using only the keyboard",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > find: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > resource: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > bookings: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > report-issue: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > my-requests: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > request-detail: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > staff: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > admin: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > ui-gallery: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at mobile 375x812 > not-found: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > find: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > resource: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > bookings: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > report-issue: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > my-requests: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > request-detail: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > staff: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > admin: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > ui-gallery: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > not-found: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > realtime.spec.ts > a booking in one browser shows as busy in another",
+      "status": "passed"
+    }
+  ]
+}

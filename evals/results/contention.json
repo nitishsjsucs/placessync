@@ -1,0 +1,124 @@
+{
+  "meta": {
+    "gitSha": "3726a4a03ebc83ef9f1dc2b971cf11d3bd92b33a",
+    "dirty": false,
+    "timestamp": "2026-10-08T22:32:22.098Z",
+    "node": "v25.9.0",
+    "wrangler": "4.149.0",
+    "os": "Darwin 25.5.0 arm64",
+    "cpu": "Apple M5",
+    "seed": 20261008,
+    "inputSha256": "4fe23990d3759a75f350c0fd1357ce2e7ed8c085715edef4d35e52075ae444bb",
+    "command": "node scripts/eval-contention.ts --base-url http://localhost:8783 --runs 1 --observers 4 --control naive-d1 --out evals/results/contention.json",
+    "baseUrl": "http://localhost:8783",
+    "runs": 1,
+    "observers": 4,
+    "control": "naive-d1",
+    "label": "local workerd via vite preview, single machine"
+  },
+  "generator": {
+    "attempts": 1000,
+    "attemptsPerDate": {
+      "A": 700,
+      "B": 300
+    },
+    "distinctEmployees": 100,
+    "distinctResources": 20,
+    "contestedAttempts": 984,
+    "peakSlotDemand": 83,
+    "employeeCollisions": 824
+  },
+  "runs": [
+    {
+      "run": 1,
+      "dates": {
+        "A": "2026-10-12",
+        "B": "2026-10-13"
+      },
+      "attempts": 1000,
+      "attemptsPerDate": {
+        "A": 700,
+        "B": 300
+      },
+      "distinctEmployees": 100,
+      "distinctResources": 20,
+      "accepted": 135,
+      "acceptedPerDate": {
+        "A": 80,
+        "B": 55
+      },
+      "rejectedResourceConflict": 857,
+      "rejectedEmployeeConflict": 8,
+      "rejectedValidation": 0,
+      "serverErrors": 0,
+      "otherStatuses": 0,
+      "overlappingConfirmedPairs": 0,
+      "employeeDoubleBookingPairs": 0,
+      "unjustifiedRejections": 0,
+      "phantomAcceptances": 0,
+      "lostAcceptances": 0,
+      "projectionMismatches": 0,
+      "projectionDrainMs": 6,
+      "observerDeltas": {
+        "obs1_A": {
+          "2026-10-12": 80
+        },
+        "obs2_A": {
+          "2026-10-12": 80
+        },
+        "obs3_B": {
+          "2026-10-13": 55
+        },
+        "obs4_AB": {
+          "2026-10-12": 80,
+          "2026-10-13": 55
+        }
+      },
+      "observerDeltaMismatches": 0,
+      "observerDateVersionGaps": 0,
+      "observerResubscribes": 0,
+      "observerForeignDateMessages": 0,
+      "observerErrors": 0,
+      "observerFinalStateMismatches": 0,
+      "backstopHits": 0,
+      "latencyMs": {
+        "p50": 1125.4,
+        "p95": 2402.7,
+        "p99": 2409.6
+      },
+      "wallMs": 2421,
+      "throughputRps": 413
+    }
+  ],
+  "summary": {
+    "runs": 1,
+    "overlappingConfirmedPairs": {
+      "min": 0,
+      "max": 0
+    },
+    "accepted": {
+      "min": 135,
+      "max": 135
+    },
+    "employeeDoubleBookingPairs": {
+      "max": 0
+    },
+    "projectionMismatches": {
+      "max": 0
+    },
+    "backstopHits": {
+      "max": 0
+    }
+  },
+  "control": {
+    "naiveD1": {
+      "accepted": 310,
+      "serverErrors": 0,
+      "overlappingPairs": 538
+    }
+  },
+  "gates": {
+    "passed": true,
+    "failures": []
+  }
+}
