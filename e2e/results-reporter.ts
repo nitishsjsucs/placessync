@@ -14,7 +14,7 @@ interface Collected {
 
 export default class ResultsReporter implements Reporter {
   private readonly out: string;
-  private readonly meta = runMeta({ extra: { runner: "playwright", browser: "chromium" } });
+  private readonly meta = runMeta({ extra: { command: "npm run test:e2e", runner: "playwright 1.63.0", browser: "chromium (Playwright build 1243)" } });
   private readonly attachments: Record<string, Collected[]> = { axe: [], overflow: [], keyboard: [], latency: [] };
   private readonly outcomes: { title: string; status: string }[] = [];
 

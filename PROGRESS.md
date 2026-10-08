@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 25 of 32 (e2e specs, results reporter, CI e2e job, /ui gallery).
-Next: commit 26 (contention and classifier triage eval scripts with llama-server pre-flight and guarded results rendering).
+Last completed commit: 26 of 32 (contention and classifier triage eval scripts, pre-flight, guarded results rendering).
+Next: commit 27 (README, CONTEXT.md, ADRs 0001 to 0008, local-vs-production matrix, design/FIGMA.md).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 26 (contention and classifier triage eval scripts with llama-server
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (50 files, 451 tests); e2e: 50 of 50 passed locally (dirty tree, not a result) |
+| `npm test` | pass (53 files, 465 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -43,6 +43,7 @@ Next: commit 26 (contention and classifier triage eval scripts with llama-server
 23. `ReportIssuePage` (TextFields with counters, optional space Combobox and location note, client validation with the shared zod schema, an error summary that takes focus and links to fields, server 422 mapped to fields, navigates to the new request with a started or pending message), `MyRequestsPage` (Open and Closed tabs, status, suggestion with provider label, final category), `RequestDetailPage` (details, suggestion, timeline in order, reporter cancel); `requests-ui.ts` labels; `report-issue.test.tsx`, `my-requests.test.tsx`. The timeline was listed as Tier 2 in SPEC 19.1 but its test is in the Tier 1 page test list (12.2), so it is built now.
 24. `StaffDashboardPage` (Triage queue with suggestion, confidence and provider label, Accept and Reassign for suggested rows, only Categorize for pending and unavailable rows, review Dialog with a category Combobox, 409 shows "Already reviewed" and refreshes, In progress and Resolved tabs with Start work and Resolve, live `staff_event`s through `useStaffEvents`), `AdminDashboardPage` (date range, utilization table with a CSS bar column, agreement per provider labelled "<provider label> agreement", median minutes to review, requests by category and status); report zod schemas in `src/shared/api.ts`; `staff-dashboard.test.tsx`, `admin-dashboard.test.tsx`. Today's bookings tab, hourly occupancy and resource admin are Tier 2 and not built.
 25. `UiGalleryPage` (all 8 components in their states), Playwright 1.63.0 config against `npm run preview` on 8783 with `reuseExistingServer`, `e2e/global-setup.ts` (migrate local D1, seed), `a11y.spec.ts` (axe with wcag2a, wcag2aa, wcag21aa, wcag22aa on every page, the login page, the gallery with an open Combobox and an open Dialog, and the booking Dialog, at 375x812 and 768x1024; any violation fails; no exclusions), `mobile-layout.spec.ts` (no horizontal scroll, 44x44 primary controls), `keyboard-booking.spec.ts` (book and cancel by keyboard only), `realtime.spec.ts` (two contexts, live busy cell), `e2e/results-reporter.ts` writing `evals/results/e2e.json` with the run meta (`scripts/lib/meta.ts`); CI `e2e` job (the contention eval step is added with the eval script in commit 26). `playwright-core@1.63.0` is pinned as a dev dependency so `@axe-core/playwright` shares Playwright's copy. Scroll wrappers are `position: relative` so visually hidden headers cannot widen the page.
+26. `scripts/eval-contention.ts` (SPEC 13.1: seed, 100 tokens, 2 or 4 observers on dates A and B, 1,000 concurrent POSTs with the production header, quiet wait, ledger export, outbox drain and D1 parity, every gate, naive D1 control; exit 1 on any violation), `scripts/eval-triage.ts` (classifier mode; llama-server pre-flight through /props, /apply-template and /tokenize; up to 3 attempts then keyword fallback; context overflow fails the run; keyword baseline in every file; model path stored as a basename), `scripts/render-results.ts` (only git-tracked results; refuses dirty trees and non-ancestor SHAs), `scripts/lib/eval-math.ts`, `scripts/seed-local.ts`, `scripts/export-catalog-sql.ts` (requires --admin-email), `evals/README.md`, `evals/triage-labeling-guide.md`, `evals/data/triage-hard.jsonl` (40 items, AI-assisted, labeled per the guide); CI e2e job runs the contention eval after e2e; `eval-math.test.ts`, `readme-results.test.ts` (refusals; the README equality check lands with the README), `triage-hard-set.test.ts`. Dev runs of both evals passed their gates locally; those runs were on a dirty tree and are not results.
 
 ## Deviations from SPEC.md
 

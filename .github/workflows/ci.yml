@@ -43,6 +43,8 @@ jobs:
           echo $! > preview.pid
           curl --silent --fail --retry-connrefused --retry 60 --retry-delay 1 http://localhost:8783/api/health
       - run: npm run test:e2e # webServer.reuseExistingServer: true, so Playwright uses this server and does not stop it
+      - run: npm run eval:contention -- --runs 1 --observers 2 --out evals/results/ci-contention.json
+        # after e2e on purpose: the eval calls /api/dev/seed { reset: true }
       - if: always()
         run: kill "$(cat preview.pid)" 2>/dev/null; pkill -f "vite preview" || true # npm does not always forward the signal to vite
       - if: always()
@@ -52,4 +54,5 @@ jobs:
           path: |
             playwright-report/
             evals/results/e2e.json
+            evals/results/ci-contention.json
             preview.log
