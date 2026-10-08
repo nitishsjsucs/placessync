@@ -16,6 +16,11 @@ type Row = { method: "GET" | "POST" | "PATCH"; path: string; body?: unknown; emp
 const MATRIX: Row[] = [
   { method: "GET", path: "/api/me", employee: "allow", staff: "allow", admin: "allow" },
   { method: "GET", path: "/api/sites/hq/resources", employee: "allow", staff: "allow", admin: "allow" },
+  { method: "GET", path: "/api/sites/hq/availability?date=2026-10-12", employee: "allow", staff: "allow", admin: "allow" },
+  { method: "GET", path: "/api/resources/res_2a01/calendar?weekStart=2026-10-12", employee: "allow", staff: "allow", admin: "allow" },
+  { method: "GET", path: "/api/reservations?from=2026-10-12&to=2026-10-16", employee: "allow", staff: "allow", admin: "allow" },
+  { method: "GET", path: "/api/reservations?from=2026-10-12&to=2026-10-16&employeeId=emp_050", employee: "deny", staff: "deny", admin: "allow" },
+  { method: "POST", path: "/api/reservations", body: { resourceId: "res_2a01", date: "2026-10-12", startMin: 540, endMin: 600 }, employee: "allow", staff: "allow", admin: "allow" },
   { method: "GET", path: "/api/admin/reports/utilization?from=2026-10-01&to=2026-10-31", employee: "deny", staff: "deny", admin: "allow" },
   { method: "GET", path: "/api/admin/reports/reservations?date=2026-10-12", employee: "deny", staff: "deny", admin: "allow" },
   { method: "GET", path: "/api/admin/ledger/export?date=2026-10-12", employee: "deny", staff: "deny", admin: "allow" },

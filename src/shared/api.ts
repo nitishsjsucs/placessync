@@ -137,3 +137,57 @@ export const DateRangeQuery = z.object({
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD"),
   kind: ResourceKindSchema.optional(),
 });
+
+const minuteParam = z
+  .string()
+  .regex(/^\d{1,4}$/, "minutes since midnight")
+  .transform(Number)
+  .pipe(z.number().int().min(0).max(1440));
+
+export const AvailabilityQuery = ResourceFiltersSchema.extend({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD"),
+  from: minuteParam.optional(),
+  to: minuteParam.optional(),
+});
+
+export const AvailabilityResponse = z.object({
+  date: z.string(),
+  /** The per-date version (ADR 0007); live deltas for this date continue from it. */
+  version: z.number().int(),
+  ledgerVersion: z.number().int(),
+  resources: z.array(
+    z.object({
+      resource: ResourceSchema,
+      busy: z.array(BusyIntervalSchema),
+      freeWindows: z.array(IntervalSchema),
+      fitsWindow: z.boolean(),
+    }),
+  ),
+});
+export type AvailabilityResponse = z.infer<typeof AvailabilityResponse>;
+
+export const CalendarQuery = z.object({ weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD") });
+export const CalendarResponse = z.object({
+  resource: ResourceSchema,
+  days: z.array(
+    z.object({
+      date: z.string(),
+      busy: z.array(BusyIntervalSchema.extend({ reservationId: z.string().optional() })),
+    }),
+  ),
+});
+export type CalendarResponse = z.infer<typeof CalendarResponse>;
+
+export const ReserveResponse = z.object({ reservation: ReservationSchema, version: z.number().int(), dateVersion: z.number().int() });
+export type ReserveResponse = z.infer<typeof ReserveResponse>;
+
+export const ReservationsQuery = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD"),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD"),
+  status: z.enum(["confirmed", "cancelled"]).optional(),
+  employeeId: z.string().regex(/^emp_\d{3}$/).optional(),
+});
+export const ReservationsResponse = z.object({ reservations: z.array(ReservationSchema) });
+export type ReservationsResponse = z.infer<typeof ReservationsResponse>;
+
+export const CancelBody = z.object({ reason: z.string().trim().max(200).optional() });

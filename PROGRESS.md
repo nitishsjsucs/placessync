@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 10 of 32 (outbox and alarm projection, utilization view, admin report routes).
-Next: commit 11 (availability, calendar and reservation routes).
+Last completed commit: 11 of 32 (availability, calendar and reservation routes).
+Next: commit 12 (per-date WebSocket availability protocol with hibernation and session expiry).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 11 (availability, calendar and reservation routes).
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (16 files, 178 tests) |
+| `npm test` | pass (19 files, 218 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -28,6 +28,7 @@ Next: commit 11 (availability, calendar and reservation routes).
 8. `src/worker/ledger/schema.ts` (full DO SQLite DDL from SPEC 6.2), `site-ledger.ts` with async `reserve` (single-flight `ensureCatalog`, then one `transactionSync`: rules from the ledger `site` row, overlap SELECT, reservation INSERT, `resource_slots` PK claims; a PK violation rolls everything back and counts `backstop_hits`), `syncCatalog` by `ctx.id.name`, `availability`, `exportDay`, `resetForDev`; the dev seed resets and syncs the ledger; `ledger.reserve.test.ts`, `ledger.transaction.test.ts` (rollback, single-flight with 50 concurrent calls).
 9. Ledger: idempotency by `(employee_id, key)` with a SHA-256 request hash (stored responses replay byte-identical, a different body gives `idempotency_key_reuse`), employee SELECT plus `employee_slots` PK (one desk and one room at a time per employee), `date_versions` bumped with `RETURNING` in the same transaction, `cancel` (owner or admin, confirmed, not started, frees slots); `ledger.cancel.test.ts` and new reserve and rollback cases.
 10. Outbox row per committed mutation in the same transaction (I5); `alarm()` flushes up to 50 rows with a version-guarded `DB.batch` upsert into `reservation_facts` plus `projection_state`, catches errors, counts `meta.flush_failures` and backs off `min(2^n s, 60 s)`, purges idempotency rows older than 24 h; the constructor re-arms when the outbox is non-empty; admin routes `/api/admin/reports/utilization|reservations`, `/api/admin/ledger/export`, `/api/admin/projection/status` (added here because the eval and reports need them); `projection.test.ts` (table-rename failure path, replay, version guard, eviction), `reports.test.ts`.
+11. `GET /api/sites/:siteId/availability` (filters, busy with `mine`, free windows, fit for an optional from/to window; `version` is the date version), `GET /api/resources/:id/calendar` (7 days from a Monday, ids only for the viewer's own bookings), `POST /api/reservations` (Idempotency-Key 8 to 64 chars, D1 resource lookup before the ledger), `GET /api/reservations` (admin-only `employeeId`), `POST /api/reservations/:id/cancel`; ledger `reservationsFor` and `calendar`; `availability.test.ts` (oracle filters, 200 random ledgers vs a brute-force slot scan), `calendar.test.ts`, `reservations.api.test.ts`.
 
 ## Deviations from SPEC.md
 

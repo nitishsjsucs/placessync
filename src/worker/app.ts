@@ -9,9 +9,12 @@ import { authenticate, configMiddleware, devOnly, requireKnownSite, requireSameO
 import { ApiError, errorResponse } from "./http.ts";
 import { newId } from "./ids.ts";
 import { adminRoutes } from "./routes/admin.ts";
+import { availabilityRoutes } from "./routes/availability.ts";
+import { calendarRoutes } from "./routes/calendar.ts";
 import { devRoutes } from "./routes/dev.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { meRoutes } from "./routes/me.ts";
+import { reservationRoutes } from "./routes/reservations.ts";
 import { resourceRoutes } from "./routes/resources.ts";
 
 export type { AppDeps, AppEnv } from "./app-env.ts";
@@ -59,6 +62,9 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
   app.route("/", meRoutes);
   app.route("/", devRoutes);
   app.route("/", resourceRoutes);
+  app.route("/", availabilityRoutes);
+  app.route("/", calendarRoutes);
+  app.route("/", reservationRoutes);
   app.route("/", adminRoutes);
 
   app.notFound((c) => {

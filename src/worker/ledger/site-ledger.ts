@@ -8,7 +8,7 @@ import type { Issue } from "../../shared/errors.ts";
 import type { Interval } from "../../shared/intervals.ts";
 import type { Role } from "../../shared/roles.ts";
 import { type ReserveInput, type ResourceKind, type SiteRules, hasStarted, validate } from "../../shared/rules.ts";
-import { slotsFor } from "../../shared/time.ts";
+import { addDays, slotsFor } from "../../shared/time.ts";
 import { newId } from "../ids.ts";
 import { FLUSH_BATCH, type FactPayload, flushBackoffMs, projectionStatements } from "./outbox.ts";
 import { DATA_TABLES, META_DEFAULTS, applySchema } from "./schema.ts";
@@ -452,6 +452,43 @@ export class SiteLedger extends DurableObject<Env> {
       if (list) list.push({ startMin: Number(r.start_min), endMin: Number(r.end_min), mine: viewerId !== undefined && r.employee_id === viewerId });
     }
     return { date, dateVersion: this.dateVersion(date), ledgerVersion: Number(this.meta("ledger_version")), busy };
+  }
+
+  /** An employee's own bookings between two dates (inclusive), newest date last. */
+  async reservationsFor(employeeId: string, fromDate: string, toDate: string, status?: "confirmed" | "cancelled"): Promise<Reservation[]> {
+    const rows = this.sql
+      .exec(
+        `SELECT * FROM reservations WHERE employee_id = ? AND date BETWEEN ? AND ?${status ? " AND status = ?" : ""}
+         ORDER BY date, start_min, resource_id`,
+        employeeId,
+        fromDate,
+        toDate,
+        ...(status ? [status] : []),
+      )
+      .toArray() as unknown as ReservationRow[];
+    return rows.map(toReservation);
+  }
+
+  /** Seven days of busy intervals for one resource; only the viewer's own bookings carry an id. */
+  async calendar(resourceId: string, weekStart: string, viewerId: string) {
+    const days: { date: string; busy: { startMin: number; endMin: number; mine: boolean; reservationId?: string }[] }[] = [];
+    for (let i = 0; i < 7; i++) days.push({ date: addDays(weekStart, i), busy: [] });
+    const rows = this.sql
+      .exec(
+        `SELECT id, employee_id, date, start_min, end_min FROM reservations
+         WHERE resource_id = ? AND status = 'confirmed' AND date BETWEEN ? AND ? ORDER BY date, start_min`,
+        resourceId,
+        weekStart,
+        addDays(weekStart, 6),
+      )
+      .toArray();
+    for (const r of rows) {
+      const day = days.find((d) => d.date === r.date);
+      if (!day) continue;
+      const mine = r.employee_id === viewerId;
+      day.busy.push({ startMin: Number(r.start_min), endMin: Number(r.end_min), mine, ...(mine ? { reservationId: String(r.id) } : {}) });
+    }
+    return { resourceId, weekStart, days };
   }
 
   /** Admin and eval: every confirmed reservation on a date. */
