@@ -8,6 +8,7 @@ import { type AccessVerifier, makeVerifierFactory, verifierKey } from "./auth/ac
 import { authenticate, configMiddleware, devOnly, requireKnownSite, requireSameOrigin } from "./auth/middleware.ts";
 import { ApiError, errorResponse } from "./http.ts";
 import { newId } from "./ids.ts";
+import { adminRoutes } from "./routes/admin.ts";
 import { devRoutes } from "./routes/dev.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { meRoutes } from "./routes/me.ts";
@@ -58,6 +59,7 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
   app.route("/", meRoutes);
   app.route("/", devRoutes);
   app.route("/", resourceRoutes);
+  app.route("/", adminRoutes);
 
   app.notFound((c) => {
     if (c.req.path.startsWith("/api/")) return errorResponse(c, 404, "not_found", "Not found.");

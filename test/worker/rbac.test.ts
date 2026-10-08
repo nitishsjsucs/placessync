@@ -16,6 +16,10 @@ type Row = { method: "GET" | "POST" | "PATCH"; path: string; body?: unknown; emp
 const MATRIX: Row[] = [
   { method: "GET", path: "/api/me", employee: "allow", staff: "allow", admin: "allow" },
   { method: "GET", path: "/api/sites/hq/resources", employee: "allow", staff: "allow", admin: "allow" },
+  { method: "GET", path: "/api/admin/reports/utilization?from=2026-10-01&to=2026-10-31", employee: "deny", staff: "deny", admin: "allow" },
+  { method: "GET", path: "/api/admin/reports/reservations?date=2026-10-12", employee: "deny", staff: "deny", admin: "allow" },
+  { method: "GET", path: "/api/admin/ledger/export?date=2026-10-12", employee: "deny", staff: "deny", admin: "allow" },
+  { method: "GET", path: "/api/admin/projection/status", employee: "deny", staff: "deny", admin: "allow" },
 ];
 
 describe("RBAC matrix (SPEC 8, 9.1)", () => {

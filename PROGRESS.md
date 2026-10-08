@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 9 of 32 (cancel, idempotency, per-employee slots, per-date versions).
-Next: commit 10 (outbox and alarm projection with failure counter backoff into reservation_facts and utilization view).
+Last completed commit: 10 of 32 (outbox and alarm projection, utilization view, admin report routes).
+Next: commit 11 (availability, calendar and reservation routes).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 10 (outbox and alarm projection with failure counter backoff into r
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (14 files, 156 tests) |
+| `npm test` | pass (16 files, 178 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -27,6 +27,7 @@ Next: commit 10 (outbox and alarm projection with failure counter backoff into r
 7. `GET /api/sites/:siteId/resources` with kind, floor, all-of amenity, minCapacity and q filters (`src/shared/resource-filter.ts`); `requireKnownSite` on `/api/sites/:siteId/*`; `ledger/ledger-for.ts` as the single `getByName` call site with `test/node/ledger-for-guard.test.ts`; `resources.test.ts` (brute-force oracle), `rbac.test.ts` (matrix grows with each route), unknown-site cases in `auth.test.ts` assert no Durable Object is created.
 8. `src/worker/ledger/schema.ts` (full DO SQLite DDL from SPEC 6.2), `site-ledger.ts` with async `reserve` (single-flight `ensureCatalog`, then one `transactionSync`: rules from the ledger `site` row, overlap SELECT, reservation INSERT, `resource_slots` PK claims; a PK violation rolls everything back and counts `backstop_hits`), `syncCatalog` by `ctx.id.name`, `availability`, `exportDay`, `resetForDev`; the dev seed resets and syncs the ledger; `ledger.reserve.test.ts`, `ledger.transaction.test.ts` (rollback, single-flight with 50 concurrent calls).
 9. Ledger: idempotency by `(employee_id, key)` with a SHA-256 request hash (stored responses replay byte-identical, a different body gives `idempotency_key_reuse`), employee SELECT plus `employee_slots` PK (one desk and one room at a time per employee), `date_versions` bumped with `RETURNING` in the same transaction, `cancel` (owner or admin, confirmed, not started, frees slots); `ledger.cancel.test.ts` and new reserve and rollback cases.
+10. Outbox row per committed mutation in the same transaction (I5); `alarm()` flushes up to 50 rows with a version-guarded `DB.batch` upsert into `reservation_facts` plus `projection_state`, catches errors, counts `meta.flush_failures` and backs off `min(2^n s, 60 s)`, purges idempotency rows older than 24 h; the constructor re-arms when the outbox is non-empty; admin routes `/api/admin/reports/utilization|reservations`, `/api/admin/ledger/export`, `/api/admin/projection/status` (added here because the eval and reports need them); `projection.test.ts` (table-rename failure path, replay, version guard, eviction), `reports.test.ts`.
 
 ## Deviations from SPEC.md
 

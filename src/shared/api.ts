@@ -130,3 +130,10 @@ export const ReserveBody = z.object({
   title: z.string().trim().max(80).optional(),
 });
 export type ReserveBody = z.infer<typeof ReserveBody>;
+
+export const DateQuery = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD") });
+export const DateRangeQuery = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD"),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD"),
+  kind: ResourceKindSchema.optional(),
+});

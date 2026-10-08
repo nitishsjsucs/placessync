@@ -10,6 +10,7 @@ import type { Role } from "../../shared/roles.ts";
 import { type ReserveInput, type ResourceKind, type SiteRules, hasStarted, validate } from "../../shared/rules.ts";
 import { slotsFor } from "../../shared/time.ts";
 import { newId } from "../ids.ts";
+import { FLUSH_BATCH, type FactPayload, flushBackoffMs, projectionStatements } from "./outbox.ts";
 import { DATA_TABLES, META_DEFAULTS, applySchema } from "./schema.ts";
 
 export interface Actor {
@@ -89,6 +90,7 @@ const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 export class SiteLedger extends DurableObject<Env> {
   private readonly sql: SqlStorage;
   private catalogLoad: Promise<void> | null = null;
+  private alarmPending = false;
   /** Tests only, set through runInDurableObject. */
   clockOverride?: () => number;
   /** Tests only: how many times syncCatalog ran in this instance. */
@@ -99,6 +101,11 @@ export class SiteLedger extends DurableObject<Env> {
     this.sql = ctx.storage.sql;
     void ctx.blockConcurrencyWhile(async () => {
       applySchema(this.sql);
+      // After eviction or a restart, unflushed outbox rows must still reach D1.
+      if (this.outboxDepth() > 0 && (await ctx.storage.getAlarm()) === null) {
+        await ctx.storage.setAlarm(Date.now());
+        this.alarmPending = true;
+      }
     });
   }
 
@@ -131,6 +138,43 @@ export class SiteLedger extends DurableObject<Env> {
 
   private dateVersion(date: string): number {
     return Number(this.sql.exec("SELECT version FROM date_versions WHERE date = ?", date).toArray()[0]?.version ?? 0);
+  }
+
+  private outboxDepth(): number {
+    return Number(this.sql.exec("SELECT COUNT(*) AS n FROM outbox").one().n);
+  }
+
+  /** Writes the reservation's fact row to the outbox inside the caller's transaction (I5). */
+  private enqueueFact(row: ReservationRow, now: number): void {
+    const payload: FactPayload = {
+      reservationId: row.id,
+      siteId: String(this.sql.exec("SELECT id FROM site LIMIT 1").one().id),
+      resourceId: row.resource_id,
+      resourceKind: row.kind,
+      employeeId: row.employee_id,
+      date: row.date,
+      startMin: row.start_min,
+      endMin: row.end_min,
+      attendees: row.attendees,
+      status: row.status,
+      createdAt: new Date(row.created_at).toISOString(),
+      cancelledAt: row.cancelled_at === null ? null : new Date(row.cancelled_at).toISOString(),
+      ledgerVersion: row.version,
+    };
+    this.sql.exec(
+      "INSERT INTO outbox (reservation_id, version, payload, created_at) VALUES (?, ?, ?, ?)",
+      row.id,
+      row.version,
+      JSON.stringify(payload),
+      now,
+    );
+  }
+
+  /** Arms the flush alarm 250 ms out unless one is already pending. */
+  private async scheduleFlush(): Promise<void> {
+    if (this.alarmPending) return;
+    this.alarmPending = true;
+    if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + 250);
   }
 
   private storeIdempotent(employeeId: string, key: string, hash: string, result: ReserveResult, now: number): void {
@@ -208,7 +252,7 @@ export class SiteLedger extends DurableObject<Env> {
     const hash = await requestHash(input);
     const now = this.now();
     try {
-      return this.ctx.storage.transactionSync((): ReserveResult => {
+      const committed = this.ctx.storage.transactionSync((): ReserveResult => {
         // (1) Idempotency: the same key and body replays the stored response.
         const prior = this.sql
           .exec("SELECT request_hash, response FROM idempotency WHERE employee_id = ? AND key = ?", actor.employeeId, idempotencyKey)
@@ -221,6 +265,8 @@ export class SiteLedger extends DurableObject<Env> {
         this.storeIdempotent(actor.employeeId, idempotencyKey, hash, result, now);
         return result;
       });
+      if (committed.ok) await this.afterCommit();
+      return committed;
     } catch (err) {
       if (!(err instanceof BackstopConflict)) throw err;
       // Everything above rolled back. Record the hit and the conflict as the keyed response.
@@ -311,13 +357,14 @@ export class SiteLedger extends DurableObject<Env> {
       }
     }
     const row = this.sql.exec("SELECT * FROM reservations WHERE id = ?", id).one() as unknown as ReservationRow;
+    this.enqueueFact(row, now);
     return { ok: true, status: 201, reservation: toReservation(row), ledgerVersion: version, dateVersion };
   }
 
   async cancel(actor: Actor, reservationId: string, reason?: string): Promise<CancelResult> {
     await this.ensureCatalog();
     const now = this.now();
-    return this.ctx.storage.transactionSync((): CancelResult => {
+    const result = this.ctx.storage.transactionSync((): CancelResult => {
       const row = this.sql.exec("SELECT * FROM reservations WHERE id = ?", reservationId).toArray()[0] as unknown as ReservationRow | undefined;
       if (!row) return { ok: false, status: 404, error: "reservation_not_found" };
       if (row.employee_id !== actor.employeeId && actor.role !== "facilities_admin") return { ok: false, status: 403, error: "not_owner" };
@@ -336,8 +383,59 @@ export class SiteLedger extends DurableObject<Env> {
         reservationId,
       );
       const updated = this.sql.exec("SELECT * FROM reservations WHERE id = ?", reservationId).one() as unknown as ReservationRow;
+      this.enqueueFact(updated, now);
       return { ok: true, status: 200, reservation: toReservation(updated), ledgerVersion: version, dateVersion };
     });
+    if (result.ok) await this.afterCommit();
+    return result;
+  }
+
+  /** Post-commit work for every mutation: schedule the D1 flush. */
+  private async afterCommit(): Promise<void> {
+    await this.scheduleFlush();
+  }
+
+  /**
+   * Flushes up to 50 outbox rows to D1 in one batch. Errors are caught (never rethrown,
+   * so the platform retry budget is unused) and drive our own backoff counter (m1).
+   */
+  async alarm(): Promise<void> {
+    this.alarmPending = false;
+    const now = Date.now();
+    this.sql.exec("DELETE FROM idempotency WHERE created_at < ?", this.now() - IDEMPOTENCY_TTL_MS);
+    const rows = this.sql.exec("SELECT seq, payload FROM outbox ORDER BY seq LIMIT ?", FLUSH_BATCH).toArray();
+    if (rows.length === 0) return;
+    const facts = rows.map((r) => JSON.parse(String(r.payload)) as FactPayload);
+    const lastSeq = Number(rows[rows.length - 1]?.seq);
+    try {
+      const siteId = String(this.sql.exec("SELECT id FROM site LIMIT 1").toArray()[0]?.id ?? this.ctx.id.name ?? "");
+      await this.env.DB.batch(projectionStatements(this.env.DB, siteId, facts, new Date(now).toISOString()));
+      this.ctx.storage.transactionSync(() => {
+        this.sql.exec("DELETE FROM outbox WHERE seq <= ?", lastSeq);
+        this.setMeta("flush_failures", 0);
+        this.setMeta("last_flush_error", "");
+      });
+      if (this.outboxDepth() > 0) {
+        await this.ctx.storage.setAlarm(Date.now());
+        this.alarmPending = true;
+      }
+    } catch (err) {
+      const failures = Number(this.meta("flush_failures")) + 1;
+      this.setMeta("flush_failures", failures);
+      this.setMeta("last_flush_error", err instanceof Error ? err.message : String(err));
+      await this.ctx.storage.setAlarm(Date.now() + flushBackoffMs(failures));
+      this.alarmPending = true;
+    }
+  }
+
+  projectionStatus() {
+    return {
+      ledgerVersion: Number(this.meta("ledger_version")),
+      outboxDepth: this.outboxDepth(),
+      backstopHits: Number(this.meta("backstop_hits")),
+      lastFlushError: this.meta("last_flush_error") || null,
+      flushFailures: Number(this.meta("flush_failures")),
+    };
   }
 
   /** Read-only busy intervals per resource for one date. */
@@ -378,10 +476,12 @@ export class SiteLedger extends DurableObject<Env> {
   }
 
   /** Dev seed only: drops all ledger data, keeps the schema. */
-  resetForDev(): void {
+  async resetForDev(): Promise<void> {
     this.ctx.storage.transactionSync(() => {
       for (const t of DATA_TABLES) this.sql.exec(`DELETE FROM ${t}`);
       for (const [key, value] of Object.entries(META_DEFAULTS)) this.setMeta(key, value);
     });
+    await this.ctx.storage.deleteAlarm();
+    this.alarmPending = false;
   }
 }
