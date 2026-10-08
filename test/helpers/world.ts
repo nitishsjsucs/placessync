@@ -41,3 +41,19 @@ export async function as(employeeId: string) {
     patch: (path: string, body?: unknown) => send("PATCH", path, body),
   };
 }
+
+import { env } from "cloudflare:workers";
+import { addBusinessDays, siteToday } from "../../src/shared/time.ts";
+import { ledgerFor } from "../../src/worker/ledger/ledger-for.ts";
+
+export const TZ = "America/Los_Angeles";
+
+/** The hq ledger stub, reached the same way the Worker reaches it. */
+export function hqLedger() {
+  return ledgerFor(env, { siteId: "hq" }, "hq");
+}
+
+/** The n-th business day after today in site-local time (n >= 1). */
+export function bizDay(n: number): string {
+  return addBusinessDays(siteToday(TZ, Date.now()), n);
+}

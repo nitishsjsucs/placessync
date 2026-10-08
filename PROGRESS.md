@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 7 of 32 (resource search, RBAC matrix, site allowlist, ledgerFor guard).
-Next: commit 8 (SiteLedger DO with async reserve, single-flight catalog sync, transactional slot claims and backstop).
+Last completed commit: 8 of 32 (SiteLedger reserve, single-flight catalog, slot claims, backstop).
+Next: commit 9 (cancellation, idempotency keys, per-employee rules, per-date versions).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 8 (SiteLedger DO with async reserve, single-flight catalog sync, tr
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (11 files, 128 tests) |
+| `npm test` | pass (13 files, 140 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -25,6 +25,7 @@ Next: commit 8 (SiteLedger DO with async reserve, single-flight catalog sync, tr
 5. `migrations/0001_catalog.sql`, `0002_reporting.sql`, `0003_facilities.sql` exactly as SPEC 6.1; `migrations.test.ts` checks tables, views, report hours, the absent naive table and the one-review-event index.
 6. `config.ts` (zod, rejects `SET_ME` and `REPLACE_WITH` placeholders, non-Access hosts, unknown modes), `auth/access-verifier.ts` (jose RS256, iss, aud, exp, 30 s tolerance; `makeVerifierFactory({ fetchImpl })` passes `[customFetch]`), `auth/dev-tokens.ts`, `auth/middleware.ts` (config, same-origin, dev-only, authenticate, requireRole, requireKnownSite), `createApp(deps)` with per-app memoized verifiers, `/api/health`, `/api/me`, `/api/dev/users|login|logout|seed` (seed writes the D1 catalog), `scripts/dev-keys.ts`; `config.test.ts`, `auth.test.ts` (dev and access modes).
 7. `GET /api/sites/:siteId/resources` with kind, floor, all-of amenity, minCapacity and q filters (`src/shared/resource-filter.ts`); `requireKnownSite` on `/api/sites/:siteId/*`; `ledger/ledger-for.ts` as the single `getByName` call site with `test/node/ledger-for-guard.test.ts`; `resources.test.ts` (brute-force oracle), `rbac.test.ts` (matrix grows with each route), unknown-site cases in `auth.test.ts` assert no Durable Object is created.
+8. `src/worker/ledger/schema.ts` (full DO SQLite DDL from SPEC 6.2), `site-ledger.ts` with async `reserve` (single-flight `ensureCatalog`, then one `transactionSync`: rules from the ledger `site` row, overlap SELECT, reservation INSERT, `resource_slots` PK claims; a PK violation rolls everything back and counts `backstop_hits`), `syncCatalog` by `ctx.id.name`, `availability`, `exportDay`, `resetForDev`; the dev seed resets and syncs the ledger; `ledger.reserve.test.ts`, `ledger.transaction.test.ts` (rollback, single-flight with 50 concurrent calls).
 
 ## Deviations from SPEC.md
 

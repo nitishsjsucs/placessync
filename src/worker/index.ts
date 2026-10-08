@@ -1,7 +1,7 @@
-import { DurableObject, WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { createApp, defaultDeps } from "./app.ts";
 
-export class SiteLedger extends DurableObject<Env> {}
+export { SiteLedger } from "./ledger/site-ledger.ts";
 
 export class TriageWorkflow extends WorkflowEntrypoint<Env, { requestId: string; siteId: string }> {
   async run(_event: WorkflowEvent<{ requestId: string; siteId: string }>, _step: WorkflowStep): Promise<void> {}

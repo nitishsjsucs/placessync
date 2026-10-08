@@ -1,6 +1,8 @@
 // Dev seed: writes the synthetic world into D1 (and, from the ledger commit on, the
 // SiteLedger catalog). Only reachable through /api/dev/seed in dev mode.
 import { SEED, generateWorld } from "../shared/synthetic/index.ts";
+import type { Config } from "./config.ts";
+import { ledgerFor } from "./ledger/ledger-for.ts";
 
 export interface SeedOptions {
   reset: boolean;
@@ -77,7 +79,10 @@ export async function seedCatalog(db: D1Database, opts: { reset: boolean }): Pro
   return { employees: world.employees.length, resources: world.resources.length };
 }
 
-export async function seedDatabase(env: Env, opts: SeedOptions): Promise<SeedResult> {
+export async function seedDatabase(env: Env, config: Pick<Config, "siteId">, opts: SeedOptions): Promise<SeedResult> {
   const catalog = await seedCatalog(env.DB, { reset: opts.reset });
+  const ledger = ledgerFor(env, config, config.siteId);
+  if (opts.reset) await ledger.resetForDev();
+  await ledger.syncCatalog();
   return { ...catalog, historyReservations: 0, requests: 0 };
 }

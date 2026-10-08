@@ -42,6 +42,6 @@ export const devRoutes = new Hono<AppEnv>()
   })
   .post("/api/dev/seed", jsonBody(DevSeedBody), async (c) => {
     const { reset, history } = c.req.valid("json");
-    const result = await seedDatabase(c.env, { reset, history, nowMs: c.get("deps").now() });
+    const result = await seedDatabase(c.env, c.get("config"), { reset, history, nowMs: c.get("deps").now() });
     return c.json(result);
   });

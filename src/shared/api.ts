@@ -96,3 +96,37 @@ export type ResourceFilters = z.output<typeof ResourceFiltersSchema>;
 
 export const ResourcesResponse = z.object({ resources: z.array(ResourceSchema) });
 export type ResourcesResponse = z.infer<typeof ResourcesResponse>;
+
+export const IntervalSchema = z.object({ startMin: z.number().int(), endMin: z.number().int() });
+export const BusyIntervalSchema = IntervalSchema.extend({ mine: z.boolean() });
+export type BusyInterval = z.infer<typeof BusyIntervalSchema>;
+
+export const ReservationSchema = z.object({
+  id: z.string(),
+  resourceId: z.string(),
+  employeeId: z.string(),
+  kind: ResourceKindSchema,
+  date: z.string(),
+  startMin: z.number().int(),
+  endMin: z.number().int(),
+  attendees: z.number().int(),
+  title: z.string().nullable(),
+  status: z.enum(["confirmed", "cancelled"]),
+  createdAt: z.string(),
+  cancelledAt: z.string().nullable(),
+  cancelledBy: z.string().nullable(),
+  cancelReason: z.string().nullable(),
+  version: z.number().int(),
+});
+export type Reservation = z.infer<typeof ReservationSchema>;
+
+/** POST /api/reservations body: types only; the ledger applies the booking rules. */
+export const ReserveBody = z.object({
+  resourceId: z.string().min(1).max(64),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD"),
+  startMin: z.number().int().min(0).max(1440),
+  endMin: z.number().int().min(0).max(1440),
+  attendees: z.number().int().min(1).max(100).optional(),
+  title: z.string().trim().max(80).optional(),
+});
+export type ReserveBody = z.infer<typeof ReserveBody>;
