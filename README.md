@@ -134,7 +134,7 @@ The Workers Vitest integration is `@cloudflare/vitest-plugin` (formerly `@cloudf
 How each eval runs and what each metric means is in [`evals/README.md`](evals/README.md). In short:
 
 - **Contention:** 1,000 generated reservation attempts (700 on one date, 300 on the next, by all 100 employees over all 20 resources, at least 900 of them contested) fired at once at a running local server, with live observers on both dates and a deliberately unsafe read-then-write D1 booker as a negative control that must produce overlaps.
-- **Triage:** 200 templated and 40 hand-authored ambiguous requests classified into the four categories, with the keyword baseline beside every model number. The 40 were written during the build with AI assistance and labeled per [`evals/triage-labeling-guide.md`](evals/triage-labeling-guide.md).
+- **Triage:** 200 templated requests and 40 deliberately ambiguous ones classified into the four categories, with the keyword baseline beside every model number. The 40 were written during the build with AI assistance (not by facilities staff) and labeled per [`evals/triage-labeling-guide.md`](evals/triage-labeling-guide.md).
 
 ## Results
 

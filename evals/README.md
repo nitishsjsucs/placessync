@@ -21,10 +21,13 @@ Per run: reset and seed (100 employees, 20 resources), sign in all 100 employees
 | `phantomAcceptances`, `lostAcceptances` | a 201 with no ledger row, or a ledger row with no 201 | must be 0 |
 | `projectionMismatches` | D1 `reservation_facts` that differ from the ledger after the outbox drains | must be 0 |
 | `observerDeltaMismatches`, `observerDateVersionGaps`, `observerForeignDateMessages`, `observerFinalStateMismatches` | each observer's deltas per date equal that date's acceptances, arrive in per-date version order, never concern a date it did not subscribe to, and rebuild the ledger exactly | must be 0 |
+| `observerResubscribes`, `observerDuplicateDeltas`, `observerErrors`, `observerUnexpectedCloses` | observers handle deltas as the client does (`scripts/lib/observer-model.ts`): a version jump resubscribes that date, an old version is a duplicate; error messages and sockets closed by the server are counted too | must be 0 |
+| `observerConnectRetries` | failed observer connects retried before any attempt is fired, so they cannot change an outcome | reported |
+| `transportRetries` | attempts resent with the same Idempotency-Key after a refused connect or a dev-proxy HTML 500 under the 1,000-request burst; the ledger replays a resend instead of booking twice | reported |
 | `rejectedValidation`, `serverErrors` | every attempt is rule-valid, so every rejection must be a conflict | must be 0 |
 | `backstopHits` | times the slot primary key caught what the overlap SELECT missed | reported |
 | `latencyMs`, `wallMs`, `throughputRps` | single-machine local numbers | reported, never used as a claim |
-| `control.naiveD1.overlappingPairs` | the same 1,000 attempts against a read-then-write D1 booker | must be above 0, proving the detector can see overlaps |
+| `control.naiveD1.overlappingPairs` | the same 1,000 attempts against a read-then-write D1 booker; its rows take their id from the attempt's Idempotency-Key, so a resent attempt cannot add a row that overlaps itself | must be above 0, proving the detector can see overlaps |
 
 `accepted` varies between runs because arrival order differs.
 
