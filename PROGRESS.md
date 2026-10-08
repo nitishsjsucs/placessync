@@ -4,8 +4,9 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 32 of 32, code part (workflow-mode triage eval, realtime latency, 5-run contention support). The fresh results commit follows.
-Next: a fresh docs: results commit from a clean tree (5-run contention, Qwen3 and keyword triage, workflow-mode triage, e2e with latency).
+**All 32 commits of SPEC 19.2 are done**, Tier 1 and Tier 2, plus small follow-up fixes (eval robustness, test wait ceilings) and a fresh results commit (`92d679e`, results measured at `a5b243c`). Nothing has been pushed.
+
+Next for a later builder: there is no planned commit left. Useful follow-ups are listed at the end of this file under "Open items".
 
 ## Status at the last commit
 
@@ -13,13 +14,14 @@ Next: a fresh docs: results commit from a clean tree (5-run contention, Qwen3 an
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (55 files, 487 tests) |
-| `npm run test:e2e` | pass (50 of 50), run from a clean tree at `3726a4a` for commit 28 |
-| Evals | contention (1 run, 4 observers, naive control) and triage (Qwen3-1.7B and keyword stub) run from a clean tree at `3726a4a`; all contention gates passed |
+| `npm test` | pass (55 files, 488 tests) |
 | `npm run build` | pass |
+| `npm run test:e2e` | pass (53 of 53) at `a5b243c`, recorded in `evals/results/e2e.json` |
+| Contention eval | 5 runs, 4 observers, naive D1 control; all SPEC 13.1 gates passed at `a5b243c` (`evals/results/contention.json`) |
+| Triage evals | Qwen3-1.7B (llama.cpp) and keyword stub, classifier mode; workflow mode 20 of 20 reached review via `openai-compat`; all at `a5b243c` |
+| CI | `.github/workflows/ci.yml` written (verify and e2e jobs) but never run: nothing is pushed |
 
-## Done
-
+## Done (by commit)
 1. Scaffold: Vite React app, Worker entry with placeholder `SiteLedger` and `TriageWorkflow` classes, `wrangler.jsonc` with local and production environments and the cron trigger, strict tsconfig references, `.dev.vars.example`, generated `worker-configuration.d.ts`.
 2. Vitest projects `worker`, `worker-ws` (one worker, no isolation, `groupOrder: 1`), `ui` (jsdom with a `matchMedia` stub), `node`; every test var pinned through `miniflare.bindings` with a fresh RS256 key per run; `env-pins.test.ts`; CI `verify` job.
 3. `src/shared/rng.ts` (mulberry32 and helpers), `time.ts` (Intl site clock, business days, slots), `intervals.ts` (overlap, merge, free windows, pair counting), `rules.ts` (all SPEC 7.1 rules driven by `SiteRules`), with `rules.test.ts` and `shared-helpers.test.ts`.
@@ -47,34 +49,33 @@ Next: a fresh docs: results commit from a clean tree (5-run contention, Qwen3 an
 25. `UiGalleryPage` (all 8 components in their states), Playwright 1.63.0 config against `npm run preview` on 8783 with `reuseExistingServer`, `e2e/global-setup.ts` (migrate local D1, seed), `a11y.spec.ts` (axe with wcag2a, wcag2aa, wcag21aa, wcag22aa on every page, the login page, the gallery with an open Combobox and an open Dialog, and the booking Dialog, at 375x812 and 768x1024; any violation fails; no exclusions), `mobile-layout.spec.ts` (no horizontal scroll, 44x44 primary controls), `keyboard-booking.spec.ts` (book and cancel by keyboard only), `realtime.spec.ts` (two contexts, live busy cell), `e2e/results-reporter.ts` writing `evals/results/e2e.json` with the run meta (`scripts/lib/meta.ts`); CI `e2e` job (the contention eval step is added with the eval script in commit 26). `playwright-core@1.63.0` is pinned as a dev dependency so `@axe-core/playwright` shares Playwright's copy. Scroll wrappers are `position: relative` so visually hidden headers cannot widen the page.
 26. `scripts/eval-contention.ts` (SPEC 13.1: seed, 100 tokens, 2 or 4 observers on dates A and B, 1,000 concurrent POSTs with the production header, quiet wait, ledger export, outbox drain and D1 parity, every gate, naive D1 control; exit 1 on any violation), `scripts/eval-triage.ts` (classifier mode; llama-server pre-flight through /props, /apply-template and /tokenize; up to 3 attempts then keyword fallback; context overflow fails the run; keyword baseline in every file; model path stored as a basename), `scripts/render-results.ts` (only git-tracked results; refuses dirty trees and non-ancestor SHAs), `scripts/lib/eval-math.ts`, `scripts/seed-local.ts`, `scripts/export-catalog-sql.ts` (requires --admin-email), `evals/README.md`, `evals/triage-labeling-guide.md`, `evals/data/triage-hard.jsonl` (40 items, AI-assisted, labeled per the guide); CI e2e job runs the contention eval after e2e; `eval-math.test.ts`, `readme-results.test.ts` (refusals; the README equality check lands with the README), `triage-hard-set.test.ts`. Dev runs of both evals passed their gates locally; those runs were on a dirty tree and are not results.
 27. `README.md` (what it does, architecture, the local-versus-production matrix from SPEC 16 with the 8,192-token slot noted, what is simulated, how to run, tests, evals, a generated Results block between markers, deploy steps, known gaps), `CONTEXT.md` glossary, `docs/adr/0001` to `0008`, `design/FIGMA.md` placeholder; `readme-results.test.ts` now also asserts the README block equals the rendered output of the committed results.
-
-28. `evals/results/contention.json`, `triage-qwen3-1.7b.json`, `triage-keyword.json`, `e2e.json` produced from a clean tree at `3726a4a` and rendered into the README by `npm run results` (the README test passes against them).
-
-## How the commit-28 results were produced (repeat after any change)
-
-1. Clean tree (`git status --porcelain --untracked-files=no` empty); delete any untracked `evals/results/*.json`.
-2. `npm run build`, `npm run db:migrate:local`, start `npx vite preview --port 8783 --strictPort` in the background.
-3. `npx playwright test` (reuses the running server; writes `evals/results/e2e.json`).
-4. `node scripts/eval-contention.ts --base-url http://localhost:8783 --runs 1 --observers 4 --control naive-d1 --out evals/results/contention.json`.
-5. Stop the preview. Start `llama-server -m ~/Developer/projects/_models/Qwen3-1.7B-Q4_0-rtn.gguf --host 127.0.0.1 --port 8130 --reasoning off -c 8192 -np 1 -ngl 99`; run `node scripts/eval-triage.ts --provider openai-compat --base-url http://127.0.0.1:8130/v1 --model qwen3-1.7b --set all --out evals/results/triage-qwen3-1.7b.json` (about 3 minutes); stop llama-server; run `node scripts/eval-triage.ts --provider stub --set all --out evals/results/triage-keyword.json`.
-6. `git add evals/results/*.json && npm run results`, run `npm test`, commit the JSON and README together.
-
-Any later code commit makes the README block's commit an ancestor, which is still accepted; re-run the evals when the code they measure changes.
+28. `evals/results/contention.json`, `triage-qwen3-1.7b.json`, `triage-keyword.json`, `e2e.json` produced from a clean tree at `3726a4a` and rendered into the README by `npm run results`. Superseded by the final results commit `92d679e` (measured at `a5b243c`).
 29. Tier 2: `src/shared/synthetic/history.ts` (`generateHistory`, 20 business days before siteToday, invariant-respecting, about 5% cancelled, hash pinned at `HISTORY_PIN_DATE`), ledger `importHistory` (same rules except the past, same overlap and slot-claim transaction through a shared `commitReservation`, outbox facts), `/api/dev/seed { history: true }` and `seed:local -- --history`, the utilization report adds `daily` from `v_daily_booking_summary`, the admin dashboard shows hourly occupancy averages (CSS bars) and bookings per day; `history.test.ts`, new synthetic, report and admin page cases. The admin a11y and layout e2e checks pass after the change.
 30. Tier 2: `PATCH /api/admin/resources/:id` (active, capacity for rooms, description; updates D1 then `syncCatalog`), admins can list inactive resources (`includeInactive=1`), `GET /api/staff/bookings?date` (the day's bookings with employee and resource names), an admin Resources tab (activate, deactivate, edit in a Dialog) and a staff "Today's bookings" tab; `admin-resources.test.ts`, RBAC rows, UI cases, and an e2e axe scan of both new tabs at both viewports (passing).
 31. Tier 2: DataTable sorting (`sortValue` per column; header buttons with `aria-sort` on wide screens; a native "Sort by" select in the stacked layout under 640 px so no focusable control hides in the clipped header row), sortable columns on My bookings, the staff queue and admin utilization; sorting tests (aria-sort, keyboard, compact select with axe); e2e a11y and layout re-checked on the affected pages.
 32. Tier 2: `eval-triage.ts --mode workflow` (submits N requests through the API of a server built with `TRIAGE_PROVIDER=openai-compat`, pre-flights the same llama-server, waits for `awaiting_review`, reports reached, provider counts, categories in the enum, agreement with the label, submit-to-review latency), realtime propagation latency over 20 bookings in `e2e/realtime.spec.ts` (attached as `latency`, summarized by the reporter), render-results sections for both, `evals/README.md` updated; the ui project's test timeout is 30 s because full-page tests ran past 5 s on a loaded machine (assertions unchanged).
 
+## How the results were produced (repeat after code changes that affect them)
+
+"Dirty" for results means a tracked change outside `evals/results/` (`scripts/lib/meta.ts`), so the evals can run back to back and write straight into `evals/results/`.
+1. Clean tree: `git status --porcelain --untracked-files=no` shows nothing outside `evals/results/`. `.dev.vars` must not set `TRIAGE_PROVIDER` (keep a backup if you add it).
+2. `npm run build`, `npm run db:migrate:local`, start `npx vite preview --port 8783 --strictPort` in the background, wait for `/api/health`.
+3. `npx playwright test` (reuses the running server; writes `evals/results/e2e.json`).
+4. `node scripts/eval-contention.ts --base-url http://localhost:8783 --runs 5 --observers 4 --control naive-d1 --out evals/results/contention.json` (about 30 s).
+5. Start `llama-server -m ~/Developer/projects/_models/Qwen3-1.7B-Q4_0-rtn.gguf --host 127.0.0.1 --port 8130 --reasoning off -c 8192 -np 1 -ngl 99`. Run `node scripts/eval-triage.ts --provider openai-compat --base-url http://127.0.0.1:8130/v1 --model qwen3-1.7b --set all --out evals/results/triage-qwen3-1.7b.json` (about 3 minutes) and `node scripts/eval-triage.ts --provider stub --set all --out evals/results/triage-keyword.json`.
+6. Workflow mode: stop the preview, append `TRIAGE_PROVIDER=openai-compat` to `.dev.vars`, `npm run build`, start the preview again, run `node scripts/eval-triage.ts --mode workflow --app-url http://localhost:8783 --n 20 --base-url http://127.0.0.1:8130/v1 --model qwen3-1.7b --out evals/results/triage-workflow-local.json`, then stop the preview and llama-server, restore `.dev.vars`, and `npm run build` again.
+7. `git add evals/results/*.json && npm run results`, run `npm test` (the README test compares the block), commit the JSON and README together.
+
 ## Deviations from SPEC.md
-
 1. Ports. This machine runs other builds at the same time and this repo may only use port 8783 for the local Worker server (inspector 9233) and port 8130 for llama-server. So `npm run preview` uses `--port 8783` (spec: 8788), `seed:local` points at 8783, and `llm:serve` runs `--port 8130 -c 8192 -np 1 -ngl 99` (spec: port 8080, `-c 16384 -np 4`). The local `LLM_BASE_URL` var is `http://127.0.0.1:8130/v1`. With `-np 1 -c 8192` the per-slot context is 8,192 tokens and eval concurrency is 1; the triage eval pre-flight still reads `n_ctx` and `total_slots` from `/props`, so it adapts.
-
 2. Manual categorize (`decision: "categorize"`) landed with the staff review route in commit 15 rather than commit 16, because the review route's three decisions share one conditional-UPDATE code path. Commit 16 adds the sweep.
 3. Added routes not named in the commit plan where a feature needed them earlier: the admin report, ledger export and projection status routes arrived with the projection commit (10), and `/api/admin/reports/requests` with the triage commit (15).
 4. `GET /api/health` adds `seeded: boolean` and returns `siteToday`/`siteRules` as null before the first seed, so readiness probes (CI curl, Playwright webServer) get 200 on an empty database. The availability response field `version` is the per-date version; `ledgerVersion` is also returned.
 5. The Workflow body lives in `runTriage(env, params, step)`, called by `TriageWorkflow.run`. Miniflare refuses to construct a `WorkflowEntrypoint` outside the engine, and a `NonRetryableError` aborts the whole instance even when caught, so the "workers-ai without an AI binding" path skips `classify` and goes straight to `classify-fallback`, tested by running `runTriage` with an in-process fake step.
-
 6. The request event timeline on `/requests/:id` (Tier 2 in SPEC 19.1) was built with commit 23 because the Tier 1 page test list (SPEC 12.2, `my-requests.test.tsx`) asserts it. Commit 31 therefore only needs DataTable sorting.
+7. Commit 31's title names the request timeline, which shipped in commit 23 (deviation 6); commit 31 adds only DataTable sorting.
+8. Extra commits outside the plan: `chore: record Tier 1 completion...`, `test(ui): raise the async wait ceiling...`, and six `fix(eval)` commits (retry refused connects, render the retries row only when recorded, absolute --out in workflow mode, result files do not make a run dirty, parse trimmed git status lines, retry dev-proxy 500 pages). Each left the tree green.
+9. `npm run test:e2e` has 53 tests rather than the four spec files' minimum: the a11y spec scans every page and the login page, the gallery with an open Combobox and Dialog, the booking Dialog, and the admin Resources and staff Today's bookings tabs at both viewports.
 
 ## Notes for the next agent
 
@@ -85,3 +86,10 @@ Any later code commit makes the README block's commit an ancestor, which is stil
 - The local Workflows engine reports `running` (not `waiting`) while an instance waits for an event; the sweep treats `running` as in flight. Tests wait with `waitForStepResult({ name: "notify-staff" })` instead of `waitForStatus("waiting")`.
 - Miniflare logs "uncaught exception" lines for steps that a test makes fail on purpose (`mockStepError`, forced event timeouts); they are expected noise, not failures.
 - Node 25.9.0 locally; `jsdom@30.1.2` prints an EBADENGINE warning on Node 25 (it lists `^22.22.2 || ^24.15.0 || >=26`). Install still succeeds.
+
+## Open items (not in the commit plan, or needing Nitish)
+
+- SPEC 15 items need Nitish: a Figma file for the eight components (`design/FIGMA.md` is a placeholder; the README says the kit follows design tokens, not Figma), a real Workers AI run after deploy, the Access setup, a manual screen-reader pass, confirming the `@cloudflare/vitest-plugin` substitution, publishing the repo, and the hard triage set's authorship (AI-assisted, labeled per the guide).
+- CI has never run on GitHub. Expect to check: `npm ci` on Linux with the committed lockfile, Playwright `--with-deps chromium` on ubuntu-latest, and the e2e job's port 8783.
+- The contention eval retries refused connects and vite-preview proxy HTML 500 pages with the same Idempotency-Key and reports the count (`transportRetries`; up to 59 in run 1 of the committed results, 0 in runs 2 to 5). The live observers do not retry; a failed observer connect makes the script exit non-zero, and simply re-running worked here.
+- Dev-mode `vite preview` listens on `[::1]:8783` only on this Mac; Node's fetch to `localhost` falls back from IPv6 to IPv4 and the IPv4 attempt is refused.
