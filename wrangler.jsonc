@@ -1,0 +1,57 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "placessync",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "placessync-local",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "durable_objects": { "bindings": [{ "name": "SITE_LEDGER", "class_name": "SiteLedger" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SiteLedger"] }],
+  "workflows": [{ "name": "placessync-triage", "binding": "TRIAGE_WORKFLOW", "class_name": "TriageWorkflow" }],
+  "triggers": { "crons": ["*/2 * * * *"] },
+  "vars": {
+    "AUTH_MODE": "dev",
+    "SITE_ID": "hq",
+    "DEV_ACCESS_ISSUER": "https://placessync-dev.localhost",
+    "DEV_ACCESS_AUD": "placessync-dev",
+    "TRIAGE_PROVIDER": "stub",
+    "LLM_BASE_URL": "http://127.0.0.1:8130/v1",
+    "LLM_MODEL": "qwen3-1.7b"
+  },
+  "observability": { "enabled": true },
+  "env": {
+    "production": {
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "placessync",
+          "database_id": "SET_AFTER_wrangler_d1_create",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "durable_objects": { "bindings": [{ "name": "SITE_LEDGER", "class_name": "SiteLedger" }] },
+      "workflows": [{ "name": "placessync-triage", "binding": "TRIAGE_WORKFLOW", "class_name": "TriageWorkflow" }],
+      "ai": { "binding": "AI" },
+      "vars": {
+        "AUTH_MODE": "access",
+        "SITE_ID": "hq",
+        "ACCESS_TEAM_DOMAIN": "https://SET_ME.cloudflareaccess.com",
+        "ACCESS_AUD": "SET_ME",
+        "TRIAGE_PROVIDER": "workers-ai",
+        "TRIAGE_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "AI_GATEWAY_ID": ""
+      }
+    }
+  }
+}

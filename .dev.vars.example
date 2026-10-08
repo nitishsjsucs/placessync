@@ -1,0 +1,4 @@
+# Copy is written by `npm run setup:dev` into .dev.vars (gitignored).
+# This file is the only input for `wrangler types` (--env-file .dev.vars.example).
+DEV_ACCESS_PRIVATE_JWK="REPLACE_WITH_npm_run_setup_dev"
+DEV_ACCESS_JWKS="REPLACE_WITH_npm_run_setup_dev"

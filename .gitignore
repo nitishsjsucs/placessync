@@ -1,0 +1,10 @@
+node_modules
+dist
+.wrangler
+.dev.vars
+.seed/
+playwright-report
+test-results
+evals/results/ci-*
+*.log
+.DS_Store
