@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 16 of 32 (cron sweep for stranded requests).
-Next: commit 17 (design tokens and Button, TextField, Dialog with tests).
+Last completed commit: 17 of 32 (design tokens, Button, TextField, Dialog).
+Next: commit 18 (Combobox, Tabs, DataTable with tests).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 17 (design tokens and Button, TextField, Dialog with tests).
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (31 files, 365 tests) |
+| `npm test` | pass (34 files, 382 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -34,6 +34,7 @@ Next: commit 17 (design tokens and Button, TextField, Dialog with tests).
 14. `src/shared/triage/`: JSON Schema and zod output parser (clamped confidence, rationale truncated to 160), keyword classifier, system prompt with 8 few-shots from the disjoint pool, `classifyRequest`, provider labels ("AI" only for workers-ai), providers (`StubProvider`, `OpenAiCompatProvider` with `context_overflow` mapping, `WorkersAiProvider` over an Ai-shaped object); `src/worker/triage/provider-factory.ts` (workers-ai without `AI` is misconfigured, and `/api/health` uses it); `triage.categories|classify|providers.test.ts`.
 15. `TriageWorkflow` (body in `runTriage` so it can also run with a fake step): load-request, classify with retries or straight to `classify-fallback` when the provider is unavailable, idempotent record-suggestion batch, notify-staff, `waitForEvent(review_outcome, 24 h)`, flag-overdue re-reads D1; `start-triage.ts` (already_exists or a successful get counts as started; every attempt increments `triage_attempts`); `/api/requests` (create, own list, detail for owner or staff, reporter cancel with best-effort `sendEvent`), `/api/staff/requests` (queue incl. pending rows older than 2 minutes, conditional accept, reassign and categorize with one `reviewed` event, status machine), `/api/admin/reports/requests` (category summary, agreement per provider, median minutes to review); `request-status.ts`; dev seed adds 40 requests with stub suggestions; `triage.workflow.test.ts`, `requests.api.test.ts`, `request-status.test.ts`, `seed.test.ts`, agreement case in `reports.test.ts`.
 16. `src/worker/triage/sweep.ts` and the exported `scheduled` handler (now = `controller.scheduledTime`): up to 25 `submitted` rows older than 2 minutes; at 3 attempts hand off to staff (`awaiting_review`, `triage_state = 'unavailable'`, `triage_unavailable` event, `notifyStaff`); no instance: create; errored or terminated: restart with `triage_retry`; in flight: leave; complete or unknown: hand off. `sweep.test.ts` cases (a) to (f) plus completed-without-recording and manual categorize after hand-off; a `worker-ws` case shows the hand-off reaches a staff socket. The record-suggestion step returns `{ recorded }` (a bare `false` mock was ignored by the local engine).
+17. `src/client/ui/tokens.css` (color, spacing, radius, type scale; light and dark), `Button` (native, aria-busy and disabled while loading, 44 px targets), `TextField` (label, hint and error via aria-describedby, aria-invalid, counter announced at 80% and 100%, multiline), `Dialog` (portal, aria-modal, focus in, Tab trap, Escape unless not dismissable, focus restore, background inert, full-screen under 640 px); component tests with axe (`test/ui/axe.ts` disables only color-contrast and region in jsdom, with the reason in a comment).
 
 ## Deviations from SPEC.md
 
