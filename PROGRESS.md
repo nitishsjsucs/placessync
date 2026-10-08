@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 21 of 32 (Find a space with per-date live availability and booking dialog).
-Next: commit 22 (resource calendar, my bookings and cancellation flow).
+Last completed commit: 22 of 32 (resource calendar, my bookings, cancellation flow).
+Next: commit 23 (report issue, my requests, request detail).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 22 (resource calendar, my bookings and cancellation flow).
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (44 files, 434 tests) |
+| `npm test` | pass (46 files, 438 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -39,6 +39,7 @@ Next: commit 22 (resource calendar, my bookings and cancellation flow).
 19. `DateGrid` (role grid, roving tabindex, day and week arrows, PageUp and PageDown, Home and End to week bounds, Enter and Space, disabled dates focusable with a reason in aria-describedby), `SlotGrid` (grid of 30-minute cells, Shift+Arrow range within a row that never crosses busy cells, Enter commits, Escape clears, busy cells aria-disabled, live updates that make the selection busy clear it with a polite announcement, compact chip list under 640 px through `useMediaQuery`), `hooks/useMediaQuery.ts`; `ui-kit.test.ts` asserts exactly 8 exports and 8 component test files.
 20. `api/client.ts` (typed fetch with zod, `ApiClientError` with field errors), `SessionProvider` (health and me; 401 means anonymous), `RequireSession` and `RequireRole` (employees redirected from /staff and /admin), `AppShell` (skip link, header, role-based `Nav` that becomes a bottom bar under 640 px), `Announcer` (one polite live region), `DevLoginPage` (Combobox of the 100 users by role plus quick picks), `NotFoundPage`, router with every SPEC 14.1 route (pages still to build are minimal headings until their commits); `role-nav.test.tsx`, `dev-login.test.tsx` with a fetch fake (`test/ui/fake-api.ts`) and a memory router.
 21. `live/socket.ts` (reconnecting socket, jittered backoff between 0.5 s and 15 s), `live/live-state.ts` (pure per-date apply: in-order deltas, duplicates ignored, gaps resubscribe that date only), `live/useLiveAvailability.ts`; `FindSpacePage` (DateGrid with rule-based disabled dates, kind Tabs, floor, seats, amenities, time window, free-text search, SlotGrid over matching resources with live busy overlay and a connection indicator, `BookingDialog` with inline shared-rule validation, a fresh Idempotency-Key per opening, 409 conflict message plus refresh, 422 issues on fields, success announced); SlotGrid now clears silently when the viewer's own booking arrives live; `live-availability.test.tsx`, `find-space.test.tsx`.
+22. `ResourcePage` (details, week SlotGrid with the 7 days as rows, past and closed days disabled, live overlay for the week's weekdays, previous and next week, DateGrid jump, booking through `BookingDialog`), `MyBookingsPage` (Upcoming, Past and Cancelled tabs over DataTable, cancel Dialog with an optional reason, row moves tabs, announcement); `vite.config.ts` pins preview and dev to 8783 and the Workers inspector to 9233; `resource-calendar.test.tsx`, `my-bookings.test.tsx`. Manual smoke on `vite preview` (port 8783): seed, dev login, Find a space, book a desk, live cell turned "your booking".
 
 ## Deviations from SPEC.md
 
