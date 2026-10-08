@@ -1,21 +1,16 @@
-import { introspectWorkflow } from "cloudflare:test";
-import { env } from "cloudflare:workers";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ADMIN, EMPLOYEE, STAFF } from "../helpers/tokens.ts";
+import { type WorkflowIntrospector, introspectTriage, waitForAllComplete } from "../helpers/workflows.ts";
 import { as, seed } from "../helpers/world.ts";
 
 // POST /api/requests rows start real Workflow instances; end each one quickly (SPEC 12).
-let intro: Awaited<ReturnType<typeof introspectWorkflow>>;
+let intro: WorkflowIntrospector;
 beforeAll(async () => {
   await seed();
-  intro = await introspectWorkflow(env.TRIAGE_WORKFLOW);
-  await intro.modifyAll(async (m) => {
-    await m.disableSleeps();
-    await m.forceEventTimeout({ name: "review-outcome" });
-  });
+  intro = await introspectTriage();
 });
 afterAll(async () => {
-  for (const i of await intro.get()) await i.waitForStatus("complete");
+  await waitForAllComplete(intro);
   await intro.dispose();
 });
 

@@ -1,10 +1,11 @@
-import { createExecutionContext, introspectWorkflow, waitOnExecutionContext } from "cloudflare:test";
+import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createApp, defaultDeps } from "../../src/worker/app.ts";
 import { startTriage } from "../../src/worker/triage/start-triage.ts";
 import { eventTypes, insertRequest, requestRow } from "../helpers/requests.ts";
 import { ADMIN, EMPLOYEE, EMPLOYEE_2, STAFF, authHeaders, tokenFor } from "../helpers/tokens.ts";
+import { withWorkflows } from "../helpers/workflows.ts";
 import { BASE, as, json, seed } from "../helpers/world.ts";
 
 beforeAll(async () => {
@@ -13,19 +14,6 @@ beforeAll(async () => {
 
 const valid = { siteId: "hq", title: "Projector has no signal", description: "The projector in Sequoia shows no signal from the HDMI cable.", resourceId: "res_sequoia" };
 type Created = { request: { id: string; status: string; triageState: string }; triage: string };
-
-async function withWorkflows<T>(fn: (intro: Awaited<ReturnType<typeof introspectWorkflow>>) => Promise<T>): Promise<T> {
-  // SPEC 12: every instance the API creates runs with sleeps disabled and ends through a
-  // forced review timeout, so none sits in a 24-hour wait inside the test runtime.
-  await using intro = await introspectWorkflow(env.TRIAGE_WORKFLOW);
-  await intro.modifyAll(async (m) => {
-    await m.disableSleeps();
-    await m.forceEventTimeout({ name: "review-outcome" });
-  });
-  const out = await fn(intro);
-  for (const i of await intro.get()) await i.waitForStatus("complete");
-  return out;
-}
 
 /** An app whose Workflow binding is replaced, sharing the real env otherwise. */
 function appWith(triageWorkflow: (typeof defaultDeps)["triageWorkflow"]) {
