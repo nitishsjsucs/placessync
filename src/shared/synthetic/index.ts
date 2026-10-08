@@ -49,3 +49,5 @@ export { generateLabeledRequests, generateSeedRequests } from "./requests.ts";
 export type { LabeledRequest, SeedRequest } from "./requests.ts";
 export { generateContentionAttempts, contentionStats, CONTENTION_ATTEMPTS } from "./contention.ts";
 export type { ContentionAttempt, ContentionStats } from "./contention.ts";
+export { generateHistory, HISTORY_DAYS } from "./history.ts";
+export type { HistoryRow } from "./history.ts";

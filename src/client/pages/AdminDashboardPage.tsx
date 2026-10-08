@@ -17,6 +17,23 @@ import { useSite } from "./site.ts";
 import { usePageTitle } from "./usePageTitle.ts";
 
 type UtilizationRow = UtilizationReport["rows"][number];
+type DailyRow = UtilizationReport["daily"][number];
+interface HourRow {
+  hour: number;
+  desk: number;
+  room: number;
+}
+
+/** Average resources in use per hour, over the days in range that have any booking. */
+export function hourlyAverages(report: UtilizationReport): HourRow[] {
+  const days = new Set(report.daily.map((d) => d.date)).size || 1;
+  const out: HourRow[] = [];
+  for (let hour = 7; hour < 19; hour++) {
+    const sum = (kind: string) => report.hourly.filter((h) => h.hour === hour && h.resourceKind === kind).reduce((n, h) => n + h.occupied, 0);
+    out.push({ hour, desk: Math.round((sum("desk") / days) * 10) / 10, room: Math.round((sum("room") / days) * 10) / 10 });
+  }
+  return out;
+}
 type AgreementRow = RequestsReport["agreement"][number];
 
 const TABS = [
@@ -64,6 +81,16 @@ export function AdminDashboardPage() {
   }, [load]);
 
   const max = Math.max(1, ...(util?.rows ?? []).map((r) => r.utilization));
+  const hours = util ? hourlyAverages(util) : [];
+  const hourMax = Math.max(1, ...hours.flatMap((h) => [h.desk, h.room]));
+  const bar = (value: number, top: number) => (
+    <span className={styles.row}>
+      <span className={styles.barTrack} aria-hidden="true">
+        <span className={styles.bar} style={{ width: `${Math.round((value / top) * 100)}%` }} />
+      </span>
+      {value}
+    </span>
+  );
 
   return (
     <section className={styles.stack}>
@@ -120,6 +147,29 @@ export function AdminDashboardPage() {
                 rows={util?.rows ?? []}
                 rowKey={(r) => `${r.resourceId}-${r.date}`}
                 empty={util ? "No confirmed bookings in this range yet." : "Loading…"}
+              />
+              <DataTable
+                caption="Hourly occupancy: average desks and rooms in use"
+                columns={[
+                  { key: "hour", header: "Hour", render: (r: HourRow) => `${String(r.hour).padStart(2, "0")}:00` },
+                  { key: "desk", header: "Desks in use", render: (r: HourRow) => bar(r.desk, hourMax) },
+                  { key: "room", header: "Rooms in use", render: (r: HourRow) => bar(r.room, hourMax) },
+                ]}
+                rows={util && util.daily.length > 0 ? hours : []}
+                rowKey={(r) => String(r.hour)}
+                empty="No bookings in this range yet."
+              />
+              <DataTable
+                caption="Bookings per day"
+                columns={[
+                  { key: "date", header: "Date", render: (r: DailyRow) => r.date },
+                  { key: "kind", header: "Kind", render: (r: DailyRow) => (r.resourceKind === "desk" ? "Desks" : "Rooms") },
+                  { key: "confirmed", header: "Confirmed", render: (r: DailyRow) => r.confirmed },
+                  { key: "cancelled", header: "Cancelled", render: (r: DailyRow) => r.cancelled },
+                ]}
+                rows={util?.daily ?? []}
+                rowKey={(r) => `${r.date}-${r.resourceKind}`}
+                empty="No bookings in this range yet."
               />
             </div>
           ) : (

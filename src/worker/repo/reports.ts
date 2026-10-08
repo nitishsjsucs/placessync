@@ -42,7 +42,14 @@ export async function utilizationReport(db: D1Database, siteId: string, from: st
     resourceDays: rows.length,
     openMinutesPerDay: site?.openMinutes ?? 0,
   };
-  return { from, to, kind: kind ?? null, rows, hourly, totals };
+  const { results: daily } = await db
+    .prepare(
+      `SELECT date, resource_kind AS resourceKind, confirmed, cancelled FROM v_daily_booking_summary
+       WHERE site_id = ? AND date BETWEEN ? AND ?${kind ? " AND resource_kind = ?" : ""} ORDER BY date, resource_kind`,
+    )
+    .bind(...binds)
+    .all<{ date: string; resourceKind: "desk" | "room"; confirmed: number; cancelled: number }>();
+  return { from, to, kind: kind ?? null, rows, hourly, daily, totals };
 }
 
 export interface FactRow {

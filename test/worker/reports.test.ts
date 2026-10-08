@@ -34,6 +34,10 @@ describe("D1 reporting views (SPEC 6.1)", () => {
       { resourceId: "res_redwood", kind: "room", name: "Redwood", date: DATE, bookings: 1, bookedMin: 30, utilization: 0.0417 },
     ]);
     expect(body.totals).toEqual({ bookings: 3, bookedMin: 270, resourceDays: 2, openMinutesPerDay: 720 });
+    expect((body as unknown as { daily: unknown[] }).daily).toEqual([
+      { date: DATE, resourceKind: "desk", confirmed: 2, cancelled: 0 },
+      { date: DATE, resourceKind: "room", confirmed: 1, cancelled: 1 },
+    ]);
   });
 
   it("filters the utilization report by kind", async () => {

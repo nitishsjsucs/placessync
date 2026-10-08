@@ -7,4 +7,6 @@ export const PINNED_HASHES = {
   labeledRequests: "7991302812837696e0385a293ad34cc5f722658047e3953739ea46c344050999",
   seedRequests: "e4ef8922f4a3a7d87c9728608faf6eefa86d4d2c6e9fa4c0fbe92268b3513696",
   contentionAttempts: "6d0b1ef53403b1c92fdc569221edb508f5093baac74cc6e82590c275a463ef32",
+  /** generateHistory at HISTORY_PIN_DATE (2026-10-08). */
+  history: "89f969050c0ae15421ce426873487806c5e6c5cf85d9d93e46793fe156c73266",
 } as const;

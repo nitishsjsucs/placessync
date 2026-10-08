@@ -1,6 +1,8 @@
 import {
+  HISTORY_PIN_DATE,
   SEED,
   generateContentionAttempts,
+  generateHistory,
   generateEmployees,
   generateLabeledRequests,
   generateResources,
@@ -17,5 +19,6 @@ export async function generatorHashes(seed: number = SEED): Promise<Record<keyof
     labeledRequests: await sha256Hex(generateLabeledRequests(seed)),
     seedRequests: await sha256Hex(generateSeedRequests(seed)),
     contentionAttempts: await sha256Hex(generateContentionAttempts(seed)),
+    history: await sha256Hex(generateHistory(seed, HISTORY_PIN_DATE)),
   };
 }

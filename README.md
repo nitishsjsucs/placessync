@@ -15,7 +15,7 @@ A workplace team shares a fixed set of desks and rooms across many employees. As
 - **My bookings.** Upcoming, past and cancelled bookings; cancel with an optional reason.
 - **Report an issue and follow it.** Submit a facilities request; see its status, the suggested category with the provider that produced it, the final category, and a timeline.
 - **Facilities staff.** A triage queue with suggestions, confidence and provider labels; accept, reassign, or categorize by hand; move work to in progress and resolved; live notifications.
-- **Facilities admins.** Utilization from D1 reporting views; request reports with suggestion agreement shown per provider.
+- **Facilities admins.** Utilization, hourly occupancy and bookings per day from D1 reporting views; request reports with suggestion agreement shown per provider.
 - **Synthetic data.** 100 employees (92 employees, 6 facilities staff, 2 facilities admins) and the 20 resources come from seeded generators whose output is pinned by SHA-256 in tests.
 
 ## Architecture
@@ -106,6 +106,7 @@ npm run build              # vite build copies .dev.vars into dist; rebuild afte
 npm run db:migrate:local   # applies migrations/ to local D1
 npm run preview            # http://localhost:8783
 npm run seed:local         # in another terminal: 100 employees, 20 resources, 40 demo requests
+npm run seed:local -- --history   # optional: also 20 business days of past bookings for the admin reports
 ```
 
 Open http://localhost:8783, pick a user on the dev sign-in page (admins and staff are listed first), and book. `npm run dev` runs the Vite dev server on the same port.
@@ -218,7 +219,7 @@ Nothing has been deployed from this repository. The steps, for an account holder
 - **Single ledger per site** is a throughput ceiling by design (ADR 0001); v1 has one site.
 - **Role changes** take effect on open WebSockets no later than token expiry (8 hours for dev tokens; the Access session length in production); v1 has no role-change API.
 - **Rate limiting** is not implemented (a production follow-up using the Workers rate limiting binding).
-- Not built in v1 (Tier 2 in SPEC 19): booking history import and hourly occupancy charts, admin resource editing, the staff "Today's bookings" tab, DataTable sorting, the workflow-mode triage eval, realtime latency measurement, and five-run contention evals.
+- Not built in v1 (Tier 2 in SPEC 19): admin resource editing, the staff "Today's bookings" tab, DataTable sorting, the workflow-mode triage eval, realtime latency measurement, and five-run contention evals.
 
 ## License
 

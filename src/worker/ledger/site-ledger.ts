@@ -33,6 +33,7 @@ import {
 } from "./live.ts";
 import { FLUSH_BATCH, type FactPayload, flushBackoffMs, projectionStatements } from "./outbox.ts";
 import { DATA_TABLES, META_DEFAULTS, applySchema } from "./schema.ts";
+import type { HistoryRow } from "../../shared/synthetic/history.ts";
 
 export interface Actor {
   employeeId: string;
@@ -344,50 +345,120 @@ export class SiteLedger extends DurableObject<Env> {
       .toArray() as unknown as Interval[];
     if (mine.length > 0) return { ok: false, status: 409, error: "employee_conflict", conflicts: mine };
 
+    const { row, version, dateVersion } = this.commitReservation(actor.employeeId, resource, input, now, now, null);
+    return { ok: true, status: 201, reservation: toReservation(row), ledgerVersion: version, dateVersion };
+  }
+
+  /**
+   * Inserts a reservation inside the caller's transaction: version bumps, the row, slot
+   * claims under PRIMARY KEYs (a duplicate throws BackstopConflict and rolls everything
+   * back), and the outbox fact. A cancelled row (history import) claims no slots.
+   */
+  private commitReservation(
+    employeeId: string,
+    resource: { id: string; kind: ResourceKind },
+    input: ReserveInput,
+    createdAt: number,
+    now: number,
+    cancelledAt: number | null,
+  ): { row: ReservationRow; version: number; dateVersion: number } {
     const version = this.bumpLedgerVersion();
     const dateVersion = this.bumpDateVersion(input.date);
     const id = newId("rsv", now);
     const attendees = input.attendees ?? 1;
     const title = resource.kind === "room" && input.title ? input.title : null;
     this.sql.exec(
-      `INSERT INTO reservations (id, resource_id, employee_id, kind, date, start_min, end_min, attendees, title, status, created_at, version)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?)`,
+      `INSERT INTO reservations (id, resource_id, employee_id, kind, date, start_min, end_min, attendees, title, status, created_at, cancelled_at, version)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       input.resourceId,
-      actor.employeeId,
+      employeeId,
       resource.kind,
       input.date,
       input.startMin,
       input.endMin,
       attendees,
       title,
-      now,
+      cancelledAt === null ? "confirmed" : "cancelled",
+      createdAt,
+      cancelledAt,
       version,
     );
     // The PK backstop (ADR 0002): a duplicate slot throws, which rolls back the
     // reservation row and both version bumps with it.
-    for (const slot of slotsFor(input.startMin, input.endMin)) {
-      try {
-        this.sql.exec("INSERT INTO resource_slots (resource_id, date, slot, reservation_id) VALUES (?, ?, ?, ?)", input.resourceId, input.date, slot, id);
-      } catch (err) {
-        throw new BackstopConflict("resource_slots", err instanceof Error ? err.message : String(err));
-      }
-      try {
-        this.sql.exec(
-          "INSERT INTO employee_slots (employee_id, kind, date, slot, reservation_id) VALUES (?, ?, ?, ?, ?)",
-          actor.employeeId,
-          resource.kind,
-          input.date,
-          slot,
-          id,
-        );
-      } catch (err) {
-        throw new BackstopConflict("employee_slots", err instanceof Error ? err.message : String(err));
+    if (cancelledAt === null) {
+      for (const slot of slotsFor(input.startMin, input.endMin)) {
+        try {
+          this.sql.exec("INSERT INTO resource_slots (resource_id, date, slot, reservation_id) VALUES (?, ?, ?, ?)", input.resourceId, input.date, slot, id);
+        } catch (err) {
+          throw new BackstopConflict("resource_slots", err instanceof Error ? err.message : String(err));
+        }
+        try {
+          this.sql.exec(
+            "INSERT INTO employee_slots (employee_id, kind, date, slot, reservation_id) VALUES (?, ?, ?, ?, ?)",
+            employeeId,
+            resource.kind,
+            input.date,
+            slot,
+            id,
+          );
+        } catch (err) {
+          throw new BackstopConflict("employee_slots", err instanceof Error ? err.message : String(err));
+        }
       }
     }
     const row = this.sql.exec("SELECT * FROM reservations WHERE id = ?", id).one() as unknown as ReservationRow;
     this.enqueueFact(row, now);
-    return { ok: true, status: 201, reservation: toReservation(row), ledgerVersion: version, dateVersion };
+    return { row, version, dateVersion };
+  }
+
+  /**
+   * Dev seed only (route-guarded): imports past bookings with the same rules, overlap
+   * checks and slot claims, except that dates in the past are allowed.
+   */
+  async importHistory(rows: HistoryRow[]): Promise<{ imported: number; rejected: number }> {
+    await this.ensureCatalog();
+    const now = this.now();
+    const rules = this.siteRules();
+    const PAST_OK = new Set(["date_in_past", "start_in_past", "beyond_horizon"]);
+    let imported = 0;
+    let rejected = 0;
+    for (const h of rows) {
+      try {
+        const ok = this.ctx.storage.transactionSync((): boolean => {
+          const res = this.sql.exec("SELECT id, kind, capacity, active FROM resources WHERE id = ?", h.resourceId).toArray()[0];
+          if (!res) return false;
+          const resource = { id: String(res.id), kind: res.kind as ResourceKind, capacity: Number(res.capacity), active: Number(res.active) === 1 };
+          const input: ReserveInput = { resourceId: h.resourceId, date: h.date, startMin: h.startMin, endMin: h.endMin, attendees: h.attendees };
+          if (validate(input, resource, rules, now).some((i) => !PAST_OK.has(i.code))) return false;
+          if (!h.cancelled) {
+            const clash = this.sql
+              .exec(
+                `SELECT 1 FROM reservations WHERE status = 'confirmed' AND date = ? AND start_min < ? AND end_min > ?
+                 AND (resource_id = ? OR (employee_id = ? AND kind = ?)) LIMIT 1`,
+                h.date,
+                h.endMin,
+                h.startMin,
+                h.resourceId,
+                h.employeeId,
+                resource.kind,
+              )
+              .toArray();
+            if (clash.length > 0) return false;
+          }
+          const created = Date.parse(`${h.date}T00:00:00Z`) - 2 * 86_400_000;
+          this.commitReservation(h.employeeId, resource, input, created, now, h.cancelled ? created + 86_400_000 : null);
+          return true;
+        });
+        if (ok) imported++;
+        else rejected++;
+      } catch (err) {
+        if (!(err instanceof BackstopConflict)) throw err;
+        rejected++;
+      }
+    }
+    if (imported > 0) await this.scheduleFlush();
+    return { imported, rejected };
   }
 
   async cancel(actor: Actor, reservationId: string, reason?: string): Promise<CancelResult> {

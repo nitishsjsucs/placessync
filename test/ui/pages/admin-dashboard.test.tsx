@@ -16,7 +16,15 @@ beforeEach(() => {
         { resourceId: "res_2a01", kind: "desk", name: "Desk 2A-01", date: "2026-10-12", bookings: 2, bookedMin: 240, utilization: 0.3333 },
         { resourceId: "res_redwood", kind: "room", name: "Redwood", date: "2026-10-12", bookings: 1, bookedMin: 30, utilization: 0.0417 },
       ],
-      hourly: [],
+      hourly: [
+        { date: "2026-10-12", resourceKind: "desk", hour: 9, occupied: 2 },
+        { date: "2026-10-13", resourceKind: "desk", hour: 9, occupied: 1 },
+        { date: "2026-10-12", resourceKind: "room", hour: 10, occupied: 1 },
+      ],
+      daily: [
+        { date: "2026-10-12", resourceKind: "desk", confirmed: 2, cancelled: 0 },
+        { date: "2026-10-13", resourceKind: "room", confirmed: 1, cancelled: 1 },
+      ],
       totals: { bookings: 3, bookedMin: 270, resourceDays: 2, openMinutesPerDay: 720 },
     },
     "GET /api/admin/reports/requests": {
@@ -53,6 +61,16 @@ describe("Admin dashboard (SPEC 14.1)", () => {
       ["Redwood", "2026-10-12", "1", "0.5", "4%"],
     ]);
     expect(screen.getByText(/3 confirmed bookings, 5 booked hours across 2 resource-days/)).toBeTruthy();
+  });
+
+  it("renders hourly occupancy averages and bookings per day (Tier 2)", async () => {
+    renderAt("/admin");
+    await screen.findByText("Desk 2A-01");
+    const hourly = screen.getByRole("table", { name: "Hourly occupancy: average desks and rooms in use" });
+    const nine = within(hourly).getByText("09:00").closest("tr") as HTMLElement;
+    expect(within(nine).getAllByRole("cell").map((c) => c.textContent)).toEqual(["09:00", "1.5", "0"]);
+    const daily = screen.getByRole("table", { name: "Bookings per day" });
+    expect(within(daily).getAllByRole("row")).toHaveLength(3);
   });
 
   it("shows agreement per provider with each provider's own label, and AI only for Workers AI", async () => {

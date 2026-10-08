@@ -14,7 +14,9 @@ import {
   siteRulesOf,
 } from "../../src/shared/synthetic/index.ts";
 import { validate } from "../../src/shared/rules.ts";
-import { addBusinessDays } from "../../src/shared/time.ts";
+import { addBusinessDays, previousBusinessDays } from "../../src/shared/time.ts";
+import { countOverlappingPairsBy } from "../../src/shared/intervals.ts";
+import { HISTORY_PIN_DATE, generateHistory } from "../../src/shared/synthetic/index.ts";
 import { EVAL_TEMPLATES, FEWSHOT_EXAMPLES, FEWSHOT_TEMPLATES } from "../../src/shared/synthetic/request-templates.ts";
 import { CATEGORIES } from "../../src/shared/triage/categories.ts";
 import { generatorHashes } from "../helpers/generator-hashes.ts";
@@ -180,6 +182,28 @@ describe("contention attempts (SPEC 11.3)", () => {
   });
 });
 
+describe("history (SPEC 11.1, Tier 2)", () => {
+  const rows = generateHistory(SEED, HISTORY_PIN_DATE);
+
+  it("covers exactly the 20 business days before siteToday", () => {
+    const dates = [...new Set(rows.map((r) => r.date))].sort();
+    expect(dates).toEqual(previousBusinessDays(HISTORY_PIN_DATE, 20));
+  });
+
+  it("obeys the ledger invariants for confirmed rows and the booking rules apart from the past", () => {
+    const live = rows.filter((r) => !r.cancelled);
+    expect(countOverlappingPairsBy(live, (r) => `${r.resourceId}|${r.date}`)).toBe(0);
+    expect(countOverlappingPairsBy(live, (r) => `${r.employeeId}|${r.kind}|${r.date}`)).toBe(0);
+    const byId = new Map(generateResources().map((r) => [r.id, r]));
+    const past = new Set(["date_in_past", "start_in_past", "beyond_horizon"]);
+    for (const h of rows) {
+      const issues = validate({ resourceId: h.resourceId, date: h.date, startMin: h.startMin, endMin: h.endMin, attendees: h.attendees }, byId.get(h.resourceId)!, siteRulesOf(SITE), Date.parse("2026-10-08T15:00:00Z"));
+      expect(issues.filter((i) => !past.has(i.code))).toEqual([]);
+    }
+    expect(rows.some((r) => r.cancelled)).toBe(true);
+  });
+});
+
 describe("determinism (SPEC 11)", () => {
   it("same seed gives the pinned SHA-256 for every generator", async () => {
     expect(await generatorHashes(SEED)).toEqual(PINNED_HASHES);
@@ -191,5 +215,6 @@ describe("determinism (SPEC 11)", () => {
     expect(other.labeledRequests).not.toBe(PINNED_HASHES.labeledRequests);
     expect(other.seedRequests).not.toBe(PINNED_HASHES.seedRequests);
     expect(other.contentionAttempts).not.toBe(PINNED_HASHES.contentionAttempts);
+    expect(other.history).not.toBe(PINNED_HASHES.history);
   });
 });

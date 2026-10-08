@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 28 of 32 (docs: results from local eval runs). **Tier 1 (SPEC 19.1) is complete.**
-Next: commit 29, Tier 2 (history import with `importHistory`, hourly occupancy and daily summary in the admin dashboard), then 30 to 32.
+Last completed commit: 29 of 32 (Tier 2: history import, hourly occupancy and daily summary in admin).
+Next: commit 30 (Tier 2: admin resource edits with catalog sync; staff today's bookings).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 29, Tier 2 (history import with `importHistory`, hourly occupancy a
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (53 files, 466 tests) |
+| `npm test` | pass (54 files, 472 tests) |
 | `npm run test:e2e` | pass (50 of 50), run from a clean tree at `3726a4a` for commit 28 |
 | Evals | contention (1 run, 4 observers, naive control) and triage (Qwen3-1.7B and keyword stub) run from a clean tree at `3726a4a`; all contention gates passed |
 | `npm run build` | pass |
@@ -60,6 +60,7 @@ Next: commit 29, Tier 2 (history import with `importHistory`, hourly occupancy a
 6. `git add evals/results/*.json && npm run results`, run `npm test`, commit the JSON and README together.
 
 Any later code commit makes the README block's commit an ancestor, which is still accepted; re-run the evals when the code they measure changes.
+29. Tier 2: `src/shared/synthetic/history.ts` (`generateHistory`, 20 business days before siteToday, invariant-respecting, about 5% cancelled, hash pinned at `HISTORY_PIN_DATE`), ledger `importHistory` (same rules except the past, same overlap and slot-claim transaction through a shared `commitReservation`, outbox facts), `/api/dev/seed { history: true }` and `seed:local -- --history`, the utilization report adds `daily` from `v_daily_booking_summary`, the admin dashboard shows hourly occupancy averages (CSS bars) and bookings per day; `history.test.ts`, new synthetic, report and admin page cases. The admin a11y and layout e2e checks pass after the change.
 
 ## Deviations from SPEC.md
 

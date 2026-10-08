@@ -1,6 +1,7 @@
 // Dev seed: writes the synthetic world into D1 (and, from the ledger commit on, the
 // SiteLedger catalog). Only reachable through /api/dev/seed in dev mode.
-import { SEED, generateSeedRequests, generateWorld } from "../shared/synthetic/index.ts";
+import { SEED, generateHistory, generateSeedRequests, generateWorld } from "../shared/synthetic/index.ts";
+import { siteToday } from "../shared/time.ts";
 import { classifyByKeywords } from "../shared/triage/keyword-classifier.ts";
 import { renderRequest } from "../shared/triage/prompt.ts";
 import type { Config } from "./config.ts";
@@ -150,5 +151,11 @@ export async function seedDatabase(env: Env, config: Pick<Config, "siteId">, opt
   await ledger.syncCatalog();
   const existing = await env.DB.prepare("SELECT COUNT(*) AS n FROM facilities_requests WHERE id LIKE 'req_seed_%'").first<{ n: number }>();
   const requests = (existing?.n ?? 0) === 0 ? await seedRequests(env.DB, opts.nowMs) : 0;
-  return { ...catalog, historyReservations: 0, requests };
+  let historyReservations = 0;
+  if (opts.history) {
+    // The 20 business days before today; the ledger's alarm projects them into D1.
+    const today = siteToday(generateWorld(SEED).site.timezone, opts.nowMs);
+    historyReservations = (await ledger.importHistory(generateHistory(SEED, today))).imported;
+  }
+  return { ...catalog, historyReservations, requests };
 }

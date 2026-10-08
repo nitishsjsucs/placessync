@@ -313,6 +313,7 @@ export const UtilizationReport = z.object({
     }),
   ),
   hourly: z.array(z.object({ date: z.string(), resourceKind: ResourceKindSchema, hour: z.number(), occupied: z.number() })),
+  daily: z.array(z.object({ date: z.string(), resourceKind: ResourceKindSchema, confirmed: z.number(), cancelled: z.number() })),
   totals: z.object({ bookings: z.number(), bookedMin: z.number(), resourceDays: z.number(), openMinutesPerDay: z.number() }),
 });
 export type UtilizationReport = z.infer<typeof UtilizationReport>;
