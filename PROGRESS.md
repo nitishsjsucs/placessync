@@ -4,7 +4,7 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-**All 32 commits of SPEC 19.2 are done**, Tier 1 and Tier 2, plus small follow-up fixes (eval robustness, test wait ceilings) and a fresh results commit (`92d679e`, results measured at `a5b243c`). Nothing has been pushed.
+**All 32 commits of SPEC 19.2 are done**, Tier 1 and Tier 2, plus follow-up fixes. Builder 1 finished the plan; builder 2 confirmed the starting state (typecheck, 55 files and 488 tests, build all green at `1356d42`), then made three fixes (listed under "Builder 2" below) and refreshed every result at `3d8950b` (results commit `f5a8436`). Nothing has been pushed.
 
 Next for a later builder: there is no planned commit left. Useful follow-ups are listed at the end of this file under "Open items".
 
@@ -14,12 +14,13 @@ Next for a later builder: there is no planned commit left. Useful follow-ups are
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (55 files, 488 tests) |
+| `npm test` | pass (56 files, 494 tests) |
 | `npm run build` | pass |
-| `npm run test:e2e` | pass (53 of 53) at `a5b243c`, recorded in `evals/results/e2e.json` |
-| Contention eval | 5 runs, 4 observers, naive D1 control; all SPEC 13.1 gates passed at `a5b243c` (`evals/results/contention.json`) |
-| Triage evals | Qwen3-1.7B (llama.cpp) and keyword stub, classifier mode; workflow mode 20 of 20 reached review via `openai-compat`; all at `a5b243c` |
-| CI | `.github/workflows/ci.yml` written (verify and e2e jobs) but never run: nothing is pushed |
+| `npm run test:e2e` | pass (53 of 53) at `3d8950b`, recorded in `evals/results/e2e.json` |
+| Contention eval | 5 runs, 4 observers, naive D1 control; all SPEC 13.1 gates plus the new observer gates passed at `3d8950b` (`evals/results/contention.json`) |
+| Triage evals | Qwen3-1.7B (llama.cpp) and keyword stub, classifier mode; workflow mode 20 of 20 reached review via `openai-compat`; all at `3d8950b` |
+| Production build | `npm run build:production` then `npx wrangler deploy --dry-run` (no login, nothing uploaded) passed on 2026-10-08: Worker `placessync-production`, bindings SITE_LEDGER, TRIAGE_WORKFLOW, DB, AI, ASSETS, `AUTH_MODE=access`, cron `*/2 * * * *`, DO migration `v1`; no dev vars among the bindings. Rebuild with `npm run build` afterwards, since the production build replaces `dist/`. |
+| CI | `.github/workflows/ci.yml` written (verify and e2e jobs) and parses as YAML, but never run: nothing is pushed |
 
 ## Done (by commit)
 1. Scaffold: Vite React app, Worker entry with placeholder `SiteLedger` and `TriageWorkflow` classes, `wrangler.jsonc` with local and production environments and the cron trigger, strict tsconfig references, `.dev.vars.example`, generated `worker-configuration.d.ts`.
@@ -55,6 +56,13 @@ Next for a later builder: there is no planned commit left. Useful follow-ups are
 31. Tier 2: DataTable sorting (`sortValue` per column; header buttons with `aria-sort` on wide screens; a native "Sort by" select in the stacked layout under 640 px so no focusable control hides in the clipped header row), sortable columns on My bookings, the staff queue and admin utilization; sorting tests (aria-sort, keyboard, compact select with axe); e2e a11y and layout re-checked on the affected pages.
 32. Tier 2: `eval-triage.ts --mode workflow` (submits N requests through the API of a server built with `TRIAGE_PROVIDER=openai-compat`, pre-flights the same llama-server, waits for `awaiting_review`, reports reached, provider counts, categories in the enum, agreement with the label, submit-to-review latency), realtime propagation latency over 20 bookings in `e2e/realtime.spec.ts` (attached as `latency`, summarized by the reporter), render-results sections for both, `evals/README.md` updated; the ui project's test timeout is 30 s because full-page tests ran past 5 s on a loaded machine (assertions unchanged).
 
+### Builder 2 (after the plan)
+
+33. `fix(eval): key naive control rows by the attempt...` (`aa4385c`). The contention eval resends an attempt with the same Idempotency-Key after a transport failure. The ledger replays that, but the naive D1 control inserted a second row, so a resend could overlap itself and inflate the control's overlap count (the committed control at `a5b243c` had 0 transport retries, so its number was not affected). Naive rows now take their id from the key with `INSERT OR IGNORE`; the read-then-write race between different attempts is unchanged. New case in `overlap-detector.test.ts` (fails on the old route).
+34. `fix(eval): contention observers resubscribe on gaps...` (`406e533`). `observerResubscribes` had been written as a constant 0 because the observers never resubscribed. Observer message handling moved to `scripts/lib/observer-model.ts` with `test/node/observer-model.test.ts`: deltas apply at `dateVersion = last + 1` as in the client, older or equal versions are counted duplicates, a jump is a gap that resubscribes that date. Gaps, resubscribes, duplicates, observer `error` messages and unexpected closes are all gated at 0. Observer connects are retried up to 5 times before any attempt is fired (counted as `observerConnectRetries`), which closes the old open item where one failed connect ended the run. The control reports its exported row count. `render-results` shows the new rows only for results that measure them (tested).
+35. `docs: describe the hard triage set as AI-assisted...` (`3d8950b`). The README called the 40 hard items "hand-authored", contradicting SPEC 22 I8. `evals/README.md` documents the new observer gates, observer connect retries, transport retries and the control's keyed rows.
+36. `docs: results from local eval runs` (`f5a8436`): all five result files re-measured at `3d8950b` with the procedure below. Same Qwen3-1.7B accuracy as at `a5b243c` (84.0% templated, 77.5% hard; temperature 0, fixed seed); contention 0 overlapping confirmed bookings in all 5 runs, 0 observer resubscribes, connect retries 0, transport retries 0 to 288; control 390 accepted with 1,041 overlapping pairs; e2e 53 of 53.
+
 ## How the results were produced (repeat after code changes that affect them)
 
 "Dirty" for results means a tracked change outside `evals/results/` (`scripts/lib/meta.ts`), so the evals can run back to back and write straight into `evals/results/`.
@@ -76,8 +84,12 @@ Next for a later builder: there is no planned commit left. Useful follow-ups are
 7. Commit 31's title names the request timeline, which shipped in commit 23 (deviation 6); commit 31 adds only DataTable sorting.
 8. Extra commits outside the plan: `chore: record Tier 1 completion...`, `test(ui): raise the async wait ceiling...`, and six `fix(eval)` commits (retry refused connects, render the retries row only when recorded, absolute --out in workflow mode, result files do not make a run dirty, parse trimmed git status lines, retry dev-proxy 500 pages). Two commits were not fully green when made, and the next commit fixed each: `9d31d66` changed how the committed results render, so the README test failed until `29eef08`; `edabb7c` hit one UI wait timeout on a loaded machine, fixed by the wait-ceiling commit `b235690`. Every other commit, and the final tree, passed all checks.
 9. `npm run test:e2e` has 53 tests rather than the four spec files' minimum: the a11y spec scans every page and the login page, the gallery with an open Combobox and Dialog, the booking Dialog, and the admin Resources and staff Today's bookings tabs at both viewports.
+10. SPEC 4 lists `test/helpers/workflows.ts` (an `introspectWorkflow` wrapper). The wrapper lives inline as `withWorkflows` in `test/worker/requests.api.test.ts`, and the other workflow tests call `introspectWorkflow` or `introspectWorkflowInstance` directly, so no separate helper file exists.
+11. Contention eval additions beyond SPEC 13.1 (builder 2): the observers resubscribe a date after a gap, as SPEC 7.2 says the client does, and the eval gates `observerResubscribes`, `observerDuplicateDeltas`, `observerErrors` and `observerUnexpectedCloses` at 0; failed observer connects are retried before firing. The naive control keys its rows by Idempotency-Key so a resent attempt cannot overlap itself; it stays a read-then-write booker with no transaction across the read and the write.
 
 ## Notes for the next agent
+
+- The session scratchpad directory can be shared with builders of other repos running at the same time (another builder's llama-server log appeared in it). Keep scratch files in a repo-named subfolder, and in particular keep the `.dev.vars` backup made for workflow mode there, so a restore cannot pick up another repo's file.
 
 - UI tests on a loaded machine: the ui project's `testTimeout` is 30 s and testing-library's `asyncUtilTimeout` is 5 s (`test/ui/setup.ts`). A full `npm test` run at commit `edabb7c` once failed `staff-dashboard.test.tsx` at 1.4 s because a `findByRole` hit the old 1 s ceiling while other builds loaded the machine; the follow-up commit raised the ceiling and two consecutive full runs passed.
 
@@ -90,6 +102,7 @@ Next for a later builder: there is no planned commit left. Useful follow-ups are
 ## Open items (not in the commit plan, or needing Nitish)
 
 - SPEC 15 items need Nitish: a Figma file for the eight components (`design/FIGMA.md` is a placeholder; the README says the kit follows design tokens, not Figma), a real Workers AI run after deploy, the Access setup, a manual screen-reader pass, confirming the `@cloudflare/vitest-plugin` substitution, publishing the repo, and the hard triage set's authorship (AI-assisted, labeled per the guide).
-- CI has never run on GitHub. Expect to check: `npm ci` on Linux with the committed lockfile, Playwright `--with-deps chromium` on ubuntu-latest, and the e2e job's port 8783.
-- The contention eval retries refused connects and vite-preview proxy HTML 500 pages with the same Idempotency-Key and reports the count (`transportRetries`; up to 59 in run 1 of the committed results, 0 in runs 2 to 5). The live observers do not retry; a failed observer connect makes the script exit non-zero, and simply re-running worked here.
+- CI has never run on GitHub. Expect to check: `npm ci` on Linux with the committed lockfile (it lists `@cloudflare/workerd-linux-64`, `@rolldown/binding-linux-x64-gnu`, `@esbuild/linux-x64` and `lightningcss-linux-x64-gnu`), Playwright `--with-deps chromium` on ubuntu-latest, the e2e job's port 8783, and layout checks under Linux fonts. Docker (colima, arm64) is available on this Mac, but a local Linux run would need a Node image, npm packages and a Linux Chromium downloaded, which builder 2 did not do without permission.
+- The hard triage set (40 items) was written with AI assistance and labeled per the guide; an independent blind relabel by a person would let the eval report agreement between annotators (SPEC 15 item 10). Not something an agent can do honestly.
+- The contention eval retries refused connects and vite-preview proxy HTML 500 pages with the same Idempotency-Key and reports the count (`transportRetries`; 288 in run 1 of the committed results, 0 in runs 2 to 5, on a machine shared with other builds). Observer connects are retried too, before firing (builder 2).
 - Dev-mode `vite preview` listens on `[::1]:8783` only on this Mac; Node's fetch to `localhost` falls back from IPv6 to IPv4 and the IPv4 attempt is refused.
