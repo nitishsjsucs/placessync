@@ -1,4 +1,5 @@
 import { DurableObject, WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+import { createApp, defaultDeps } from "./app.ts";
 
 export class SiteLedger extends DurableObject<Env> {}
 
@@ -6,10 +7,8 @@ export class TriageWorkflow extends WorkflowEntrypoint<Env, { requestId: string;
   async run(_event: WorkflowEvent<{ requestId: string; siteId: string }>, _step: WorkflowStep): Promise<void> {}
 }
 
+const app = createApp(defaultDeps);
+
 export default {
-  async fetch(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-    if (url.pathname === "/api/health") return Response.json({ ok: true });
-    return Response.json({ error: "not_found" }, { status: 404 });
-  },
+  fetch: (request, env, ctx) => app.fetch(request, env, ctx),
 } satisfies ExportedHandler<Env>;
