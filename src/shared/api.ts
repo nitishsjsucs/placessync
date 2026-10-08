@@ -295,3 +295,34 @@ export const ReviewBody = z.discriminatedUnion("decision", [
 export type ReviewBody = z.infer<typeof ReviewBody>;
 
 export const StatusChangeBody = z.object({ status: z.enum(["in_progress", "resolved"]), note: z.string().trim().max(500).optional() });
+
+// Admin reports (SPEC 8).
+export const UtilizationReport = z.object({
+  from: z.string(),
+  to: z.string(),
+  kind: ResourceKindSchema.nullable(),
+  rows: z.array(
+    z.object({
+      resourceId: z.string(),
+      kind: ResourceKindSchema,
+      name: z.string(),
+      date: z.string(),
+      bookings: z.number(),
+      bookedMin: z.number(),
+      utilization: z.number(),
+    }),
+  ),
+  hourly: z.array(z.object({ date: z.string(), resourceKind: ResourceKindSchema, hour: z.number(), occupied: z.number() })),
+  totals: z.object({ bookings: z.number(), bookedMin: z.number(), resourceDays: z.number(), openMinutesPerDay: z.number() }),
+});
+export type UtilizationReport = z.infer<typeof UtilizationReport>;
+
+export const RequestsReport = z.object({
+  from: z.string(),
+  to: z.string(),
+  categories: z.array(z.object({ category: z.string(), status: z.string(), n: z.number() })),
+  agreement: z.array(z.object({ provider: z.string(), reviewed: z.number(), agreed: z.number(), agreementRate: z.number() })),
+  medianMinutesToReview: z.number().nullable(),
+  reviewedCount: z.number(),
+});
+export type RequestsReport = z.infer<typeof RequestsReport>;

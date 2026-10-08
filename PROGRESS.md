@@ -4,8 +4,8 @@ Build log for PlacesSync v1, built from `SPEC.md` (revision 2). A later agent co
 
 ## Commit plan position
 
-Last completed commit: 23 of 32 (report issue, my requests, request detail).
-Next: commit 24 (staff and admin dashboards with provider-labeled agreement).
+Last completed commit: 24 of 32 (staff and admin dashboards).
+Next: commit 25 (e2e: mobile layout, keyboard booking, axe gate and realtime specs with results reporter; CI e2e job; also the /ui gallery).
 
 ## Status at the last commit
 
@@ -13,7 +13,7 @@ Next: commit 24 (staff and admin dashboards with provider-labeled agreement).
 |---|---|
 | `npm run types:check` | pass |
 | `npm run typecheck` | pass |
-| `npm test` | pass (48 files, 445 tests) |
+| `npm test` | pass (50 files, 451 tests) |
 | `npm run build` | pass |
 
 ## Done
@@ -41,6 +41,7 @@ Next: commit 24 (staff and admin dashboards with provider-labeled agreement).
 21. `live/socket.ts` (reconnecting socket, jittered backoff between 0.5 s and 15 s), `live/live-state.ts` (pure per-date apply: in-order deltas, duplicates ignored, gaps resubscribe that date only), `live/useLiveAvailability.ts`; `FindSpacePage` (DateGrid with rule-based disabled dates, kind Tabs, floor, seats, amenities, time window, free-text search, SlotGrid over matching resources with live busy overlay and a connection indicator, `BookingDialog` with inline shared-rule validation, a fresh Idempotency-Key per opening, 409 conflict message plus refresh, 422 issues on fields, success announced); SlotGrid now clears silently when the viewer's own booking arrives live; `live-availability.test.tsx`, `find-space.test.tsx`.
 22. `ResourcePage` (details, week SlotGrid with the 7 days as rows, past and closed days disabled, live overlay for the week's weekdays, previous and next week, DateGrid jump, booking through `BookingDialog`), `MyBookingsPage` (Upcoming, Past and Cancelled tabs over DataTable, cancel Dialog with an optional reason, row moves tabs, announcement); `vite.config.ts` pins preview and dev to 8783 and the Workers inspector to 9233; `resource-calendar.test.tsx`, `my-bookings.test.tsx`. Manual smoke on `vite preview` (port 8783): seed, dev login, Find a space, book a desk, live cell turned "your booking".
 23. `ReportIssuePage` (TextFields with counters, optional space Combobox and location note, client validation with the shared zod schema, an error summary that takes focus and links to fields, server 422 mapped to fields, navigates to the new request with a started or pending message), `MyRequestsPage` (Open and Closed tabs, status, suggestion with provider label, final category), `RequestDetailPage` (details, suggestion, timeline in order, reporter cancel); `requests-ui.ts` labels; `report-issue.test.tsx`, `my-requests.test.tsx`. The timeline was listed as Tier 2 in SPEC 19.1 but its test is in the Tier 1 page test list (12.2), so it is built now.
+24. `StaffDashboardPage` (Triage queue with suggestion, confidence and provider label, Accept and Reassign for suggested rows, only Categorize for pending and unavailable rows, review Dialog with a category Combobox, 409 shows "Already reviewed" and refreshes, In progress and Resolved tabs with Start work and Resolve, live `staff_event`s through `useStaffEvents`), `AdminDashboardPage` (date range, utilization table with a CSS bar column, agreement per provider labelled "<provider label> agreement", median minutes to review, requests by category and status); report zod schemas in `src/shared/api.ts`; `staff-dashboard.test.tsx`, `admin-dashboard.test.tsx`. Today's bookings tab, hourly occupancy and resource admin are Tier 2 and not built.
 
 ## Deviations from SPEC.md
 
