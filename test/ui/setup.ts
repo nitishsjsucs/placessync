@@ -1,5 +1,9 @@
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach } from "vitest";
+
+// findBy* and waitFor default to 1 s, which a full-page render can exceed when the
+// machine is loaded (other builds, battery). Waits stay event-driven; only the ceiling rises.
+configure({ asyncUtilTimeout: 5000 });
 
 // jsdom has no window.matchMedia (SPEC 12.2, m10). This stub lets tests flip media
 // queries: setMediaMatches("(max-width: 639px)", true).

@@ -78,6 +78,8 @@ Any later code commit makes the README block's commit an ancestor, which is stil
 
 ## Notes for the next agent
 
+- UI tests on a loaded machine: the ui project's `testTimeout` is 30 s and testing-library's `asyncUtilTimeout` is 5 s (`test/ui/setup.ts`). A full `npm test` run at commit `edabb7c` once failed `staff-dashboard.test.tsx` at 1.4 s because a `findByRole` hit the old 1 s ceiling while other builds loaded the machine; the follow-up commit raised the ceiling and two consecutive full runs passed.
+
 - **README.md was edited by another process during this build.** Between commits 18 and 21 a status-style README appeared in the working tree (not written by builder 1) and was swept into commits 19 and 21 by `git add -A`. Commit 27 replaced it with the README the spec asks for. Whoever edits README.md must keep the `<!-- results:start -->` and `<!-- results:end -->` markers and must not hand-edit between them: `test/node/readme-results.test.ts` fails if the block differs from `npm run results` output. Check `git status` before committing so another process's edits are not committed by accident.
 
 - The local Workflows engine reports `running` (not `waiting`) while an instance waits for an event; the sweep treats `running` as in flight. Tests wait with `waitForStepResult({ name: "notify-staff" })` instead of `waitForStatus("waiting")`.
