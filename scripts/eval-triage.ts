@@ -244,7 +244,8 @@ async function workflowMode(): Promise<never> {
     gates: { passed: reachedReview === n && categoryInEnum === n },
     items: outcomes,
   };
-  const out = path.join(ROOT, String(args.out ?? "evals/results/triage-workflow-local.json"));
+  const outArg = String(args.out ?? "evals/results/triage-workflow-local.json");
+  const out = path.isAbsolute(outArg) ? outArg : path.join(ROOT, outArg);
   mkdirSync(path.dirname(out), { recursive: true });
   writeFileSync(out, `${JSON.stringify(result, null, 2)}\n`);
   console.log(JSON.stringify({ reachedReview, providerCounts, categoryInEnum, endToEndLatencyMs: result.endToEndLatencyMs }, null, 2));
