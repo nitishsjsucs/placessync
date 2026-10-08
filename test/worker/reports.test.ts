@@ -68,4 +68,40 @@ describe("D1 reporting views (SPEC 6.1)", () => {
     const body = await json<{ facts: { reservationId: string }[] }>(await admin.get(`/api/admin/reports/reservations?date=${DATE}`));
     expect(body.facts.map((f) => f.reservationId)).toEqual(["r1", "r2", "r3", "r4"]);
   });
+
+  it("v_triage_agreement is per provider and excludes manual reviews", async () => {
+    await env.DB.exec("DELETE FROM request_events");
+    await env.DB.exec("DELETE FROM triage_suggestions");
+    await env.DB.exec("DELETE FROM facilities_requests");
+    const at = "2026-10-12T17:00:00.000Z";
+    const rows: [string, string, string, string | null, string][] = [
+      // id, suggested, final, decision, provider
+      ["q1", "electrical_av", "electrical_av", "accepted", "stub"],
+      ["q2", "cleaning_safety", "cleaning_safety", "accepted", "stub"],
+      ["q3", "furniture_fixtures", "building_systems", "reassigned", "stub"],
+      ["q4", "electrical_av", "furniture_fixtures", "manual", "stub"],
+      ["q5", "building_systems", "building_systems", "accepted", "openai-compat"],
+      ["q6", "building_systems", "building_systems", null, "keyword-fallback"],
+    ];
+    const stmts = rows.flatMap(([id, suggested, final, decision, provider]) => [
+      env.DB.prepare(
+        `INSERT INTO facilities_requests (id, site_id, reporter_id, title, description, status, triage_state, final_category, review_decision, reviewed_by, reviewed_at, created_at, updated_at)
+         VALUES (?, 'hq', 'emp_001', 'Something broke', 'Something broke near my desk today.', ?, 'suggested', ?, ?, ?, ?, ?, ?)`,
+      ).bind(id, decision ? "assigned" : "awaiting_review", decision ? final : null, decision, decision ? "emp_093" : null, decision ? "2026-10-12T17:30:00.000Z" : null, at, at),
+      env.DB.prepare(
+        "INSERT INTO triage_suggestions (request_id, category, confidence, rationale, provider, model, attempts, latency_ms, created_at) VALUES (?, ?, 0.7, 'r', ?, 'm', 1, 0, ?)",
+      ).bind(id, suggested, provider, at),
+    ]);
+    await env.DB.batch(stmts);
+    const admin = await as(ADMIN);
+    const body = await json<{ agreement: unknown[]; medianMinutesToReview: number; reviewedCount: number }>(
+      await admin.get("/api/admin/reports/requests?from=2026-10-12&to=2026-10-12"),
+    );
+    expect(body.agreement).toEqual([
+      { provider: "openai-compat", reviewed: 1, agreed: 1, agreementRate: 1 },
+      { provider: "stub", reviewed: 3, agreed: 2, agreementRate: 0.6667 },
+    ]);
+    expect(body.reviewedCount).toBe(5);
+    expect(body.medianMinutesToReview).toBe(30);
+  });
 });

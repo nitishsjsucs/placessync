@@ -1,6 +1,8 @@
 // Dev seed: writes the synthetic world into D1 (and, from the ledger commit on, the
 // SiteLedger catalog). Only reachable through /api/dev/seed in dev mode.
-import { SEED, generateWorld } from "../shared/synthetic/index.ts";
+import { SEED, generateSeedRequests, generateWorld } from "../shared/synthetic/index.ts";
+import { classifyByKeywords } from "../shared/triage/keyword-classifier.ts";
+import { renderRequest } from "../shared/triage/prompt.ts";
 import type { Config } from "./config.ts";
 import { ledgerFor } from "./ledger/ledger-for.ts";
 
@@ -79,10 +81,74 @@ export async function seedCatalog(db: D1Database, opts: { reset: boolean }): Pro
   return { employees: world.employees.length, resources: world.resources.length };
 }
 
+/**
+ * 40 demo requests for the dashboards. Their suggestions come from the keyword stub at
+ * seed time and are stored as provider 'stub', model 'keyword-v1' (SPEC 11.1): no seeded
+ * row ever claims an LLM produced it.
+ */
+export async function seedRequests(db: D1Database, nowMs: number): Promise<number> {
+  const world = generateWorld(SEED);
+  const resourceNames = new Map(world.resources.map((r) => [r.id, r.name]));
+  const iso = (ms: number) => new Date(ms).toISOString();
+  const stmts: D1PreparedStatement[] = [];
+  const event = (id: string, type: string, actor: string | null, data: unknown, at: number) =>
+    db.prepare("INSERT INTO request_events (request_id, type, actor_id, data, at) VALUES (?, ?, ?, ?, ?)").bind(id, type, actor, JSON.stringify(data), iso(at));
+  for (const r of generateSeedRequests(SEED)) {
+    const created = nowMs - r.ageMinutes * 60_000;
+    const triagedAt = created + 60_000;
+    const k = classifyByKeywords(renderRequest({ title: r.title, description: r.description, resourceName: r.resourceId ? (resourceNames.get(r.resourceId) ?? null) : null, locationNote: r.locationNote }));
+    const reviewed = r.status === "assigned" || r.status === "in_progress" || r.status === "resolved";
+    const reviewedAt = created + Math.floor(r.ageMinutes / 3) * 60_000;
+    const decision = reviewed ? (k.category === r.category ? "accepted" : "reassigned") : null;
+    const lastChange = r.status === "cancelled" ? created + Math.floor(r.ageMinutes / 2) * 60_000 : reviewed ? reviewedAt + (r.status === "assigned" ? 0 : 20 * 60_000) : triagedAt;
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO facilities_requests (id, site_id, reporter_id, resource_id, location_note, title, description, status, triage_state, triage_attempts,
+             final_category, review_decision, reviewed_by, reviewed_at, workflow_instance_id, created_at, updated_at)
+           VALUES (?, 'hq', ?, ?, ?, ?, ?, ?, 'suggested', 1, ?, ?, ?, ?, NULL, ?, ?)`,
+        )
+        .bind(
+          r.id,
+          r.reporterId,
+          r.resourceId,
+          r.locationNote,
+          r.title,
+          r.description,
+          r.status,
+          reviewed ? r.category : null,
+          decision,
+          reviewed ? r.reviewerId : null,
+          reviewed ? iso(reviewedAt) : null,
+          iso(created),
+          iso(lastChange),
+        ),
+      db
+        .prepare(
+          `INSERT INTO triage_suggestions (request_id, category, confidence, rationale, provider, model, attempts, latency_ms, created_at)
+           VALUES (?, ?, ?, ?, 'stub', 'keyword-v1', 1, 0, ?)`,
+        )
+        .bind(r.id, k.category, k.confidence, k.rationale, iso(triagedAt)),
+      event(r.id, "submitted", r.reporterId, {}, created),
+      event(r.id, "triaged", null, { category: k.category, provider: "stub" }, triagedAt),
+    );
+    if (reviewed) {
+      stmts.push(event(r.id, "reviewed", r.reviewerId, { decision: decision === "accepted" ? "accept" : "reassign", category: r.category }, reviewedAt));
+      if (r.status !== "assigned") stmts.push(event(r.id, "status_changed", r.reviewerId, { from: "assigned", to: "in_progress" }, reviewedAt + 10 * 60_000));
+      if (r.status === "resolved") stmts.push(event(r.id, "status_changed", r.reviewerId, { from: "in_progress", to: "resolved" }, reviewedAt + 20 * 60_000));
+    }
+    if (r.status === "cancelled") stmts.push(event(r.id, "cancelled", r.reporterId, {}, lastChange));
+  }
+  await db.batch(stmts);
+  return generateSeedRequests(SEED).length;
+}
+
 export async function seedDatabase(env: Env, config: Pick<Config, "siteId">, opts: SeedOptions): Promise<SeedResult> {
   const catalog = await seedCatalog(env.DB, { reset: opts.reset });
   const ledger = ledgerFor(env, config, config.siteId);
   if (opts.reset) await ledger.resetForDev();
   await ledger.syncCatalog();
-  return { ...catalog, historyReservations: 0, requests: 0 };
+  const existing = await env.DB.prepare("SELECT COUNT(*) AS n FROM facilities_requests WHERE id LIKE 'req_seed_%'").first<{ n: number }>();
+  const requests = (existing?.n ?? 0) === 0 ? await seedRequests(env.DB, opts.nowMs) : 0;
+  return { ...catalog, historyReservations: 0, requests };
 }

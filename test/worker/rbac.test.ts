@@ -1,9 +1,22 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { introspectWorkflow } from "cloudflare:test";
+import { env } from "cloudflare:workers";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ADMIN, EMPLOYEE, STAFF } from "../helpers/tokens.ts";
 import { as, seed } from "../helpers/world.ts";
 
+// POST /api/requests rows start real Workflow instances; end each one quickly (SPEC 12).
+let intro: Awaited<ReturnType<typeof introspectWorkflow>>;
 beforeAll(async () => {
   await seed();
+  intro = await introspectWorkflow(env.TRIAGE_WORKFLOW);
+  await intro.modifyAll(async (m) => {
+    await m.disableSleeps();
+    await m.forceEventTimeout({ name: "review-outcome" });
+  });
+});
+afterAll(async () => {
+  for (const i of await intro.get()) await i.waitForStatus("complete");
+  await intro.dispose();
 });
 
 type Role = "employee" | "facilities_staff" | "facilities_admin";
@@ -21,6 +34,12 @@ const MATRIX: Row[] = [
   { method: "GET", path: "/api/reservations?from=2026-10-12&to=2026-10-16", employee: "allow", staff: "allow", admin: "allow" },
   { method: "GET", path: "/api/reservations?from=2026-10-12&to=2026-10-16&employeeId=emp_050", employee: "deny", staff: "deny", admin: "allow" },
   { method: "POST", path: "/api/reservations", body: { resourceId: "res_2a01", date: "2026-10-12", startMin: 540, endMin: 600 }, employee: "allow", staff: "allow", admin: "allow" },
+  { method: "GET", path: "/api/requests", employee: "allow", staff: "allow", admin: "allow" },
+  { method: "POST", path: "/api/requests", body: { siteId: "hq", title: "Chair broken", description: "The chair at my desk has a cracked base." }, employee: "allow", staff: "allow", admin: "allow" },
+  { method: "GET", path: "/api/staff/requests", employee: "deny", staff: "allow", admin: "allow" },
+  { method: "POST", path: "/api/staff/requests/req_none/review", body: { decision: "accept" }, employee: "deny", staff: "allow", admin: "allow" },
+  { method: "POST", path: "/api/staff/requests/req_none/status", body: { status: "resolved" }, employee: "deny", staff: "allow", admin: "allow" },
+  { method: "GET", path: "/api/admin/reports/requests?from=2026-10-01&to=2026-10-31", employee: "deny", staff: "deny", admin: "allow" },
   { method: "GET", path: "/api/admin/reports/utilization?from=2026-10-01&to=2026-10-31", employee: "deny", staff: "deny", admin: "allow" },
   { method: "GET", path: "/api/admin/reports/reservations?date=2026-10-12", employee: "deny", staff: "deny", admin: "allow" },
   { method: "GET", path: "/api/admin/ledger/export?date=2026-10-12", employee: "deny", staff: "deny", admin: "allow" },
@@ -53,6 +72,13 @@ describe("RBAC matrix (SPEC 8, 9.1)", () => {
 
 describe("site allowlist for every role (SPEC 7.5)", () => {
   for (const role of ROLES) {
+    it(`POST /api/requests with an unknown siteId is 422 as ${role}`, async () => {
+      const user = await as(USERS[role]);
+      const res = await user.post("/api/requests", { siteId: "evil", title: "Chair broken", description: "The chair at my desk has a cracked base." });
+      expect(res.status).toBe(422);
+      expect(((await res.json()) as { issues: { path: string }[] }).issues[0]?.path).toBe("siteId");
+    });
+
     it(`GET /api/sites/evil/availability is 404 site_not_found as ${role}`, async () => {
       const user = await as(USERS[role]);
       const res = await user.get("/api/sites/evil/availability?date=2026-10-12");

@@ -81,3 +81,38 @@ export async function projectionState(db: D1Database, siteId: string) {
     .bind(siteId)
     .first<{ maxLedgerVersion: number; updatedAt: string }>();
 }
+
+export async function requestsReport(db: D1Database, siteId: string, from: string, to: string) {
+  const range = [siteId, `${from}T00:00:00.000Z`, `${to}T23:59:59.999Z`];
+  const { results: categories } = await db
+    .prepare(
+      `SELECT COALESCE(final_category, '(unreviewed)') AS category, status, COUNT(*) AS n FROM facilities_requests
+       WHERE site_id = ? AND created_at BETWEEN ? AND ? GROUP BY category, status ORDER BY category, status`,
+    )
+    .bind(...range)
+    .all<{ category: string; status: string; n: number }>();
+  // Agreement is always per provider (SPEC 6.1); nothing aggregates across providers.
+  const { results: agreement } = await db
+    .prepare(
+      `SELECT s.provider, COUNT(*) AS reviewed, SUM(r.final_category = s.category) AS agreed,
+              ROUND(1.0 * SUM(r.final_category = s.category) / COUNT(*), 4) AS agreementRate
+       FROM facilities_requests r JOIN triage_suggestions s ON s.request_id = r.id
+       WHERE r.review_decision IN ('accepted','reassigned') AND r.site_id = ? AND r.created_at BETWEEN ? AND ?
+       GROUP BY s.provider ORDER BY s.provider`,
+    )
+    .bind(...range)
+    .all<{ provider: string; reviewed: number; agreed: number; agreementRate: number }>();
+  const { results: reviewed } = await db
+    .prepare("SELECT created_at AS createdAt, reviewed_at AS reviewedAt FROM facilities_requests WHERE site_id = ? AND created_at BETWEEN ? AND ? AND reviewed_at IS NOT NULL")
+    .bind(...range)
+    .all<{ createdAt: string; reviewedAt: string }>();
+  const minutes = reviewed.map((r) => (Date.parse(r.reviewedAt) - Date.parse(r.createdAt)) / 60_000).sort((a, b) => a - b);
+  return { from, to, categories, agreement, medianMinutesToReview: median(minutes), reviewedCount: minutes.length };
+}
+
+export function median(sorted: readonly number[]): number | null {
+  if (sorted.length === 0) return null;
+  const mid = Math.floor(sorted.length / 2);
+  const value = sorted.length % 2 === 1 ? (sorted[mid] as number) : ((sorted[mid - 1] as number) + (sorted[mid] as number)) / 2;
+  return Math.round(value * 10) / 10;
+}

@@ -5,13 +5,17 @@ import type { AppEnv } from "../app-env.ts";
 import { requireRole } from "../auth/middleware.ts";
 import { queryParams } from "../http.ts";
 import { ledgerFor } from "../ledger/ledger-for.ts";
-import { projectionState, reservationFacts, utilizationReport } from "../repo/reports.ts";
+import { projectionState, requestsReport, reservationFacts, utilizationReport } from "../repo/reports.ts";
 
 export const adminRoutes = new Hono<AppEnv>()
   .use("/api/admin/*", requireRole("facilities_admin"))
   .get("/api/admin/reports/utilization", queryParams(DateRangeQuery), async (c) => {
     const { from, to, kind } = c.req.valid("query");
     return c.json(await utilizationReport(c.env.DB, c.get("config").siteId, from, to, kind));
+  })
+  .get("/api/admin/reports/requests", queryParams(DateRangeQuery), async (c) => {
+    const { from, to } = c.req.valid("query");
+    return c.json(await requestsReport(c.env.DB, c.get("config").siteId, from, to));
   })
   .get("/api/admin/reports/reservations", queryParams(DateQuery), async (c) => {
     const { date } = c.req.valid("query");

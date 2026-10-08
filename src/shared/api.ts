@@ -191,3 +191,107 @@ export const ReservationsResponse = z.object({ reservations: z.array(Reservation
 export type ReservationsResponse = z.infer<typeof ReservationsResponse>;
 
 export const CancelBody = z.object({ reason: z.string().trim().max(200).optional() });
+
+// Facilities requests (SPEC 7.3, 8).
+export const CategorySchema = z.enum(["building_systems", "electrical_av", "furniture_fixtures", "cleaning_safety"]);
+export const RequestStatusSchema = z.enum(["submitted", "awaiting_review", "assigned", "in_progress", "resolved", "cancelled"]);
+export const TriageStateSchema = z.enum(["pending", "suggested", "unavailable"]);
+export const SuggestionProviderSchema = z.enum(["workers-ai", "openai-compat", "stub", "keyword-fallback"]);
+
+export const TITLE_MIN = 5;
+export const TITLE_MAX_LEN = 120;
+export const DESCRIPTION_MIN = 20;
+export const DESCRIPTION_MAX = 2000;
+
+export const CreateRequestBody = z.object({
+  siteId: z.string().min(1).max(32),
+  resourceId: z.string().min(1).max(64).optional(),
+  locationNote: z.string().trim().max(200).optional(),
+  title: z.string().trim().min(TITLE_MIN, `Title needs at least ${TITLE_MIN} characters.`).max(TITLE_MAX_LEN, `Title is limited to ${TITLE_MAX_LEN} characters.`),
+  description: z
+    .string()
+    .trim()
+    .min(DESCRIPTION_MIN, `Description needs at least ${DESCRIPTION_MIN} characters.`)
+    .max(DESCRIPTION_MAX, `Description is limited to ${DESCRIPTION_MAX} characters.`),
+});
+export type CreateRequestBody = z.infer<typeof CreateRequestBody>;
+
+export const FacilitiesRequestSchema = z.object({
+  id: z.string(),
+  siteId: z.string(),
+  reporterId: z.string(),
+  reporterName: z.string().nullable(),
+  resourceId: z.string().nullable(),
+  resourceName: z.string().nullable(),
+  locationNote: z.string(),
+  title: z.string(),
+  description: z.string(),
+  status: RequestStatusSchema,
+  triageState: TriageStateSchema,
+  triageAttempts: z.number().int(),
+  finalCategory: CategorySchema.nullable(),
+  reviewDecision: z.enum(["accepted", "reassigned", "manual"]).nullable(),
+  reviewedBy: z.string().nullable(),
+  reviewedAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type FacilitiesRequest = z.infer<typeof FacilitiesRequestSchema>;
+
+export const SuggestionSchema = z.object({
+  category: CategorySchema,
+  confidence: z.number(),
+  rationale: z.string(),
+  provider: SuggestionProviderSchema,
+  model: z.string(),
+  attempts: z.number().int(),
+  latencyMs: z.number().int(),
+  createdAt: z.string(),
+});
+export type Suggestion = z.infer<typeof SuggestionSchema>;
+
+export const RequestEventSchema = z.object({
+  id: z.number().int(),
+  type: z.string(),
+  actorId: z.string().nullable(),
+  data: z.record(z.string(), z.unknown()),
+  at: z.string(),
+});
+export type RequestEvent = z.infer<typeof RequestEventSchema>;
+
+export const RequestWithSuggestion = FacilitiesRequestSchema.extend({ suggestion: SuggestionSchema.nullable() });
+export type RequestWithSuggestion = z.infer<typeof RequestWithSuggestion>;
+
+export const CreateRequestResponse = z.object({ request: FacilitiesRequestSchema, triage: z.enum(["started", "pending"]) });
+export type CreateRequestResponse = z.infer<typeof CreateRequestResponse>;
+
+export const MyRequestsResponse = z.object({ requests: z.array(RequestWithSuggestion) });
+export type MyRequestsResponse = z.infer<typeof MyRequestsResponse>;
+
+export const RequestDetailResponse = z.object({
+  request: FacilitiesRequestSchema,
+  suggestion: SuggestionSchema.nullable(),
+  events: z.array(RequestEventSchema),
+});
+export type RequestDetailResponse = z.infer<typeof RequestDetailResponse>;
+
+export const StaffQueueItem = RequestWithSuggestion.extend({ ageMinutes: z.number().int() });
+export const StaffQueueResponse = z.object({ requests: z.array(StaffQueueItem) });
+export type StaffQueueResponse = z.infer<typeof StaffQueueResponse>;
+
+export const StaffQueueQuery = z.object({
+  status: RequestStatusSchema.optional(),
+  category: CategorySchema.optional(),
+  q: z.string().trim().max(80).optional(),
+});
+
+export const MyRequestsQuery = z.object({ status: RequestStatusSchema.optional() });
+
+export const ReviewBody = z.discriminatedUnion("decision", [
+  z.object({ decision: z.literal("accept") }),
+  z.object({ decision: z.literal("reassign"), category: CategorySchema }),
+  z.object({ decision: z.literal("categorize"), category: CategorySchema }),
+]);
+export type ReviewBody = z.infer<typeof ReviewBody>;
+
+export const StatusChangeBody = z.object({ status: z.enum(["in_progress", "resolved"]), note: z.string().trim().max(500).optional() });

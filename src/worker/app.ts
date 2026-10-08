@@ -15,8 +15,10 @@ import { devRoutes } from "./routes/dev.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { liveRoutes } from "./routes/live.ts";
 import { meRoutes } from "./routes/me.ts";
+import { requestRoutes } from "./routes/requests.ts";
 import { reservationRoutes } from "./routes/reservations.ts";
 import { resourceRoutes } from "./routes/resources.ts";
+import { staffRoutes } from "./routes/staff.ts";
 
 export type { AppDeps, AppEnv } from "./app-env.ts";
 
@@ -24,6 +26,7 @@ export const defaultDeps: AppDeps = {
   verifierFactory: makeVerifierFactory(),
   now: () => Date.now(),
   newId: (prefix) => newId(prefix),
+  triageWorkflow: (env) => env.TRIAGE_WORKFLOW,
 };
 
 /** Paths reachable without a token. Dev paths are additionally dev-mode only. */
@@ -67,6 +70,8 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
   app.route("/", calendarRoutes);
   app.route("/", reservationRoutes);
   app.route("/", liveRoutes);
+  app.route("/", requestRoutes);
+  app.route("/", staffRoutes);
   app.route("/", adminRoutes);
 
   app.notFound((c) => {

@@ -12,7 +12,7 @@
     "moduleResolution": "bundler",
     "target": "es2024",
     "skipLibCheck": true,
-    "lib": ["es2024"],
+    "lib": ["es2024", "esnext.disposable"],
     "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-plugin/types"]
   },
   "include": ["src/worker", "src/shared", "test/worker", "test/ws", "test/helpers", "test/apply-migrations.ts", "test/env.d.ts"]
