@@ -18,9 +18,19 @@ describe("transactional slot claims (SPEC 7.1, ADR 0002)", () => {
     const date = bizDay(2);
     const stub = hqLedger();
     await stub.syncCatalog();
-    await stub.reserve({ employeeId: "emp_002", role: "employee" }, { resourceId: "res_2a02", date, startMin: 540, endMin: 600 }, "backstop-0");
+    const first = await stub.reserve({ employeeId: "emp_002", role: "employee" }, { resourceId: "res_2a02", date, startMin: 540, endMin: 600 }, "backstop-0");
+    if (!first.ok) throw new Error("setup booking failed");
     const before = await stub.ledgerStats();
     const versionsBefore = await stub.dateVersions();
+    // The alarm may flush outbox rows at any time, so compare the outbox's AUTOINCREMENT
+    // high-water mark (rows ever inserted) and the reservation ids of the rows present.
+    const outbox = () =>
+      runInDurableObject(stub, (_i: SiteLedger, state) => ({
+        inserted: Number(state.storage.sql.exec("SELECT COALESCE(MAX(seq), 0) AS n FROM sqlite_sequence WHERE name = 'outbox'").one().n),
+        reservationIds: [...new Set(state.storage.sql.exec("SELECT reservation_id FROM outbox").toArray().map((row) => String(row.reservation_id)))],
+      }));
+    const outboxBefore = await outbox();
+    expect(outboxBefore.inserted).toBe(1);
     // A stray slot claim with no reservation: the overlap SELECT sees nothing, so only
     // the PRIMARY KEY can stop the booking.
     await runInDurableObject(stub, (_i: SiteLedger, state) => {
@@ -32,6 +42,9 @@ describe("transactional slot claims (SPEC 7.1, ADR 0002)", () => {
     expect(after.ledgerVersion).toBe(before.ledgerVersion);
     expect(after.backstopHits).toBe(before.backstopHits + 1);
     expect(await stub.dateVersions()).toEqual(versionsBefore);
+    const outboxAfter = await outbox();
+    expect(outboxAfter.inserted).toBe(outboxBefore.inserted);
+    for (const id of outboxAfter.reservationIds) expect(id).toBe(first.reservation.id);
     const counts = await runInDurableObject(stub, (_i: SiteLedger, state) => ({
       reservations: state.storage.sql.exec("SELECT COUNT(*) AS n FROM reservations").one().n,
       slots: state.storage.sql.exec("SELECT COUNT(*) AS n FROM resource_slots").one().n,

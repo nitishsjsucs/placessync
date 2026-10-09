@@ -24,6 +24,14 @@ describe("admin resource edits (Tier 2)", () => {
     expect(list.resources.map((r) => r.id)).not.toContain("res_3b03");
     const all = await json<{ resources: { id: string }[] }>(await admin.get("/api/sites/hq/resources?includeInactive=1"));
     expect(all.resources.map((r) => r.id)).toContain("res_3b03");
+    // The flag is admin-only: an employee or staff member sending it still gets active resources only.
+    for (const viewer of [user, await as(STAFF)]) {
+      const res = await viewer.get("/api/sites/hq/resources?includeInactive=1");
+      expect(res.status).toBe(200);
+      const ids = (await json<{ resources: { id: string }[] }>(res)).resources.map((r) => r.id);
+      expect(ids).toHaveLength(19);
+      expect(ids).not.toContain("res_3b03");
+    }
     await (await admin.patch("/api/admin/resources/res_3b03", { active: true })).body?.cancel();
     const ok = await user.post("/api/reservations", { resourceId: "res_3b03", date: bizDay(2), startMin: 540, endMin: 660 }, { "Idempotency-Key": "adm-res-2" });
     expect(ok.status).toBe(201);

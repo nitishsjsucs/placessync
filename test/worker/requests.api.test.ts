@@ -180,6 +180,35 @@ describe("staff review (SPEC 7.3 conditional write)", () => {
     expect((await eventTypes(id)).filter((t) => t === "reviewed")).toHaveLength(1);
   });
 
+  it("after the review commits, sends review_outcome { outcome: reviewed, at } to that request's workflow", async () => {
+    const id = await suggested("electrical_av");
+    const sent: { id: string; event: unknown }[] = [];
+    const send = appWith(() => ({
+      create: async () => {
+        throw new Error("unused");
+      },
+      get: async (instanceId: string) => ({ sendEvent: async (event: unknown) => void sent.push({ id: instanceId, event }) }) as unknown as WorkflowInstance,
+    }));
+    const res = await send(`/api/staff/requests/${id}/review`, {
+      method: "POST",
+      headers: { ...authHeaders(await tokenFor(STAFF)), "content-type": "application/json" },
+      body: JSON.stringify({ decision: "accept" }),
+    });
+    expect(res.status).toBe(200);
+    await res.body?.cancel();
+    const row = await requestRow(id);
+    expect(sent).toEqual([{ id, event: { type: "review_outcome", payload: { outcome: "reviewed", at: row?.reviewed_at } } }]);
+    // A 409 review sends nothing.
+    const again = await send(`/api/staff/requests/${id}/review`, {
+      method: "POST",
+      headers: { ...authHeaders(await tokenFor(STAFF)), "content-type": "application/json" },
+      body: JSON.stringify({ decision: "accept" }),
+    });
+    expect(again.status).toBe(409);
+    await again.body?.cancel();
+    expect(sent).toHaveLength(1);
+  });
+
   it("enforces the status machine: illegal transitions are 409", async () => {
     const id = await suggested();
     const staff = await as(STAFF);

@@ -1,6 +1,7 @@
 import { applyD1Migrations, evictDurableObject, reset, runInDurableObject, type D1Migration } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { PING } from "../../src/shared/live-protocol.ts";
 import type { SiteLedger } from "../../src/worker/ledger/site-ledger.ts";
 import { EMPLOYEE, EMPLOYEE_2, authHeaders, tokenFor } from "../helpers/tokens.ts";
 import { bizDay, call, hqLedger, seed } from "../helpers/world.ts";
@@ -98,10 +99,23 @@ describe("per-date live availability (SPEC 7.2)", () => {
     expect(await c.next()).toMatchObject({ type: "delta", op: "booked", resourceId: "res_2a03", mine: false });
   });
 
-  it("answers ping through the auto-response", async () => {
-    const c = await connect(await tokenFor(EMPLOYEE));
-    c.send('{"type":"ping"}');
+  it("answers ping through the auto-response, not the message handler", async () => {
+    // The handler checks expiry first and would answer an expired socket with
+    // session_expired and close 4001; the auto-response never runs the handler.
+    const c = await connect(await tokenFor(EMPLOYEE, { ttlSeconds: 60 }));
+    await runInDurableObject(hqLedger(), (i: SiteLedger, state: DurableObjectState) => {
+      i.clockOverride = () => Date.now() + 120_000;
+      expect(state.getWebSocketAutoResponseTimestamp(state.getWebSockets()[0] as WebSocket)).toBeNull();
+    });
+    c.send(PING);
     expect(await c.next()).toEqual({ type: "pong" });
+    await runInDurableObject(hqLedger(), (_i: SiteLedger, state: DurableObjectState) => {
+      expect(state.getWebSocketAutoResponseTimestamp(state.getWebSockets()[0] as WebSocket)).toBeInstanceOf(Date);
+    });
+    // The same expired socket, sent anything else, reaches the handler and is closed.
+    c.send({ type: "subscribe", date: bizDay(2) });
+    expect(await c.next()).toEqual({ type: "error", code: "session_expired" });
+    expect((await c.closed).code).toBe(4001);
   });
 
   it("rejects malformed messages and more than 14 dates", async () => {
