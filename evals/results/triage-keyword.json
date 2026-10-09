@@ -1,8 +1,8 @@
 {
   "meta": {
-    "gitSha": "646b75256d2adb680b926afc57e1524b4ca5defb",
+    "gitSha": "0155f1a86d9be58a6ff5284b596b9a46e6b7cc2d",
     "dirty": false,
-    "timestamp": "2026-10-09T00:42:32.468Z",
+    "timestamp": "2026-10-09T01:08:57.494Z",
     "node": "v25.9.0",
     "wrangler": "4.149.0",
     "os": "Darwin 25.5.0 arm64",
@@ -169,7 +169,7 @@
       "fallbackRate": 0,
       "latencyMs": {
         "p50": 0.1,
-        "p95": 0.3
+        "p95": 0.2
       }
     },
     "injection": {
