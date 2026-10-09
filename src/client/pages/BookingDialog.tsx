@@ -1,6 +1,7 @@
 // Booking confirmation shared by Find a space and the resource calendar. Validates
-// inline with the shared rules, then POSTs with a fresh Idempotency-Key per opening.
-import { useEffect, useMemo, useRef, useState } from "react";
+// inline with the shared rules, then POSTs with an Idempotency-Key bound to the body it
+// carries: a retry of an unanswered request reuses it, anything else gets a new one.
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { type Reservation, type Resource, ReserveResponse } from "../../shared/api.ts";
 import { validate } from "../../shared/rules.ts";
@@ -32,11 +33,15 @@ export function BookingDialog({ open, onClose, resource, date, startMin, endMin,
   const [problem, setProblem] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const confirmRef = useRef<HTMLButtonElement>(null);
-  // One key per opening: a retried click is the same booking attempt.
-  const key = useMemo(() => (open ? idempotencyKey() : ""), [open]);
+  // The ledger binds a key to the first body it saw and stores every answer under it,
+  // 409 and 422 included (SPEC 7.1). So a key is reused only to retry the same body after
+  // no definitive answer (network error, 5xx); a changed body or a resubmit after a 409 or
+  // 422 is a new booking attempt with a new key.
+  const attempt = useRef<{ body: string; key: string } | null>(null);
 
   useEffect(() => {
     if (open) {
+      attempt.current = null;
       setAttendees("1");
       setTitle("");
       setProblem(null);
@@ -64,10 +69,14 @@ export function BookingDialog({ open, onClose, resource, date, startMin, endMin,
     setPending(true);
     setProblem(null);
     setFieldErrors({});
+    const body = JSON.stringify(input);
+    const key = attempt.current?.body === body ? attempt.current.key : idempotencyKey();
+    attempt.current = { body, key };
     try {
       const res = await api.post("/api/reservations", input, ReserveResponse, { "Idempotency-Key": key });
       onBooked(res.reservation);
     } catch (err) {
+      if (err instanceof ApiClientError && (err.status === 409 || err.status === 422)) attempt.current = null;
       if (err instanceof ApiClientError && err.status === 409) {
         const conflicts = (err.body.conflicts as { startMin: number; endMin: number }[] | undefined) ?? [];
         const when = conflicts.map((c) => timeRange(c.startMin, c.endMin)).join(", ");

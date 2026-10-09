@@ -107,6 +107,75 @@ describe("Find a space (SPEC 14.1)", () => {
     expect(within(dialog).getByText("This room holds 8.")).toBeTruthy();
   });
 
+  // The fake below keeps the ledger's idempotency contract (SPEC 7.1): a key is bound to
+  // the first body it carried, and a different body under it gives idempotency_key_reuse.
+  function ledgerLikePost(answer: (body: { attendees: number }, n: number) => unknown) {
+    const seen = new Map<string, string>();
+    let n = 0;
+    return (c: { body: { attendees: number; resourceId: string; date: string; startMin: number; endMin: number }; headers: Record<string, string> }) => {
+      const key = c.headers["idempotency-key"] ?? "";
+      const body = JSON.stringify(c.body);
+      const prior = seen.get(key);
+      if (prior !== undefined && prior !== body) return respond(422, { error: "idempotency_key_reuse", message: "This Idempotency-Key was already used for a different request." });
+      seen.set(key, body);
+      n += 1;
+      const out = answer(c.body, n);
+      if (out !== "ok") return out;
+      return respond(201, {
+        reservation: { id: `rsv_${n}`, employeeId: "emp_001", kind: "room", title: null, status: "confirmed", createdAt: "x", cancelledAt: null, cancelledBy: null, cancelReason: null, version: 1, ...c.body },
+        version: 1,
+        dateVersion: 1,
+      });
+    };
+  }
+
+  async function openSequoiaDialog(post: unknown) {
+    const { api, user } = await openPage(post);
+    await user.click(screen.getByRole("tab", { name: "Rooms" }));
+    await user.click(await screen.findByRole("gridcell", { name: "Sequoia (8), 09:00 to 09:30, available" }));
+    await user.click(screen.getByRole("button", { name: /^Book Sequoia/ }));
+    const dialog = await screen.findByRole("dialog");
+    const attendees = within(dialog).getByRole("spinbutton", { name: /Attendees/ });
+    return { api, user, dialog, attendees };
+  }
+
+  const posts = (api: { calls: { method: string; url: string; body: unknown; headers: Record<string, string> }[] }) =>
+    api.calls.filter((c) => c.method === "POST" && c.url === "/api/reservations");
+
+  it("after a 422, a corrected resubmit gets a new Idempotency-Key and succeeds", async () => {
+    const { api, user, dialog, attendees } = await openSequoiaDialog(
+      ledgerLikePost((body) =>
+        body.attendees > 4 ? respond(422, { error: "validation", message: "bad", issues: [{ path: "attendees", code: "over_capacity", message: "Too many people for this booking." }] }) : "ok",
+      ),
+    );
+    await user.clear(attendees);
+    await user.type(attendees, "6");
+    await user.click(within(dialog).getByRole("button", { name: "Confirm booking" }));
+    expect(await within(dialog).findByText("Too many people for this booking.")).toBeTruthy();
+
+    await user.clear(attendees);
+    await user.type(attendees, "3");
+    await user.click(within(dialog).getByRole("button", { name: "Confirm booking" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    const [first, second] = posts(api);
+    expect(first?.body).toMatchObject({ attendees: 6 });
+    expect(second?.body).toMatchObject({ attendees: 3 });
+    expect(second?.headers["idempotency-key"]).toMatch(/^web-/);
+    expect(second?.headers["idempotency-key"]).not.toBe(first?.headers["idempotency-key"]);
+    await waitFor(() => expect(screen.getByTestId("announcer").textContent).toMatch(/^Booked Sequoia/));
+  });
+
+  it("retries an unanswered request with the same body under the same Idempotency-Key", async () => {
+    const { api, user, dialog } = await openSequoiaDialog(ledgerLikePost((_body, n) => (n === 1 ? respond(503, { error: "unavailable", message: "try again" }) : "ok")));
+    await user.click(within(dialog).getByRole("button", { name: "Confirm booking" }));
+    expect(await within(dialog).findByText("The booking could not be saved. Try again.")).toBeTruthy();
+    await user.click(within(dialog).getByRole("button", { name: "Confirm booking" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    const [first, second] = posts(api);
+    expect(second?.body).toEqual(first?.body);
+    expect(second?.headers["idempotency-key"]).toBe(first?.headers["idempotency-key"]);
+  });
+
   it("validates inline with the shared rules before posting (desk under 60 minutes)", async () => {
     const { api, user } = await openPage(respond(500, {}));
     await user.click(await screen.findByRole("gridcell", { name: "Desk 2A-01, 09:00 to 09:30, available" }));
