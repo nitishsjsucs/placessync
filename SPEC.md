@@ -1,5 +1,7 @@
 # PlacesSync v1: Build Specification
 
+> **Build note (2026-10-08).** This is the pre-build design, kept as reviewed. The repository now implements it. Where the build differs (for example ports 8783 and 8130 instead of 8788 and 8080, and llama-server with one 8,192-token slot instead of four 4,096-token slots), `PROGRESS.md` lists each deviation and the reason under "Deviations from SPEC.md". The status line below describes the state before the build.
+
 Status: design only (2026-10-08), revision 2 after an adversarial review (Section 22 lists every finding and its resolution). Nothing in this directory except this file exists yet.
 
 Numbers policy: the only numbers that may appear in the README Results section, or on the resume, are ones written to `evals/results/*.json` by this repo's own scripts. The few observations from a throwaway pre-build prototype are quarantined in Appendix A, labeled as such, and are never cited.
@@ -17,6 +19,12 @@ Author of record: Nitish Chowdary. This is a clean-room v1: no code, data, or as
 > 3. Built eight reusable UI components from Figma designs with keyboard navigation, clear validation, and mobile layouts, alongside a Workers AI triage workflow assigning facilities requests to four service categories for staff review.
 
 Every number and mechanism above is an acceptance criterion. Section 12 maps each one to the test or eval that proves it. "Targeting zero" is replaced by a measurement: the contention eval reports the real count of overlapping confirmed bookings, and the resume reports whatever was measured.
+
+> **Build note (2026-10-08): do not use the text above as written.** It was the target. Section 15 lists the parts the build cannot support yet. Until those items are done, the supportable wording is:
+>
+> - Summary: "a booking interface with automated accessibility checks and full keyboard support" instead of "an accessible booking interface" (Section 15 item 8: no manual screen-reader pass yet).
+> - Bullet 2: replace "targeting zero overlapping confirmed bookings" with the count `evals/results/contention.json` reports, for example "0 overlapping confirmed bookings across 5 local runs of 1,000 concurrent attempts", and only while that file says so (Section 15 item 4).
+> - Bullet 3: "Built eight reusable UI components from a documented design-token and ARIA contract spec, with keyboard navigation, clear validation and mobile layouts, alongside a Cloudflare Workflows triage pipeline with a Workers AI provider, evaluated locally with Qwen3-1.7B, that assigns facilities requests to four service categories for staff review." No Figma file exists and the components were not built from one (Section 15 item 1), and Workers AI inference has never run (Section 15 item 2).
 
 ---
 
@@ -1245,6 +1253,7 @@ Layout: CSS modules plus `ui/tokens.css` (color, spacing, radius, type scale as 
 ## 15. Claims that need Nitish
 
 1. **"from Figma designs"**: no Figma file exists and none can be made here. Either (a) Nitish designs the eight components in Figma (frames for each state at 375 px and 1280 px), records the file URL and a frame-to-component map in `design/FIGMA.md`, and the tokens in `ui/tokens.css` are aligned to it; or (b) the bullet is reworded, for example "from a documented design-token spec". Until (a) happens, the phrase is not supportable.
+   *Revised 2026-10-08, after the build:* option (a) no longer makes the phrase true. The components were built first, from `tokens.css` and the contracts in 14.2, so a Figma file drawn now would document them, not be the designs they were built from. It could be cited as "documented in Figma", never as "built from Figma designs". Use option (b): "from a documented design-token and ARIA contract spec".
 2. **"Workers AI triage workflow"**: the Workflow and the Workers AI provider are implemented and unit-tested against a fake `Ai` binding, and the Workflow runs end to end locally against llama-server. Actual Workers AI inference has not run. To make the phrase literal: `wrangler login`, deploy (Section 17), submit a few requests, and confirm rows with `provider = 'workers-ai'` in `triage_suggestions`. Until then, an accurate phrasing is "a Cloudflare Workflows triage pipeline with a Workers AI provider, evaluated locally against Qwen3-1.7B".
 3. **Production Durable Objects, D1, Access**: all behaviour is verified in workerd/Miniflare locally. Saying it runs on Cloudflare requires the deploy. Access setup (Zero Trust application, AUD tag, team domain) is his.
 4. **Resume wording after the evals**: replace "targeting zero overlapping confirmed bookings" with the measured result, for example "0 overlapping confirmed bookings across 5 runs of 1,000 concurrent attempts", only once `evals/results/contention.json` says so.

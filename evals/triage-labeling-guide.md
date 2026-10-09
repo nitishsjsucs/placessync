@@ -24,4 +24,4 @@ Every facilities request gets exactly one of four service categories. Label the 
 
 ## Provenance
 
-The 40 items in `data/triage-hard.jsonl` were authored during the build of this repository with AI assistance and labeled by applying the rules above. They were not written or labeled by facilities staff. An independent relabel (blind, by a second person) has not been done; if it is, report inter-annotator agreement next to the accuracy numbers.
+The 40 items in `data/triage-hard.jsonl`, the 12 items in `data/triage-injection.jsonl`, the rules above and every label were all produced during the AI-assisted build of this repository. No person has labeled them, and no facilities staff member wrote or checked them. A blind relabel by a person would allow an inter-annotator agreement figure to be reported next to the accuracy numbers; that has not been done.

@@ -66,15 +66,15 @@ flowchart LR
 
 How a booking is kept safe:
 
-1. The Worker verifies the token, loads the employee and role from D1, validates the body with zod, and resolves the site from the D1 resource row (404 before any Durable Object call). Durable Object names never come from a request: `ledgerFor` allows only the configured site, and a test fails if `getByName(` appears anywhere else.
+1. The Worker verifies the token, loads the employee and role from D1, validates the body with zod, and resolves the site from the D1 resource row (404 before any Durable Object call). Durable Object names never come from a request: `ledgerFor` allows only the configured site, and a test fails if `getByName(` appears anywhere else under `src/worker`.
 2. The `SiteLedger` loads its catalog once (single-flight), then runs one `transactionSync` with no `await` inside: idempotency lookup, the shared booking rules, an overlap `SELECT` on the resource, an overlap `SELECT` on the employee, the reservation insert, one `resource_slots` and one `employee_slots` row per 15-minute slot under PRIMARY KEYs, the ledger and per-date version bumps, an outbox row and the idempotency record. A duplicate slot throws and rolls everything back.
 3. After commit the object sends a delta to sockets subscribed to that date and arms its alarm, which copies outbox rows to D1 with upserts guarded by version.
 
-Design decisions are recorded in [`docs/adr/`](docs/adr) (one ledger per site, slot claims, the outbox, explicit Access verification, the Vitest integration, the Workflow, per-date live versions, the triage sweep). The domain vocabulary is in [`CONTEXT.md`](CONTEXT.md). The full design is [`SPEC.md`](SPEC.md).
+Design decisions are recorded in [`docs/adr/`](docs/adr) (one ledger per site, slot claims, the outbox, explicit Access verification, the Vitest integration, the Workflow, per-date live versions, the triage sweep). The domain vocabulary is in [`CONTEXT.md`](CONTEXT.md). The pre-build design is [`SPEC.md`](SPEC.md); where the build differs from it (ports, llama-server slots and the rest), [`PROGRESS.md`](PROGRESS.md) lists each deviation and the reason.
 
 ## What runs where
 
-| Capability | Local (this Mac and CI) | Production (after deploy) |
+| Capability | Local (this Mac; CI configured but not yet run) | Production (after deploy) |
 |---|---|---|
 | Worker and Hono API | workerd via `vite dev` / `vite preview`; tests via `@cloudflare/vitest-plugin` | Cloudflare Workers |
 | Static SPA | Vite build served by local workerd assets | Workers static assets |
@@ -97,7 +97,7 @@ No local stand-in is the production service. In particular:
 
 ## Run it locally
 
-Requirements: Node 22.22 or later (CI uses 24), npm 11. No Cloudflare account is needed.
+Requirements: npm 11 and Node 22.22 or later (the `engines` floor). Only Node 25.9.0 on macOS (arm64) has been used so far; CI is configured for Node 24 on ubuntu-latest but has not run yet. jsdom 30.1.2 declares Node ^22.22.2, ^24.15.0 or >=26, so `npm ci` warns about the engine on Node 25, and the tests pass there anyway. No Cloudflare account is needed.
 
 ```sh
 npm ci
@@ -122,10 +122,10 @@ npm test              # Vitest: worker, worker-ws, ui (jsdom), node
 npm run test:e2e      # Playwright (Chromium) against npm run preview
 ```
 
-- **worker** runs inside workerd with the real Durable Object, D1 and Workflows bindings: booking rules, the ledger's transactions and rollback, idempotency, cancellation, the outbox and its failure backoff, reports, auth in dev and access modes, the role matrix, the site allowlist, the triage workflow with forced step failures and timeouts, the cron sweep, and a test that fires all 1,000 generated attempts through the Worker at once.
+- **worker** runs inside workerd against Miniflare's local Durable Object, D1 and Workflows implementations (not mocks): booking rules, the ledger's transactions and rollback, idempotency, cancellation, the outbox and its failure backoff, reports, auth in dev and access modes, the role matrix, the site allowlist, the triage workflow with forced step failures and timeouts, the cron sweep, and a test that fires all 1,000 generated attempts through the Worker at once.
 - **worker-ws** holds every test that opens a WebSocket (one worker, no storage isolation, as Cloudflare recommends): per-date deltas, the cross-date case, hibernation, expiry, staff events.
 - **ui** tests each of the eight components for its keyboard contract and with axe, and each page against a fetch fake and a fake WebSocket.
-- **node** checks the README results block, the `getByName` guard, generator hashes in Node, eval math, and the hard triage set.
+- **node** checks the README results block and the `npm run results` command, the `getByName` guard, generator hashes in Node, eval math, the contention eval's retry rules and observer model, the e2e results reporter, the workflow-mode gates, and the hard and injection triage sets (including that the prompt spells out none of their cases).
 
 The Workers Vitest integration is `@cloudflare/vitest-plugin` (formerly `@cloudflare/vitest-pool-workers`, which npm marks deprecated and which cannot start with this compatibility date; see [ADR 0005](docs/adr/0005-vitest-plugin.md)).
 
@@ -133,8 +133,8 @@ The Workers Vitest integration is `@cloudflare/vitest-plugin` (formerly `@cloudf
 
 How each eval runs and what each metric means is in [`evals/README.md`](evals/README.md). In short:
 
-- **Contention:** 1,000 generated reservation attempts (700 on one date, 300 on the next, by all 100 employees over all 20 resources, at least 900 of them contested) fired at once at a running local server, with live observers on both dates and a deliberately unsafe read-then-write D1 booker as a negative control that must produce overlaps.
-- **Triage:** 200 templated requests and 40 deliberately ambiguous ones classified into the four categories, with the keyword baseline beside every model number. The 40 were written during the build with AI assistance (not by facilities staff) and labeled per [`evals/triage-labeling-guide.md`](evals/triage-labeling-guide.md).
+- **Contention:** 1,000 generated reservation attempts (700 on one date, 300 on the next, by all 100 employees over all 20 resources, at least 900 of them contested) fired at once at a running local server, with live observers on both dates and a deliberately unsafe read-then-write D1 booker as a negative control that must produce overlaps. An attempt whose connection is refused, or that gets the preview proxy's own "fetch failed" page, is resent with the same Idempotency-Key and counted by cause; any other failure counts as a server error and fails the run. A resent attempt arrives later than the rest, so on a loaded machine the burst is less concurrent than "at once" suggests. `test/worker/contention.test.ts` fires the same 1,000 attempts inside workerd with no network hop and no retries, and asserts the same invariants.
+- **Triage:** 200 templated requests, 40 deliberately ambiguous ones and 12 prompt-injection attempts classified into the four categories, with the keyword baseline beside every model number. The ambiguous and injection items, the rules in [`evals/triage-labeling-guide.md`](evals/triage-labeling-guide.md) and the labels were all produced during the AI-assisted build; no person (and no facilities staff member) has labeled them. The reporter's text reaches the model between `<request>` tags that the reporter cannot close, and each injection item tries to force a different category, so the eval reports how often that works (the steer rate).
 
 ## Results
 
@@ -236,7 +236,7 @@ Nothing has been deployed from this repository. The steps, for an account holder
 
 - **Figma:** no Figma file exists; the UI kit follows the design tokens in `src/client/ui/tokens.css` and the contracts in SPEC 14.2. See [`design/FIGMA.md`](design/FIGMA.md).
 - **Accessibility evidence is automated:** axe on every page and component state at two viewports, component keyboard tests, and a keyboard-only booking path. No manual screen-reader pass has been done.
-- **Mobile layouts** are checked in Chromium emulation at 375x812 and 768x1024, not on devices.
+- **Mobile layouts** are checked in desktop Chromium resized to 375x812 and 768x1024 (no touch or mobile user-agent emulation), not on devices.
 - **Single ledger per site** is a throughput ceiling by design (ADR 0001); v1 has one site.
 - **Role changes** take effect on open WebSockets no later than token expiry (8 hours for dev tokens; the Access session length in production); v1 has no role-change API.
 - **Rate limiting** is not implemented (a production follow-up using the Workers rate limiting binding).
