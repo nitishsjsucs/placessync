@@ -1,8 +1,8 @@
 {
   "meta": {
-    "gitSha": "38d871a47b75042bcac754a7408809e76a3b9d53",
+    "gitSha": "b76baab639ad2e519b312e23b15a431b51549d77",
     "dirty": false,
-    "timestamp": "2026-10-09T19:23:08.650Z",
+    "timestamp": "2026-10-09T19:37:37.523Z",
     "node": "v25.9.0",
     "wrangler": "4.149.0",
     "os": "Darwin 25.5.0 arm64",
@@ -30,8 +30,8 @@
     ],
     "realtimeLatencyMs": {
       "bookings": 20,
-      "p50": 7,
-      "p95": 9.05
+      "p50": 11,
+      "p95": 13.600000000000009
     }
   },
   "attachments": {
@@ -609,29 +609,29 @@
         "data": {
           "bookings": 20,
           "samplesMs": [
-            8,
-            7,
-            6,
-            8,
-            6,
-            8,
-            7,
-            7,
-            7,
-            7,
-            7,
-            6,
-            8,
-            6,
-            7,
-            6,
-            5,
+            25,
+            12,
             10,
-            9,
-            7
+            10,
+            12,
+            10,
+            11,
+            10,
+            11,
+            11,
+            10,
+            11,
+            11,
+            11,
+            11,
+            13,
+            12,
+            11,
+            13,
+            12
           ],
-          "p50": 7,
-          "p95": 9.05,
+          "p50": 11,
+          "p95": 13.600000000000009,
           "note": "request start in one context to busy cell visible in another, local Chromium"
         }
       }

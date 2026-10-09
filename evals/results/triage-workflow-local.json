@@ -1,8 +1,8 @@
 {
   "meta": {
-    "gitSha": "38d871a47b75042bcac754a7408809e76a3b9d53",
+    "gitSha": "b76baab639ad2e519b312e23b15a431b51549d77",
     "dirty": false,
-    "timestamp": "2026-10-09T19:27:21.168Z",
+    "timestamp": "2026-10-09T19:45:49.577Z",
     "node": "v25.9.0",
     "wrangler": "4.149.0",
     "os": "Darwin 25.5.0 arm64",
@@ -36,8 +36,8 @@
   "categoryInEnum": 20,
   "agreementWithLabel": 0.95,
   "endToEndLatencyMs": {
-    "p50": 708.6,
-    "p95": 877.7
+    "p50": 1293.7,
+    "p95": 2033.9
   },
   "gates": {
     "passed": true,
@@ -47,182 +47,182 @@
     {
       "id": "tri_001",
       "truth": "furniture_fixtures",
-      "requestId": "req_01m4h24rrv7wdg10kjenxes33y",
+      "requestId": "req_01m4h36kh07wa1fyh9mqr85esx",
       "reached": true,
       "provider": "openai-compat",
       "category": "furniture_fixtures",
-      "latencyMs": 437.28391700000003
+      "latencyMs": 1277.352
     },
     {
       "id": "tri_002",
       "truth": "furniture_fixtures",
-      "requestId": "req_01m4h24s6hgt55w9a3kmhg75bt",
+      "requestId": "req_01m4h36mryy15qxdpjpnaraez0",
       "reached": true,
       "provider": "openai-compat",
       "category": "furniture_fixtures",
-      "latencyMs": 557.018917
+      "latencyMs": 1163.22975
     },
     {
       "id": "tri_003",
       "truth": "electrical_av",
-      "requestId": "req_01m4h24sqzrwhvs4d04cp0w067",
+      "requestId": "req_01m4h36nxay626mef1zqepdgk1",
       "reached": true,
       "provider": "openai-compat",
       "category": "electrical_av",
-      "latencyMs": 547.4903340000001
+      "latencyMs": 1694.125125
     },
     {
       "id": "tri_004",
       "truth": "electrical_av",
-      "requestId": "req_01m4h24t91466vnpd98xfta9h0",
+      "requestId": "req_01m4h36qj6h2d68qfxn97vb54j",
       "reached": true,
       "provider": "openai-compat",
       "category": "electrical_av",
-      "latencyMs": 441.29029100000025
+      "latencyMs": 918.2900840000002
     },
     {
       "id": "tri_005",
       "truth": "building_systems",
-      "requestId": "req_01m4h24tpvb3pwak8eb8b9z56f",
+      "requestId": "req_01m4h36reyp5wrv06e3nz7cet7",
       "reached": true,
       "provider": "openai-compat",
       "category": "building_systems",
-      "latencyMs": 756.7427079999998
+      "latencyMs": 2098.5597910000006
     },
     {
       "id": "tri_006",
       "truth": "cleaning_safety",
-      "requestId": "req_01m4h24vegxsrbwhy10pnmxdgj",
+      "requestId": "req_01m4h36tggc1bqjarmmkjxck60",
       "reached": true,
       "provider": "openai-compat",
       "category": "cleaning_safety",
-      "latencyMs": 968.0469160000002
+      "latencyMs": 1192.4614999999994
     },
     {
       "id": "tri_007",
       "truth": "building_systems",
-      "requestId": "req_01m4h24wcr0dwmbxc40p2x0ya1",
+      "requestId": "req_01m4h36vny2s0dxc02petnx6bd",
       "reached": true,
       "provider": "openai-compat",
       "category": "building_systems",
-      "latencyMs": 646.2260830000005
+      "latencyMs": 1599.380916
     },
     {
       "id": "tri_008",
       "truth": "building_systems",
-      "requestId": "req_01m4h24x0yeq8smnybwrgn2nd1",
+      "requestId": "req_01m4h36x7sa26k5h9vbrdv2782",
       "reached": true,
       "provider": "openai-compat",
       "category": "building_systems",
-      "latencyMs": 664.7727919999998
+      "latencyMs": 1272.7658749999991
     },
     {
       "id": "tri_009",
       "truth": "building_systems",
-      "requestId": "req_01m4h24xnp7m2d71ct78xrt2bx",
+      "requestId": "req_01m4h36yfm3jwyw9z2g1mqrhzv",
       "reached": true,
       "provider": "openai-compat",
       "category": "building_systems",
-      "latencyMs": 650.8554169999998
+      "latencyMs": 1343.7517499999994
     },
     {
       "id": "tri_010",
       "truth": "electrical_av",
-      "requestId": "req_01m4h24ya4f9w6r57ky7f1ds04",
+      "requestId": "req_01m4h36zsphzen3q16s71wncvf",
       "reached": true,
       "provider": "openai-compat",
       "category": "cleaning_safety",
-      "latencyMs": 653.5344999999998
+      "latencyMs": 2030.546875
     },
     {
       "id": "tri_011",
       "truth": "electrical_av",
-      "requestId": "req_01m4h24yyfts1ym3b695j4h52p",
+      "requestId": "req_01m4h371s48qdf98zckgtbx06r",
       "reached": true,
       "provider": "openai-compat",
       "category": "electrical_av",
-      "latencyMs": 858.8402910000004
+      "latencyMs": 1477.3807910000014
     },
     {
       "id": "tri_012",
       "truth": "furniture_fixtures",
-      "requestId": "req_01m4h24zsb6qy7kaqjsafdcn1k",
+      "requestId": "req_01m4h3737e8v5b8gny67rsjxyv",
       "reached": true,
       "provider": "openai-compat",
       "category": "furniture_fixtures",
-      "latencyMs": 774.5845829999998
+      "latencyMs": 1927.8263750000006
     },
     {
       "id": "tri_013",
       "truth": "cleaning_safety",
-      "requestId": "req_01m4h250hjg24542rfrq3pncqe",
+      "requestId": "req_01m4h3753hkkhxykrqyhy3vrxf",
       "reached": true,
       "provider": "openai-compat",
       "category": "cleaning_safety",
-      "latencyMs": 790.4910419999997
+      "latencyMs": 1117.0771659999991
     },
     {
       "id": "tri_014",
       "truth": "cleaning_safety",
-      "requestId": "req_01m4h251a8f5bs350yhys2t581",
+      "requestId": "req_01m4h3766ewe68ayfdxbjzjr2d",
       "reached": true,
       "provider": "openai-compat",
       "category": "cleaning_safety",
-      "latencyMs": 810.6597499999989
+      "latencyMs": 1270.1917079999985
     },
     {
       "id": "tri_015",
       "truth": "building_systems",
-      "requestId": "req_01m4h2523mbwf6fhwm94vb0jkx",
+      "requestId": "req_01m4h377eckbbgs9n704znc8cw",
       "reached": true,
       "provider": "openai-compat",
       "category": "building_systems",
-      "latencyMs": 872.9220829999995
+      "latencyMs": 1967.377708
     },
     {
       "id": "tri_016",
       "truth": "furniture_fixtures",
-      "requestId": "req_01m4h252yzkp3rxwcmy77anx76",
+      "requestId": "req_01m4h379bg7we14fsqkaevxkx3",
       "reached": true,
       "provider": "openai-compat",
       "category": "furniture_fixtures",
-      "latencyMs": 752.3680000000004
+      "latencyMs": 1172.546875
     },
     {
       "id": "tri_017",
       "truth": "cleaning_safety",
-      "requestId": "req_01m4h253pencywc5j9dtevdhv7",
+      "requestId": "req_01m4h37ag9fdet0as82825pg4c",
       "reached": true,
       "provider": "openai-compat",
       "category": "cleaning_safety",
-      "latencyMs": 779.4134160000012
+      "latencyMs": 1937.749499999998
     },
     {
       "id": "tri_018",
       "truth": "cleaning_safety",
-      "requestId": "req_01m4h254ewgqd3zw5cebdvab8j",
+      "requestId": "req_01m4h37cctr4xyecnnhmtjfgmk",
       "reached": true,
       "provider": "openai-compat",
       "category": "cleaning_safety",
-      "latencyMs": 637.9451250000002
+      "latencyMs": 824.3353339999994
     },
     {
       "id": "tri_019",
       "truth": "cleaning_safety",
-      "requestId": "req_01m4h2552q4zvg3y5svnmbph47",
+      "requestId": "req_01m4h37d6h0mpk67bzm1bzvz7e",
       "reached": true,
       "provider": "openai-compat",
       "category": "cleaning_safety",
-      "latencyMs": 826.4519999999993
+      "latencyMs": 1310.0533749999995
     },
     {
       "id": "tri_020",
       "truth": "electrical_av",
-      "requestId": "req_01m4h255wmbdng55cnxn1h4jdf",
+      "requestId": "req_01m4h37efnm1wyqvffw8s3d5qj",
       "reached": true,
       "provider": "openai-compat",
       "category": "electrical_av",
-      "latencyMs": 614.2877079999998
+      "latencyMs": 1207.8431249999994
     }
   ]
 }
