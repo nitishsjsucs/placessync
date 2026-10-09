@@ -7,7 +7,7 @@
   "author": "Nitish Chowdary",
   "type": "module",
   "engines": {
-    "node": ">=22.22"
+    "node": "^22.22.2 || ^24.15.0 || >=25"
   },
   "scripts": {
     "setup:dev": "node scripts/dev-keys.ts",

@@ -74,18 +74,18 @@ Design decisions are recorded in [`docs/adr/`](docs/adr) (one ledger per site, s
 
 ## What runs where
 
-| Capability | Local (this Mac and GitHub Actions CI) | Production (after deploy) |
+| Capability | Local (this Mac; GitHub Actions CI where noted) | Production (after deploy) |
 |---|---|---|
-| Worker and Hono API | workerd via `vite dev` / `vite preview`; tests via `@cloudflare/vitest-plugin` | Cloudflare Workers |
+| Worker and Hono API | workerd via `vite dev` / `vite preview`; tests via `@cloudflare/vitest-plugin` (this Mac and CI) | Cloudflare Workers |
 | Static SPA | Vite build served by local workerd assets | Workers static assets |
 | SiteLedger (DO SQLite, transactions, alarms, WebSocket hibernation) | Miniflare local Durable Objects, persisted in `.wrangler/state/v3` | Durable Objects (SQLite backend). Alarms may be delayed up to a minute in production, so D1 reports lag more than locally. |
 | D1 | local SQLite via Miniflare | D1 database `placessync` |
 | Workflows | local emulated engine (Cloudflare's docs say local behaviour may differ; the local "already exists" and "not found" error texts are Miniflare's) | Cloudflare Workflows |
 | Cron triage sweep | `scheduled()` called directly in tests via `createScheduledController`; not fired on a timer during local dev | Cron Trigger `*/2 * * * *` on `placessync-production` |
-| Triage LLM | `stub` (keyword-v1, not an LLM) by default and always in `npm test`; `openai-compat` against llama-server with Qwen3-1.7B Q4_0 (8,192 tokens per slot, 1 slot) for evals; seeded suggestions are stub output and labeled so | Workers AI `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, optional AI Gateway |
+| Triage LLM | `stub` (keyword-v1, not an LLM) by default and always in `npm test` (this Mac and CI); `openai-compat` against llama-server with Qwen3-1.7B Q4_0 (8,192 tokens per slot, 1 slot) for evals, this Mac only (CI runs no LLM); seeded suggestions are stub output and labeled so | Workers AI `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, optional AI Gateway |
 | Auth | `jose` verifying RS256 tokens signed by a locally generated dev key; dev login page; cookie or header | Cloudflare Access; JWKS from `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`; header only |
-| Contention eval | local workerd, single machine, numbers labeled local | not run (would need an Access service token); none claimed |
-| Triage eval | Qwen3-1.7B via llama.cpp, labeled with the model | not run; no Workers AI accuracy is claimed |
+| Contention eval | local workerd, single machine, numbers labeled local. This Mac: 5 runs, the numbers in Results. CI: 1 run as a pass/fail gate, not reported | not run (would need an Access service token); none claimed |
+| Triage eval | Qwen3-1.7B via llama.cpp, labeled with the model; this Mac only, CI runs no triage eval | not run; no Workers AI accuracy is claimed |
 | PITR, location hints, AI Gateway analytics | unavailable | available, unused in v1 |
 
 No local stand-in is the production service. In particular:
@@ -97,7 +97,7 @@ No local stand-in is the production service. In particular:
 
 ## Run it locally
 
-Requirements: npm 11 and Node 22.22 or later (the `engines` floor). Development used Node 25.9.0 on macOS (arm64). GitHub Actions CI uses Node 24 on ubuntu-latest; on 2026-10-09 both of its jobs passed there with Node 24.21.0 (types, typecheck, `npm test` and build; then Playwright and a one-run contention eval against a preview server). jsdom 30.1.2 declares Node ^22.22.2, ^24.15.0 or >=26, so `npm ci` warns about the engine on Node 25, and the tests pass there anyway. No Cloudflare account is needed.
+Requirements: npm 11 and Node ^22.22.2, ^24.15.0 or 25 and later. That `engines` range is the narrowest one the dependencies declare (jsdom 30.1.2: ^22.22.2, ^24.15.0 or >=26) plus Node 25, which development used. Tested on Node 25.9.0 (macOS arm64, this Mac) and Node 24.21.0 (GitHub Actions CI on ubuntu-latest, where on 2026-10-09 both jobs passed: types, typecheck, `npm test` and build; then Playwright and a one-run contention eval against a preview server). Node 22 has not been tried. On Node 25 `npm ci` warns that jsdom does not list it, and the tests pass anyway. No Cloudflare account is needed.
 
 ```sh
 npm ci
