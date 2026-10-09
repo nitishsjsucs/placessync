@@ -58,7 +58,7 @@ export function loadResults(files: readonly string[], gitCwd: string = ROOT): Re
 const pct = (x: unknown) => (typeof x === "number" ? `${(x * 100).toFixed(1)}%` : "n/a");
 const num = (x: unknown) => (typeof x === "number" ? x.toLocaleString("en-US") : "n/a");
 const provenance = (m: Meta) =>
-  `Command: \`${m.command ?? "unknown"}\`. Run ${m.timestamp.slice(0, 10)} at commit \`${m.gitSha.slice(0, 7)}\` on ${m.cpu ?? "unknown CPU"} (${m.os ?? "unknown OS"}, Node ${m.node ?? "?"}).`;
+  `Command: \`${m.command ?? "unknown"}\`. Run ${m.timestamp.slice(0, 10)} (UTC) at commit \`${m.gitSha.slice(0, 7)}\` on ${m.cpu ?? "unknown CPU"} (${m.os ?? "unknown OS"}, Node ${m.node ?? "?"}).`;
 
 function contentionSection(r: Record<string, unknown> & { meta: Meta }): string {
   const runs = r.runs as Record<string, unknown>[];

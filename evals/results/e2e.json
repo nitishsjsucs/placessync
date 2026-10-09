@@ -1,8 +1,8 @@
 {
   "meta": {
-    "gitSha": "dbf14d37f5badba551572ebee12acd2d0fbde6d0",
+    "gitSha": "646b75256d2adb680b926afc57e1524b4ca5defb",
     "dirty": false,
-    "timestamp": "2026-10-08T23:50:13.280Z",
+    "timestamp": "2026-10-09T00:38:36.421Z",
     "node": "v25.9.0",
     "wrangler": "4.149.0",
     "os": "Darwin 25.5.0 arm64",
@@ -15,12 +15,12 @@
   },
   "summary": {
     "status": "passed",
-    "tests": 53,
-    "passed": 53,
+    "tests": 55,
+    "passed": 55,
     "failed": 0,
     "axeScans": 32,
     "axeViolations": 0,
-    "overflowChecks": 20,
+    "overflowChecks": 22,
     "overflowFailures": 0,
     "keyboardPaths": [
       {
@@ -30,8 +30,8 @@
     ],
     "realtimeLatencyMs": {
       "bookings": 20,
-      "p50": 33.5,
-      "p95": 87.65000000000008
+      "p50": 7,
+      "p95": 8.05
     }
   },
   "attachments": {
@@ -447,6 +447,18 @@
         }
       },
       {
+        "test": "chromium > mobile-layout.spec.ts > layout at mobile 375x812, signed out > login: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "login",
+          "viewport": "mobile",
+          "ok": true,
+          "scrollWidth": 375,
+          "clientWidth": 375,
+          "small": []
+        }
+      },
+      {
         "test": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > find: no horizontal scroll and 44 px targets",
         "status": "passed",
         "data": {
@@ -565,6 +577,18 @@
           "clientWidth": 768,
           "small": []
         }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024, signed out > login: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "login",
+          "viewport": "tablet",
+          "ok": true,
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "small": []
+        }
       }
     ],
     "keyboard": [
@@ -585,29 +609,29 @@
         "data": {
           "bookings": 20,
           "samplesMs": [
-            49,
-            31,
-            34,
-            30,
-            59,
-            52,
-            30,
-            51,
-            48,
-            62,
-            195,
-            39,
-            82,
-            33,
-            25,
-            21,
-            22,
-            26,
-            31,
-            24
+            9,
+            7,
+            6,
+            7,
+            6,
+            7,
+            6,
+            6,
+            7,
+            5,
+            6,
+            7,
+            6,
+            8,
+            6,
+            7,
+            8,
+            7,
+            8,
+            6
           ],
-          "p50": 33.5,
-          "p95": 87.65000000000008,
+          "p50": 7,
+          "p95": 8.05,
           "note": "request start in one context to busy cell visible in another, local Chromium"
         }
       }
@@ -779,6 +803,10 @@
       "status": "passed"
     },
     {
+      "title": "chromium > mobile-layout.spec.ts > layout at mobile 375x812, signed out > login: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
       "title": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > find: no horizontal scroll and 44 px targets",
       "status": "passed"
     },
@@ -816,6 +844,10 @@
     },
     {
       "title": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024 > not-found: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > layout at tablet 768x1024, signed out > login: no horizontal scroll and 44 px targets",
       "status": "passed"
     },
     {
