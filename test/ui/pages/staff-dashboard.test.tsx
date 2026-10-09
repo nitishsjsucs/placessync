@@ -67,6 +67,23 @@ describe("Staff dashboard (SPEC 14.1)", () => {
     expect(within(rowOf("Wobbly table")).getByText("Automatic classification unavailable")).toBeTruthy();
   });
 
+  it("does not show a suggestion that arrived after the hand-off to staff", async () => {
+    // The sweep handed this request to staff; the Workflow's late suggestion is stored
+    // but a manual categorization must not have seen it.
+    queue = [{ ...unavailable, suggestion: { ...suggested.suggestion, category: "furniture_fixtures", rationale: "Late answer." } }];
+    renderAt("/staff");
+    const user = userEvent.setup();
+    await screen.findByRole("link", { name: "Wobbly table" });
+    const row = rowOf("Wobbly table");
+    expect(within(row).getByText("Automatic classification unavailable")).toBeTruthy();
+    expect(within(row).queryByText(/confidence/)).toBeNull();
+    expect(within(row).queryByText("Keyword stub (keyword-v1)")).toBeNull();
+    await user.click(within(row).getByRole("button", { name: /^Categorize/ }));
+    const dialog = screen.getByRole("dialog", { name: "Categorize the request" });
+    expect(within(dialog).queryByText(/Suggested:/)).toBeNull();
+    expect(within(dialog).queryByText(/Late answer/)).toBeNull();
+  });
+
   it("accept, reassign and categorize call the review API", async () => {
     renderAt("/staff");
     const user = userEvent.setup();

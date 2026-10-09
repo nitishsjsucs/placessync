@@ -141,8 +141,11 @@ export function StaffDashboardPage() {
     {
       key: "suggestion",
       header: "Suggestion",
+      // A suggestion that arrived after the sweep handed the request to staff is stored
+      // but not shown: categorizing such a row records "manual", which means no
+      // suggestion was shown (SPEC 6.1).
       render: (r: QueueItem) =>
-        r.suggestion ? (
+        r.suggestion && r.triageState === "suggested" ? (
           <span>
             {categoryLabel(r.suggestion.category)}, {Math.round(r.suggestion.confidence * 100)}% confidence
             <br />
@@ -258,7 +261,7 @@ export function StaffDashboardPage() {
               <strong>{review.item.title}</strong>
             </p>
             <p>{review.item.description}</p>
-            {review.item.suggestion ? (
+            {review.item.suggestion && review.item.triageState === "suggested" ? (
               <p>
                 Suggested: {categoryLabel(review.item.suggestion.category)} ({providerLabel(review.item.suggestion.provider)}). {review.item.suggestion.rationale}
               </p>
