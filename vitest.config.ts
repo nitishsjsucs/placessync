@@ -35,9 +35,10 @@ const cf = () =>
 // On a quiet machine almost every Workers test takes under 200 ms (the few long ones set
 // their own timeout). This Mac also runs other builds' test suites: at a load average of
 // about 80 on 10 cores, seven of those short HTTP tests passed the default 5 s and failed,
-// and a rerun passed. A test that really hangs still fails, after 30 s. Assertions are
-// unchanged.
-const workersTimeouts = { testTimeout: 30_000, hookTimeout: 30_000 };
+// and a rerun passed. The node project's render-results CLI test (three `node` child
+// processes, under 1 s alone) failed the same way at a load average of about 25. A test
+// that really hangs still fails, after 30 s. Assertions are unchanged.
+const loadedMachineTimeouts = { testTimeout: 30_000, hookTimeout: 30_000 };
 
 export default defineConfig({
   test: {
@@ -47,7 +48,7 @@ export default defineConfig({
         plugins: [cf()],
         test: {
           name: "worker",
-          ...workersTimeouts,
+          ...loadedMachineTimeouts,
           include: ["test/worker/**/*.test.ts"],
           setupFiles: ["./test/apply-migrations.ts"],
         },
@@ -56,7 +57,7 @@ export default defineConfig({
         plugins: [cf()],
         test: {
           name: "worker-ws",
-          ...workersTimeouts,
+          ...loadedMachineTimeouts,
           include: ["test/ws/**/*.test.ts"],
           setupFiles: ["./test/apply-migrations.ts"],
           // WebSockets with Durable Objects are unsupported under per-file storage
@@ -82,6 +83,7 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
+          ...loadedMachineTimeouts,
           include: ["test/node/**/*.test.ts"],
         },
       },
