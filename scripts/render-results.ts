@@ -4,8 +4,11 @@
 //
 //   node scripts/render-results.ts           rewrites the block in README.md
 //   node scripts/render-results.ts --stdout  prints the block
+//   node scripts/render-results.ts --stdout --dir <path>
+//                                            prints the block for every *.json in <path>
+//                                            (fixtures; never writes README.md)
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { ROOT } from "./lib/meta.ts";
 
@@ -159,6 +162,12 @@ function workflowSection(r: Record<string, unknown> & { meta: Meta }): string {
   ].join("\n");
 }
 
+/** "passed" only when the keyboard spec ran and every run of it passed; an empty list is "not run". */
+export function keyboardStatus(paths: readonly { passed: boolean }[] | undefined): string {
+  if (!paths || paths.length === 0) return "not run";
+  return paths.every((k) => k.passed) ? "passed" : "failed";
+}
+
 function e2eSection(r: Record<string, unknown> & { meta: Meta }): string {
   const s = r.summary as Record<string, unknown>;
   return [
@@ -171,7 +180,7 @@ function e2eSection(r: Record<string, unknown> & { meta: Meta }): string {
     `| Tests passed | ${num(s.passed)} of ${num(s.tests)} |`,
     `| axe scans (WCAG 2.0 A/AA, 2.1 AA, 2.2 AA) and violations | ${num(s.axeScans)} scans, ${num(s.axeViolations)} violations |`,
     `| Layout checks at 375x812 and 768x1024 and failures | ${num(s.overflowChecks)} checks, ${num(s.overflowFailures)} failures |`,
-    `| Keyboard-only booking and cancellation | ${(s.keyboardPaths as { passed: boolean }[]).every((k) => k.passed) ? "passed" : "failed"} |`,
+    `| Keyboard-only booking and cancellation | ${keyboardStatus(s.keyboardPaths as { passed: boolean }[] | undefined)} |`,
     ...(s.realtimeLatencyMs
       ? [
           `| Live update propagation, ${num((s.realtimeLatencyMs as { bookings: number }).bookings)} bookings, p50 / p95 (local Chromium, booking request to busy cell in a second browser) | ${Math.round((s.realtimeLatencyMs as { p50: number }).p50)} / ${Math.round((s.realtimeLatencyMs as { p95: number }).p95)} ms |`,
@@ -209,8 +218,17 @@ export function currentBlock(readme: string): string {
 
 if (import.meta.main) {
   try {
-    const block = renderBlock(loadResults(trackedResultFiles()));
-    if (process.argv.includes("--stdout")) {
+    const args = process.argv.slice(2);
+    const dirAt = args.indexOf("--dir");
+    const dir = dirAt >= 0 ? args[dirAt + 1] : undefined;
+    if (dirAt >= 0 && (!dir || !args.includes("--stdout"))) throw new Error("--dir <path> needs a path and is allowed only with --stdout");
+    const files = dir
+      ? readdirSync(dir)
+          .filter((f) => f.endsWith(".json"))
+          .map((f) => path.resolve(dir, f))
+      : trackedResultFiles();
+    const block = renderBlock(loadResults(files));
+    if (args.includes("--stdout")) {
       console.log(block);
     } else {
       const file = path.join(ROOT, "README.md");

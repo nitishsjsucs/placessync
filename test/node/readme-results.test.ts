@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -43,10 +43,30 @@ describe("render-results refusals (SPEC 12.3)", () => {
     expect(block).toContain("| Tests passed | 2 of 2 |");
   });
 
-  it("the npm run results command refuses a dirty file with a non-zero exit", () => {
-    // Exercised through the exported loader; the CLI wraps it and exits 1 on ResultsRefused.
+  it("the render-results command exits non-zero on a dirty file and prints the refusal", () => {
     const file = fixture("contention", { gitSha: head, dirty: true });
-    expect(() => loadResults([file], root)).toThrow(ResultsRefused);
+    const cli = (...args: string[]) => spawnSync(process.execPath, [path.join(root, "scripts", "render-results.ts"), ...args], { cwd: root, encoding: "utf8" });
+    const refused = cli("--stdout", "--dir", path.dirname(file));
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toContain("contention: produced on a dirty tree (meta.dirty = true)");
+    expect(refused.stdout).toBe("");
+    // The same command renders a clean fixture and exits 0, so the refusal above is the dirty flag.
+    const clean = fixture("e2e", { gitSha: head, dirty: false, command: "npm run test:e2e" }, e2eBody);
+    const ok = cli("--stdout", "--dir", path.dirname(clean));
+    expect(ok.status).toBe(0);
+    expect(ok.stdout).toContain("| Tests passed | 2 of 2 |");
+    // --dir never rewrites README.md.
+    expect(cli("--dir", path.dirname(clean)).status).toBe(1);
+  });
+
+  it("reports the keyboard path as passed only when the keyboard spec ran and passed", () => {
+    const render = (keyboardPaths: { passed: boolean }[]) =>
+      renderBlock(loadResults([fixture("e2e", { gitSha: head, dirty: false }, { summary: { ...e2eBody.summary, keyboardPaths } })], root));
+    expect(render([{ passed: true }])).toContain("| Keyboard-only booking and cancellation | passed |");
+    expect(render([{ passed: false }])).toContain("| Keyboard-only booking and cancellation | failed |");
+    const none = render([]);
+    expect(none).toContain("| Keyboard-only booking and cancellation | not run |");
+    expect(none).not.toContain("cancellation | passed");
   });
 
   it("shows observer resubscribes only for contention results whose observers measure them", () => {

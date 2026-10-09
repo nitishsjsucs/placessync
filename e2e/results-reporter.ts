@@ -17,14 +17,18 @@ export default class ResultsReporter implements Reporter {
   private readonly meta = runMeta({ extra: { command: "npm run test:e2e", runner: "playwright 1.63.0", browser: "chromium (Playwright build 1243)" } });
   private readonly attachments: Record<string, Collected[]> = { axe: [], overflow: [], keyboard: [], latency: [] };
   private readonly outcomes: { title: string; status: string }[] = [];
+  // Keyboard path status comes from the test outcome, not from its attachment: the spec
+  // attaches only after its last assertion, so a failed run attaches nothing.
+  private readonly keyboard = new Map<string, boolean>();
 
   constructor(options: { out?: string } = {}) {
-    this.out = path.join(ROOT, options.out ?? "evals/results/e2e.json");
+    this.out = path.resolve(ROOT, options.out ?? "evals/results/e2e.json");
   }
 
   onTestEnd(test: TestCase, result: TestResult): void {
     const title = test.titlePath().slice(1).join(" > ");
     this.outcomes.push({ title, status: result.status });
+    if (path.basename(test.location.file) === "keyboard-booking.spec.ts") this.keyboard.set(title, result.status === "passed");
     for (const a of result.attachments) {
       if (!(a.name in this.attachments) || !a.body) continue;
       this.attachments[a.name]?.push({ test: title, status: result.status, data: JSON.parse(a.body.toString("utf8")) });
@@ -43,7 +47,7 @@ export default class ResultsReporter implements Reporter {
       axeViolations: axe.reduce((n, a) => n + Number((a.data as { violations?: number }).violations ?? 0), 0),
       overflowChecks: overflow.length,
       overflowFailures: overflow.filter((o) => !(o.data as { ok?: boolean }).ok).length,
-      keyboardPaths: (this.attachments.keyboard ?? []).map((k) => ({ test: k.test, passed: k.status === "passed" })),
+      keyboardPaths: [...this.keyboard].map(([test, passed]) => ({ test, passed })),
       realtimeLatencyMs: (this.attachments.latency ?? []).map((l) => {
         const d = l.data as { bookings: number; p50: number; p95: number };
         return { bookings: d.bookings, p50: d.p50, p95: d.p95 };
