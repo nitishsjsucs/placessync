@@ -41,6 +41,24 @@ describe("cron sweep for stranded requests (SPEC 7.3, ADR 0008)", () => {
     expect((await eventTypes(id))[0]).toBe("triage_started");
   });
 
+  it("counts a failed create as createFailed, not created, and still counts the attempt", async () => {
+    await clearSubmitted();
+    const id = await insertRequest({ ageMinutes: 5 });
+    const down = {
+      create: async () => {
+        throw new Error("workflows unavailable");
+      },
+      get: async () => {
+        throw new Error("workflows unavailable");
+      },
+    };
+    const summary = await sweepStrandedRequests(env, { siteId: "hq" }, Date.now(), down);
+    expect(summary).toMatchObject({ examined: 1, created: 0, createFailed: 1 });
+    expect(await requestRow(id)).toMatchObject({ status: "submitted", triage_attempts: 1 });
+    // The failed create removed its triage_started event again.
+    expect(await eventTypes(id)).toEqual([]);
+  });
+
   it("(b) restarts an errored instance, which then reaches awaiting_review", async () => {
     await clearSubmitted();
     const id = `req_sweep_b${Date.now().toString(36)}`;

@@ -17,6 +17,8 @@ const IN_FLIGHT = new Set(["queued", "running", "waiting", "paused", "waitingFor
 export interface SweepSummary {
   examined: number;
   created: number;
+  /** Rows whose create (and follow-up get) failed: no instance exists yet; the next run retries. */
+  createFailed: number;
   restarted: number;
   handedOff: number;
   inFlight: number;
@@ -50,7 +52,7 @@ export async function sweepStrandedRequests(
   nowMs: number,
   wf: TriageWorkflowBinding = env.TRIAGE_WORKFLOW,
 ): Promise<SweepSummary> {
-  const summary: SweepSummary = { examined: 0, created: 0, restarted: 0, handedOff: 0, inFlight: 0 };
+  const summary: SweepSummary = { examined: 0, created: 0, createFailed: 0, restarted: 0, handedOff: 0, inFlight: 0 };
   const at = new Date(nowMs).toISOString();
   const { results } = await env.DB.prepare(
     "SELECT id, site_id AS siteId, triage_attempts AS attempts FROM facilities_requests WHERE status = 'submitted' AND created_at < ? ORDER BY created_at LIMIT ?",
@@ -69,8 +71,8 @@ export async function sweepStrandedRequests(
       instance = await wf.get(row.id);
     } catch {
       // No instance (create failed after the insert, for example): let create decide.
-      await startTriage(env, wf, row.id, row.siteId, nowMs);
-      summary.created++;
+      if (await startTriage(env, wf, row.id, row.siteId, nowMs)) summary.created++;
+      else summary.createFailed++;
       continue;
     }
     let status = "unknown";
