@@ -176,6 +176,8 @@ Command: `node scripts/eval-triage.ts --provider openai-compat --base-url http:/
 | templated | 200 | 84.0% | 0.845 | 100.0% | 0.0% | 1400.6 / 2314.8 ms | 87.0% |
 | hard | 40 | 77.5% | 0.787 | 100.0% | 0.0% | 1420 / 2375.9 ms | 65.0% |
 
+llama-server constrains the output to the JSON schema (`response_format` json_schema, strict), so schema validity reflects the decoder, not the model.
+
 Source file: `evals/results/triage-qwen3-1.7b.json`.
 
 ### Triage classification: Keyword stub (keyword-v1), not an LLM

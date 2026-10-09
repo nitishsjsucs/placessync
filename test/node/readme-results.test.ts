@@ -110,6 +110,21 @@ describe("render-results refusals (SPEC 12.3)", () => {
     expect(older).toContain("Workflow-mode gates of that script version (every request reached review, every category in the enum) passed.");
   });
 
+  it("reports the injection steer rate and the constrained-decoding note for a model run", () => {
+    const set = { n: 12, accuracy: 0.75, macroF1: 0.7, schemaValidFirstTry: 1, fallbackRate: 0, latencyMs: { p50: 1, p95: 2 } };
+    const body = (id: string) => ({
+      provider: { id, model: id === "stub" ? "keyword-v1" : "qwen3-1.7b", label: "x" },
+      sets: { hard: { ...set, n: 40 }, injection: { ...set, steered: 2, steerRate: 0.1667 } },
+      keywordBaseline: { hard: { accuracy: 0.65 }, injection: { accuracy: 0.9, steered: 1, steerRate: 0.0833 } },
+    });
+    const model = renderBlock(loadResults([fixture("triage-qwen3-1.7b", { gitSha: head, dirty: false, llm: { modelPath: "m.gguf", nCtxPerSlot: 8192 } }, body("openai-compat"))], root));
+    expect(model).toContain("| injection | 12 | 75.0% |");
+    expect(model).toContain("The prediction equalled the forced category on 2 of 12 (steer rate 16.7%; keyword baseline 1 of 12).");
+    expect(model).toContain("so schema validity reflects the decoder, not the model.");
+    const stub = renderBlock(loadResults([fixture("triage-keyword", { gitSha: head, dirty: false }, body("stub"))], root));
+    expect(stub).not.toContain("reflects the decoder");
+  });
+
   it("replaces only the block between the markers", () => {
     const readme = "# T\n\n<!-- results:start -->\nold\n<!-- results:end -->\n\nafter\n";
     const next = replaceBlock(readme, "new block");

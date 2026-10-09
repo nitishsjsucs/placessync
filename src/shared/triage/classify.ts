@@ -1,6 +1,6 @@
 // classifyRequest (SPEC 10.2): build the prompt, call the provider, validate the output.
 // Throws on transport errors and schema-invalid output so the Workflow step retries.
-import { MAX_TOKENS, SYSTEM_PROMPT, type TriageInput, renderRequest } from "./prompt.ts";
+import { MAX_TOKENS, SYSTEM_PROMPT, type TriageInput, renderUserMessage } from "./prompt.ts";
 import type { LlmProvider, ProviderId } from "./providers/types.ts";
 import { TRIAGE_JSON_SCHEMA, type TriageOutput, parseTriageOutput } from "./schema.ts";
 
@@ -13,7 +13,7 @@ export interface Classification extends TriageOutput {
 export function triageRequest(input: TriageInput) {
   return {
     system: SYSTEM_PROMPT,
-    user: renderRequest(input),
+    user: renderUserMessage(input),
     schema: TRIAGE_JSON_SCHEMA as unknown as Record<string, unknown>,
     maxTokens: MAX_TOKENS,
     temperature: 0,

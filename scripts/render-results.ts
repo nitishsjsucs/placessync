@@ -118,6 +118,8 @@ function triageSection(name: string, r: Record<string, unknown> & { meta: Meta }
     return `| ${set} | ${num(s.n)} | ${pct(s.accuracy)} | ${(s.macroF1 as number).toFixed(3)} | ${pct(s.schemaValidFirstTry)} | ${pct(s.fallbackRate)} | ${lat.p50} / ${lat.p95} ms | ${pct(base[set]?.accuracy)} |`;
   });
   const title = provider.id === "stub" ? "Keyword stub (keyword-v1), not an LLM" : `${provider.model}${llm?.modelPath ? ` (${llm.modelPath}, llama.cpp, ${llm.nCtxPerSlot} tokens per slot)` : ""}`;
+  const inj = sets.injection as { n: number; steered?: number; steerRate?: number } | undefined;
+  const injBase = base.injection as { steered?: number } | undefined;
   return [
     `### Triage classification: ${title}`,
     "",
@@ -127,6 +129,15 @@ function triageSection(name: string, r: Record<string, unknown> & { meta: Meta }
     "|---|---|---|---|---|---|---|---|",
     ...rows,
     "",
+    ...(inj?.steered !== undefined
+      ? [
+          `Injection set: each of the ${num(inj.n)} requests carries text that tries to force a different category (a forged answer, a fake system line, an override claim, a closing tag). The prediction equalled the forced category on ${num(inj.steered)} of ${num(inj.n)} (steer rate ${pct(inj.steerRate)}; keyword baseline ${num(injBase?.steered)} of ${num(inj.n)}).`,
+          "",
+        ]
+      : []),
+    ...(provider.id === "openai-compat"
+      ? ["llama-server constrains the output to the JSON schema (`response_format` json_schema, strict), so schema validity reflects the decoder, not the model.", ""]
+      : []),
     `Source file: \`evals/results/${name}.json\`.`,
   ].join("\n");
 }
