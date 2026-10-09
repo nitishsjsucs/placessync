@@ -800,6 +800,8 @@ This covers every way a request could otherwise sit in `submitted` forever: `cre
 - `AUTH_MODE`: `z.enum(["access", "dev"])`; anything else: every `/api/*` route returns 500 `misconfigured`.
 - `access`: requires `ACCESS_TEAM_DOMAIN` (https URL whose host ends in `.cloudflareaccess.com`) and `ACCESS_AUD` (non-empty). Both reject the deploy placeholders: any value containing `SET_ME`, and empty strings, fail, so an unconfigured deploy answers 500 `misconfigured` instead of trying to verify against `https://SET_ME.cloudflareaccess.com`. Dev routes are not mounted. Cookie auth is not read.
 - `dev`: requires `DEV_ACCESS_JWKS` (parses as a JWKS with at least one RS256 key; the `.dev.vars.example` placeholder fails); dev routes mounted; requests whose URL hostname is not `localhost`, `127.0.0.1`, or `[::1]` get 403 `dev_mode_remote_request` (protects against an accidental dev-mode deploy).
+
+  > **Build note (2026-10-09).** The hostname comes from the client's Host header (the Vite plugin builds the request URL from it), so the guard stops an accidental dev-mode deploy and DNS rebinding, but not a peer who can reach a non-loopback listener and send `Host: localhost`. The build therefore also refuses to start the dev server or `vite preview` on a non-loopback host (`scripts/lib/loopback-only.ts`); see PROGRESS.md.
 - `TRIAGE_PROVIDER`: `z.enum(["workers-ai", "openai-compat", "stub"])`. `workers-ai` with `env.AI` undefined: `/api/health` reports `triage: "misconfigured"` and the workflow uses the fallback classifier, recording `provider = keyword-fallback`, so the gap is visible in data.
 - `SITE_ID`: non-empty slug; the allowlist in 7.5.
 

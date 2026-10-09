@@ -111,6 +111,8 @@ npm run seed:local -- --history   # optional: also 20 business days of past book
 
 Open http://localhost:8783, pick a user on the dev sign-in page (admins and staff are listed first), and book. `npm run dev` runs the Vite dev server on the same port.
 
+Both servers listen on loopback only: starting either with `--host` (or any non-loopback host) fails on purpose. Dev mode lets anyone who reaches the server sign in as any employee, admins included, and reset the database, and its localhost check reads the Host header the client sends, so it is only safe on loopback.
+
 To use the local LLM for triage in the app, put `TRIAGE_PROVIDER=openai-compat` in `.dev.vars`, run `npm run llm:serve` (llama-server on port 8130 with `~/Developer/projects/_models/Qwen3-1.7B-Q4_0-rtn.gguf`), and rebuild before `npm run preview`.
 
 ## Tests
