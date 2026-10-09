@@ -103,14 +103,16 @@ describe("per-date live availability (SPEC 7.2)", () => {
     // The handler checks expiry first and would answer an expired socket with
     // session_expired and close 4001; the auto-response never runs the handler.
     const c = await connect(await tokenFor(EMPLOYEE, { ttlSeconds: 60 }));
+    // Every socket the object holds (a socket from an earlier test may still be closing).
+    const stamps = (state: DurableObjectState) => state.getWebSockets().map((ws) => state.getWebSocketAutoResponseTimestamp(ws));
     await runInDurableObject(hqLedger(), (i: SiteLedger, state: DurableObjectState) => {
       i.clockOverride = () => Date.now() + 120_000;
-      expect(state.getWebSocketAutoResponseTimestamp(state.getWebSockets()[0] as WebSocket)).toBeNull();
+      expect(stamps(state).every((t) => t === null)).toBe(true);
     });
     c.send(PING);
     expect(await c.next()).toEqual({ type: "pong" });
     await runInDurableObject(hqLedger(), (_i: SiteLedger, state: DurableObjectState) => {
-      expect(state.getWebSocketAutoResponseTimestamp(state.getWebSockets()[0] as WebSocket)).toBeInstanceOf(Date);
+      expect(stamps(state).filter((t) => t instanceof Date)).toHaveLength(1);
     });
     // The same expired socket, sent anything else, reaches the handler and is closed.
     c.send({ type: "subscribe", date: bizDay(2) });
