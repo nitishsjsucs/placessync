@@ -1,8 +1,8 @@
 {
   "meta": {
-    "gitSha": "aeeca582e9488cf72ac7c05e21efff12055229f2",
+    "gitSha": "38d871a47b75042bcac754a7408809e76a3b9d53",
     "dirty": false,
-    "timestamp": "2026-10-09T18:42:13.386Z",
+    "timestamp": "2026-10-09T19:27:04.887Z",
     "node": "v25.9.0",
     "wrangler": "4.149.0",
     "os": "Darwin 25.5.0 arm64",
@@ -96,7 +96,7 @@
       "fallbackRate": 0,
       "latencyMs": {
         "p50": 0.1,
-        "p95": 0.4
+        "p95": 0.1
       }
     },
     "hard": {
@@ -168,8 +168,8 @@
       "retryRate": 0,
       "fallbackRate": 0,
       "latencyMs": {
-        "p50": 0.1,
-        "p95": 0.2
+        "p50": 0,
+        "p95": 0.1
       }
     },
     "injection": {
@@ -242,7 +242,7 @@
       "fallbackRate": 0,
       "latencyMs": {
         "p50": 0.1,
-        "p95": 0.2
+        "p95": 0.1
       },
       "steered": 1,
       "steerRate": 0.0833
