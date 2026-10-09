@@ -1,5 +1,6 @@
-// Keyboard-only booking and cancellation (SPEC 12.4). The sign-in uses the dev API; every
-// step after that uses only the keyboard.
+// Keyboard-only booking and cancellation (SPEC 12.4). The sign-in uses the dev API and the
+// test opens /find by URL; every step after that uses only the keyboard, including the
+// move to My bookings through the main navigation.
 import { expect, test } from "@playwright/test";
 import { addBusinessDays, login, longDate, siteToday } from "./helpers.ts";
 
@@ -53,8 +54,14 @@ test("book a desk and cancel it using only the keyboard", async ({ page }, testI
   await expect(dialog).toBeHidden();
   await expect(page.getByTestId("announcer")).toHaveText(`Booked Desk 2B-04 on ${longDate(target)}, 15:00 to 16:00.`);
 
-  // Cancel it from My bookings, keyboard only.
-  await page.goto("/bookings");
+  // Go to My bookings through the main navigation (Shift+Tab back from the Book button),
+  // then cancel, keyboard only.
+  const navLink = page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "My bookings" });
+  for (let i = 0; i < 80 && !(await navLink.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Shift+Tab");
+  await expect(navLink).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/bookings$/);
+  await expect(page.getByRole("heading", { level: 1, name: "My bookings" })).toBeVisible();
   const cancel = page.getByRole("button", { name: `Cancel booking for Desk 2B-04 on ${longDate(target)}` });
   await expect(cancel).toBeVisible();
   for (let i = 0; i < 40 && !(await cancel.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab");
