@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+# Every step only reads the repository; upload-artifact uses the runtime token.
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
