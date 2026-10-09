@@ -1,8 +1,8 @@
 {
   "meta": {
-    "gitSha": "3d8950be812636473206563f52555859e1641348",
+    "gitSha": "dbf14d37f5badba551572ebee12acd2d0fbde6d0",
     "dirty": false,
-    "timestamp": "2026-10-08T23:22:18.386Z",
+    "timestamp": "2026-10-08T23:51:12.969Z",
     "node": "v25.9.0",
     "wrangler": "4.149.0",
     "os": "Darwin 25.5.0 arm64",
@@ -44,11 +44,11 @@
       "distinctResources": 20,
       "accepted": 136,
       "acceptedPerDate": {
-        "A": 79,
-        "B": 57
+        "A": 80,
+        "B": 56
       },
-      "rejectedResourceConflict": 858,
-      "rejectedEmployeeConflict": 6,
+      "rejectedResourceConflict": 859,
+      "rejectedEmployeeConflict": 5,
       "rejectedValidation": 0,
       "serverErrors": 0,
       "otherStatuses": 0,
@@ -58,20 +58,20 @@
       "phantomAcceptances": 0,
       "lostAcceptances": 0,
       "projectionMismatches": 0,
-      "projectionDrainMs": 4,
+      "projectionDrainMs": 13,
       "observerDeltas": {
         "obs1_A": {
-          "2026-10-12": 79
+          "2026-10-12": 80
         },
         "obs2_A": {
-          "2026-10-12": 79
+          "2026-10-12": 80
         },
         "obs3_B": {
-          "2026-10-13": 57
+          "2026-10-13": 56
         },
         "obs4_AB": {
-          "2026-10-12": 79,
-          "2026-10-13": 57
+          "2026-10-12": 80,
+          "2026-10-13": 56
         }
       },
       "observerDeltaMismatches": 0,
@@ -84,14 +84,14 @@
       "observerConnectRetries": 0,
       "observerFinalStateMismatches": 0,
       "backstopHits": 0,
-      "transportRetries": 288,
+      "transportRetries": 555,
       "latencyMs": {
-        "p50": 2031.8,
-        "p95": 2939.1,
-        "p99": 2941.2
+        "p50": 5359.4,
+        "p95": 8017.3,
+        "p99": 9283.5
       },
-      "wallMs": 3052,
-      "throughputRps": 327.7
+      "wallMs": 9390,
+      "throughputRps": 106.5
     },
     {
       "run": 2,
@@ -106,12 +106,12 @@
       },
       "distinctEmployees": 100,
       "distinctResources": 20,
-      "accepted": 136,
+      "accepted": 132,
       "acceptedPerDate": {
-        "A": 79,
-        "B": 57
+        "A": 77,
+        "B": 55
       },
-      "rejectedResourceConflict": 860,
+      "rejectedResourceConflict": 864,
       "rejectedEmployeeConflict": 4,
       "rejectedValidation": 0,
       "serverErrors": 0,
@@ -122,20 +122,20 @@
       "phantomAcceptances": 0,
       "lostAcceptances": 0,
       "projectionMismatches": 0,
-      "projectionDrainMs": 4,
+      "projectionDrainMs": 9,
       "observerDeltas": {
         "obs1_A": {
-          "2026-10-12": 79
+          "2026-10-12": 77
         },
         "obs2_A": {
-          "2026-10-12": 79
+          "2026-10-12": 77
         },
         "obs3_B": {
-          "2026-10-13": 57
+          "2026-10-13": 55
         },
         "obs4_AB": {
-          "2026-10-12": 79,
-          "2026-10-13": 57
+          "2026-10-12": 77,
+          "2026-10-13": 55
         }
       },
       "observerDeltaMismatches": 0,
@@ -148,14 +148,14 @@
       "observerConnectRetries": 0,
       "observerFinalStateMismatches": 0,
       "backstopHits": 0,
-      "transportRetries": 0,
+      "transportRetries": 368,
       "latencyMs": {
-        "p50": 2661.2,
-        "p95": 2891.4,
-        "p99": 2891.8
+        "p50": 5041.6,
+        "p95": 7675.4,
+        "p99": 8247
       },
-      "wallMs": 2933,
-      "throughputRps": 341
+      "wallMs": 8279,
+      "throughputRps": 120.8
     },
     {
       "run": 3,
@@ -170,13 +170,13 @@
       },
       "distinctEmployees": 100,
       "distinctResources": 20,
-      "accepted": 145,
+      "accepted": 137,
       "acceptedPerDate": {
-        "A": 85,
+        "A": 77,
         "B": 60
       },
-      "rejectedResourceConflict": 844,
-      "rejectedEmployeeConflict": 11,
+      "rejectedResourceConflict": 854,
+      "rejectedEmployeeConflict": 9,
       "rejectedValidation": 0,
       "serverErrors": 0,
       "otherStatuses": 0,
@@ -186,19 +186,19 @@
       "phantomAcceptances": 0,
       "lostAcceptances": 0,
       "projectionMismatches": 0,
-      "projectionDrainMs": 4,
+      "projectionDrainMs": 7,
       "observerDeltas": {
         "obs1_A": {
-          "2026-10-12": 85
+          "2026-10-12": 77
         },
         "obs2_A": {
-          "2026-10-12": 85
+          "2026-10-12": 77
         },
         "obs3_B": {
           "2026-10-13": 60
         },
         "obs4_AB": {
-          "2026-10-12": 85,
+          "2026-10-12": 77,
           "2026-10-13": 60
         }
       },
@@ -212,14 +212,14 @@
       "observerConnectRetries": 0,
       "observerFinalStateMismatches": 0,
       "backstopHits": 0,
-      "transportRetries": 0,
+      "transportRetries": 364,
       "latencyMs": {
-        "p50": 2151.2,
-        "p95": 2561.6,
-        "p99": 2563.4
+        "p50": 4513.6,
+        "p95": 6587.1,
+        "p99": 6790.7
       },
-      "wallMs": 2570,
-      "throughputRps": 389.1
+      "wallMs": 6865,
+      "throughputRps": 145.7
     },
     {
       "run": 4,
@@ -234,13 +234,13 @@
       },
       "distinctEmployees": 100,
       "distinctResources": 20,
-      "accepted": 136,
+      "accepted": 138,
       "acceptedPerDate": {
-        "A": 79,
-        "B": 57
+        "A": 80,
+        "B": 58
       },
-      "rejectedResourceConflict": 858,
-      "rejectedEmployeeConflict": 6,
+      "rejectedResourceConflict": 853,
+      "rejectedEmployeeConflict": 9,
       "rejectedValidation": 0,
       "serverErrors": 0,
       "otherStatuses": 0,
@@ -250,20 +250,20 @@
       "phantomAcceptances": 0,
       "lostAcceptances": 0,
       "projectionMismatches": 0,
-      "projectionDrainMs": 5,
+      "projectionDrainMs": 12,
       "observerDeltas": {
         "obs1_A": {
-          "2026-10-12": 79
+          "2026-10-12": 80
         },
         "obs2_A": {
-          "2026-10-12": 79
+          "2026-10-12": 80
         },
         "obs3_B": {
-          "2026-10-13": 57
+          "2026-10-13": 58
         },
         "obs4_AB": {
-          "2026-10-12": 79,
-          "2026-10-13": 57
+          "2026-10-12": 80,
+          "2026-10-13": 58
         }
       },
       "observerDeltaMismatches": 0,
@@ -276,14 +276,14 @@
       "observerConnectRetries": 0,
       "observerFinalStateMismatches": 0,
       "backstopHits": 0,
-      "transportRetries": 0,
+      "transportRetries": 518,
       "latencyMs": {
-        "p50": 2830.8,
-        "p95": 2869.4,
-        "p99": 2873.3
+        "p50": 4221.3,
+        "p95": 7561.1,
+        "p99": 7752.4
       },
-      "wallMs": 2985,
-      "throughputRps": 335
+      "wallMs": 7831,
+      "throughputRps": 127.7
     },
     {
       "run": 5,
@@ -298,13 +298,13 @@
       },
       "distinctEmployees": 100,
       "distinctResources": 20,
-      "accepted": 136,
+      "accepted": 144,
       "acceptedPerDate": {
-        "A": 78,
-        "B": 58
+        "A": 85,
+        "B": 59
       },
-      "rejectedResourceConflict": 858,
-      "rejectedEmployeeConflict": 6,
+      "rejectedResourceConflict": 852,
+      "rejectedEmployeeConflict": 4,
       "rejectedValidation": 0,
       "serverErrors": 0,
       "otherStatuses": 0,
@@ -314,20 +314,20 @@
       "phantomAcceptances": 0,
       "lostAcceptances": 0,
       "projectionMismatches": 0,
-      "projectionDrainMs": 4,
+      "projectionDrainMs": 9,
       "observerDeltas": {
         "obs1_A": {
-          "2026-10-12": 78
+          "2026-10-12": 85
         },
         "obs2_A": {
-          "2026-10-12": 78
+          "2026-10-12": 85
         },
         "obs3_B": {
-          "2026-10-13": 58
+          "2026-10-13": 59
         },
         "obs4_AB": {
-          "2026-10-12": 78,
-          "2026-10-13": 58
+          "2026-10-12": 85,
+          "2026-10-13": 59
         }
       },
       "observerDeltaMismatches": 0,
@@ -340,14 +340,14 @@
       "observerConnectRetries": 0,
       "observerFinalStateMismatches": 0,
       "backstopHits": 0,
-      "transportRetries": 0,
+      "transportRetries": 255,
       "latencyMs": {
-        "p50": 2173.7,
-        "p95": 2195.2,
-        "p99": 2195.7
+        "p50": 3740.2,
+        "p95": 5976.2,
+        "p99": 6710.5
       },
-      "wallMs": 2231,
-      "throughputRps": 448.3
+      "wallMs": 6853,
+      "throughputRps": 145.9
     }
   ],
   "summary": {
@@ -357,8 +357,8 @@
       "max": 0
     },
     "accepted": {
-      "min": 136,
-      "max": 145
+      "min": 132,
+      "max": 144
     },
     "employeeDoubleBookingPairs": {
       "max": 0
@@ -372,11 +372,11 @@
   },
   "control": {
     "naiveD1": {
-      "accepted": 390,
-      "rows": 390,
+      "accepted": 189,
+      "rows": 189,
       "serverErrors": 0,
-      "transportRetries": 0,
-      "overlappingPairs": 1041
+      "transportRetries": 372,
+      "overlappingPairs": 141
     }
   },
   "gates": {
