@@ -4,6 +4,7 @@ export const ERROR_CODES = [
   "misconfigured",
   "dev_mode_remote_request",
   "forbidden_origin",
+  "unsupported_media_type",
   "unauthenticated",
   "invalid_token",
   "unknown_user",

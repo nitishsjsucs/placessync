@@ -36,13 +36,36 @@ export function isWebSocketUpgrade(req: Request): boolean {
   return req.headers.get("upgrade")?.toLowerCase() === "websocket";
 }
 
-/** Non-GET requests and WebSocket upgrades must come from this origin when Origin is sent. */
+/** Sec-Fetch-Site values a same-origin page or the user (address bar, bookmark) produce. */
+const SAME_ORIGIN_FETCH_SITES = new Set(["same-origin", "none"]);
+/** application/json, optionally with parameters (charset). Hono's JSON validator reads nothing else. */
+const JSON_CONTENT_TYPE = /^application\/json\s*(;|$)/i;
+
+/**
+ * Non-GET requests and WebSocket upgrades must come from this origin (CSRF). Three checks,
+ * so a client that omits Origin is still covered:
+ * 1. Origin, when sent, must equal this origin.
+ * 2. Sec-Fetch-Site, when sent, must be same-origin or none (browsers send it on every
+ *    request, Origin or not).
+ * 3. A request body must be declared as JSON. A cross-site HTML form or no-cors fetch can
+ *    only send form-encoded, multipart or text/plain bodies, which Hono's JSON validator
+ *    would read as {}; those get 415 before any route runs. Bodiless POSTs (no
+ *    Content-Type) pass, as the SPA's cancel and logout calls send none.
+ */
 export const requireSameOrigin: MiddlewareHandler<AppEnv> = async (c, next) => {
   const unsafe = !["GET", "HEAD", "OPTIONS"].includes(c.req.method) || isWebSocketUpgrade(c.req.raw);
   if (unsafe) {
     const origin = c.req.header("origin");
     if (origin && origin !== new URL(c.req.url).origin) {
       return errorResponse(c, 403, "forbidden_origin", "Cross-origin requests are not allowed.");
+    }
+    const site = c.req.header("sec-fetch-site");
+    if (site && !SAME_ORIGIN_FETCH_SITES.has(site.toLowerCase())) {
+      return errorResponse(c, 403, "forbidden_origin", "Cross-site requests are not allowed.");
+    }
+    const type = c.req.header("content-type");
+    if (!["GET", "HEAD", "OPTIONS"].includes(c.req.method) && type !== undefined && !JSON_CONTENT_TYPE.test(type)) {
+      return errorResponse(c, 415, "unsupported_media_type", "Send request bodies as application/json.");
     }
   }
   await next();

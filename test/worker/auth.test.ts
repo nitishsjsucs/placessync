@@ -152,6 +152,97 @@ describe("request guards", () => {
   });
 });
 
+describe("cross-site request guards without an Origin header", () => {
+  // In production Cloudflare Access turns the browser's CF_Authorization cookie into the
+  // Cf-Access-Jwt-Assertion header, so a cross-site form that reached the Worker would
+  // carry the victim's identity. Browsers send Origin on cross-origin POSTs today; these
+  // checks hold even for a client that omits it.
+  let slot = 0;
+  async function booking() {
+    const { bizDay, hqLedger } = await import("../helpers/world.ts");
+    // One hour per booking: an employee holds one desk at a time.
+    const startMin = 480 + 60 * slot++;
+    const r = await hqLedger().reserve({ employeeId: EMPLOYEE, role: "employee" }, { resourceId: "res_3a03", date: bizDay(3), startMin, endMin: startMin + 60 }, `csrf-${crypto.randomUUID()}`);
+    if (!r.ok) throw new Error(`setup booking failed: ${JSON.stringify(r)}`);
+    return r.reservation.id;
+  }
+  async function statusOf(id: string) {
+    const { bizDay } = await import("../helpers/world.ts");
+    const res = await call(`/api/reservations?from=${bizDay(3)}&to=${bizDay(3)}&status=confirmed`, { headers: authHeaders(await tokenFor(EMPLOYEE)) });
+    expect(res.status).toBe(200);
+    const body = await json<{ reservations: { id: string }[] }>(res);
+    return body.reservations.some((r) => r.id === id) ? "confirmed" : "not confirmed";
+  }
+
+  it("rejects a text/plain POST marked Sec-Fetch-Site: cross-site with 403, and the booking stays", async () => {
+    const id = await booking();
+    const res = await call(`/api/reservations/${id}/cancel`, {
+      method: "POST",
+      headers: { ...authHeaders(await tokenFor(EMPLOYEE)), "content-type": "text/plain", "sec-fetch-site": "cross-site" },
+      body: "{}",
+    });
+    expect(res.status).toBe(403);
+    expect((await json(res)).error).toBe("forbidden_origin");
+    expect(await statusOf(id)).toBe("confirmed");
+  });
+
+  it("rejects a same-site but cross-origin POST with 403", async () => {
+    const res = await call("/api/dev/logout", { method: "POST", headers: { "sec-fetch-site": "same-site" } });
+    expect(res.status).toBe(403);
+    expect((await json(res)).error).toBe("forbidden_origin");
+  });
+
+  it("rejects a form-urlencoded POST with 415 even with no fetch metadata, and the booking stays", async () => {
+    const id = await booking();
+    const res = await call(`/api/reservations/${id}/cancel`, {
+      method: "POST",
+      headers: { ...authHeaders(await tokenFor(EMPLOYEE)), "content-type": "application/x-www-form-urlencoded" },
+      body: "reason=x",
+    });
+    expect(res.status).toBe(415);
+    expect((await json(res)).error).toBe("unsupported_media_type");
+    expect(await statusOf(id)).toBe("confirmed");
+  });
+
+  it("rejects a text/plain POST to the bodiless request cancel route with 415", async () => {
+    const res = await call("/api/requests/req_none/cancel", {
+      method: "POST",
+      headers: { ...authHeaders(await tokenFor(EMPLOYEE)), "content-type": "text/plain;charset=UTF-8" },
+      body: "",
+    });
+    expect(res.status).toBe(415);
+    expect((await json(res)).error).toBe("unsupported_media_type");
+  });
+
+  it("rejects a cross-site WebSocket upgrade that sends no Origin", async () => {
+    const res = await call("/api/sites/hq/live", {
+      headers: { upgrade: "websocket", "sec-fetch-site": "cross-site", ...authHeaders(await tokenFor(EMPLOYEE)) },
+    });
+    expect(res.status).toBe(403);
+    expect((await json(res)).error).toBe("forbidden_origin");
+  });
+
+  it("allows same-origin and user-initiated fetch metadata, JSON bodies with a charset, and bodiless POSTs", async () => {
+    for (const site of ["same-origin", "none"]) {
+      const res = await call("/api/dev/logout", { method: "POST", headers: { "sec-fetch-site": site } });
+      expect(res.status).toBe(200);
+      await res.body?.cancel();
+    }
+    const id = await booking();
+    const res = await call(`/api/reservations/${id}/cancel`, {
+      method: "POST",
+      headers: { ...authHeaders(await tokenFor(EMPLOYEE)), "content-type": "application/json; charset=utf-8", "sec-fetch-site": "same-origin" },
+      body: JSON.stringify({ reason: "Plans changed" }),
+    });
+    expect(res.status).toBe(200);
+    await res.body?.cancel();
+    expect(await statusOf(id)).toBe("not confirmed");
+    const bodiless = await call("/api/requests/req_none/cancel", { method: "POST", headers: authHeaders(await tokenFor(EMPLOYEE)) });
+    expect(bodiless.status).toBe(404);
+    await bodiless.body?.cancel();
+  });
+});
+
 describe("site allowlist (SPEC 7.5)", () => {
   it.each(["/api/sites/evil/resources", "/api/sites/evil/availability?date=2026-10-12", "/api/sites/HQ/resources"])(
     "%s is 404 site_not_found and creates no Durable Object",
