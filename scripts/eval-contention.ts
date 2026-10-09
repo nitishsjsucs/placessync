@@ -15,6 +15,7 @@ import { addBusinessDays } from "../src/shared/time.ts";
 import { percentile, round } from "./lib/eval-math.ts";
 import { ROOT, runMeta } from "./lib/meta.ts";
 import { ObserverModel, type ServerMessage } from "./lib/observer-model.ts";
+import { newRetryLog, postWithRetry } from "./lib/transport-retry.ts";
 
 const { values: args } = parseArgs({
   options: {
@@ -166,36 +167,17 @@ interface Outcome {
   latencyMs: number;
 }
 
-/**
- * Transport failures below the Worker are retried with the same Idempotency-Key, which
- * the ledger replays safely, and counted:
- * - a burst of 1,000 connects can overflow the local listen queue (macOS caps it at
- *   kern.ipc.somaxconn, 128 by default), which refuses the connection;
- * - the vite preview server proxies to workerd and, under that burst, can answer an HTML
- *   500 "fetch failed" page of its own. The Worker always answers JSON, so an HTML 500
- *   never comes from the application.
- */
-async function postWithRetry(url: string, init: RequestInit, onRetry: () => void): Promise<Response> {
-  for (let attempt = 0; ; attempt++) {
-    let res: Response | null = null;
-    try {
-      res = await fetch(url, init);
-    } catch (err) {
-      if (attempt >= 8) throw err;
-    }
-    if (res) {
-      const proxyFailure = res.status === 500 && !(res.headers.get("content-type") ?? "").includes("application/json");
-      if (!proxyFailure || attempt >= 8) return res;
-      await res.body?.cancel();
-    }
-    onRetry();
-    await new Promise((r) => setTimeout(r, 50 * 2 ** Math.min(attempt, 5)));
-  }
+interface FireResult {
+  outcomes: Outcome[];
+  wallMs: number;
+  transportRetries: number;
+  transportRetryCauses: { connectErrors: number; proxyFetchFailed: number };
+  transportRetrySamples: string[];
 }
 
-async function fire(path: string, tokens: Map<string, string>, dates: { A: string; B: string }): Promise<{ outcomes: Outcome[]; wallMs: number; transportRetries: number }> {
+async function fire(path: string, tokens: Map<string, string>, dates: { A: string; B: string }): Promise<FireResult> {
   const started = performance.now();
-  let transportRetries = 0;
+  const log = newRetryLog();
   const outcomes = await Promise.all(
     attempts.map(async (attempt): Promise<Outcome> => {
       const date = attempt.dayOffset === 2 ? dates.A : dates.B;
@@ -207,13 +189,25 @@ async function fire(path: string, tokens: Map<string, string>, dates: { A: strin
           headers: { "content-type": "application/json", "Idempotency-Key": attempt.idempotencyKey, ...auth(tokens.get(attempt.employeeId) ?? "") },
           body: JSON.stringify({ resourceId: attempt.resourceId, date, startMin: attempt.startMin, endMin: attempt.endMin, attendees: attempt.attendees }),
         },
-        () => transportRetries++,
+        log,
       );
-      const body = await json<{ error?: string; reservation?: { id: string } }>(res);
+      // A body that is not JSON is kept as an outcome (a 5xx one fails the serverErrors gate).
+      let body: { error?: string; reservation?: { id: string } };
+      try {
+        body = JSON.parse(res.text) as typeof body;
+      } catch {
+        body = { error: `non_json_${res.status}` };
+      }
       return { attempt, date, status: res.status, error: body.error ?? null, reservationId: body.reservation?.id ?? null, latencyMs: performance.now() - t0 };
     }),
   );
-  return { outcomes, wallMs: performance.now() - started, transportRetries };
+  return {
+    outcomes,
+    wallMs: performance.now() - started,
+    transportRetries: log.connectErrors + log.proxyFetchFailed,
+    transportRetryCauses: { connectErrors: log.connectErrors, proxyFetchFailed: log.proxyFetchFailed },
+    transportRetrySamples: log.samples,
+  };
 }
 
 async function exportLedger(admin: string, date: string): Promise<Reservation[]> {
@@ -243,7 +237,7 @@ async function run(index: number): Promise<Record<string, unknown>> {
   let observerConnectRetries = 0;
   const observers = await Promise.all(plan.map(([name, ds]) => openObserverWithRetry(name, ds, admin, () => observerConnectRetries++)));
 
-  const { outcomes, wallMs, transportRetries } = await fire("/api/reservations", tokens, dates);
+  const { outcomes, wallMs, transportRetries, transportRetryCauses, transportRetrySamples } = await fire("/api/reservations", tokens, dates);
   await quiet(observers);
 
   const ledger = [...(await exportLedger(admin, dates.A)), ...(await exportLedger(admin, dates.B))];
@@ -340,6 +334,8 @@ async function run(index: number): Promise<Record<string, unknown>> {
     observerFinalStateMismatches,
     backstopHits: status.backstopHits,
     transportRetries,
+    transportRetryCauses,
+    transportRetrySamples,
     latencyMs: { p50: round(percentile(latencies, 50), 1), p95: round(percentile(latencies, 95), 1), p99: round(percentile(latencies, 99), 1) },
     wallMs: Math.round(wallMs),
     throughputRps: round(outcomes.length / (wallMs / 1000), 1),
@@ -354,7 +350,7 @@ async function control(): Promise<Record<string, unknown>> {
   if (!reset.ok) throw new Error(`naive reset: ${reset.status}`);
   const health = await json<{ siteToday: string }>(await fetch(`${BASE}/api/health`));
   const dates = { A: addBusinessDays(health.siteToday, 2), B: addBusinessDays(health.siteToday, 3) };
-  const { outcomes, transportRetries } = await fire("/api/dev/naive/reserve", tokens, dates);
+  const { outcomes, transportRetries, transportRetryCauses } = await fire("/api/dev/naive/reserve", tokens, dates);
   const rows: Reservation[] = [];
   for (const d of [dates.A, dates.B]) {
     rows.push(...(await json<{ reservations: Reservation[] }>(await fetch(`${BASE}/api/dev/naive/export?date=${d}`, { headers: auth(admin) }))).reservations);
@@ -364,6 +360,7 @@ async function control(): Promise<Record<string, unknown>> {
     rows: rows.length,
     serverErrors: outcomes.filter((o) => o.status >= 500).length,
     transportRetries,
+    transportRetryCauses,
     overlappingPairs: countOverlappingPairsBy(rows, (r) => `${r.resourceId}|${r.date}`),
   };
 }

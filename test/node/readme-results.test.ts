@@ -86,6 +86,31 @@ describe("render-results refusals (SPEC 12.3)", () => {
     expect(newer).toContain("| Observer connect retries (before any attempt is fired) | 2 |");
   });
 
+  it("splits transport retries by cause when the result records causes", () => {
+    const run = { attempts: 1000, attemptsPerDate: { A: 700, B: 300 }, latencyMs: { p50: 1, p95: 2, p99: 3 }, transportRetries: 7 };
+    const body = (runs: Record<string, unknown>[]) => ({ generator: { contestedAttempts: 984 }, runs, control: null, gates: { passed: true } });
+    const total = renderBlock(loadResults([fixture("contention", { gitSha: head, dirty: false }, body([run]))], root));
+    expect(total).toContain("| Transport retries (refused connects or dev-proxy failures, resent with the same Idempotency-Key) | 7 |");
+    const split = renderBlock(
+      loadResults(
+        [
+          fixture(
+            "contention",
+            { gitSha: head, dirty: false },
+            body([
+              { ...run, transportRetryCauses: { connectErrors: 5, proxyFetchFailed: 2 } },
+              { ...run, transportRetryCauses: { connectErrors: 0, proxyFetchFailed: 4 } },
+            ]),
+          ),
+        ],
+        root,
+      ),
+    );
+    expect(split).toContain("| Transport retries: connections refused or reset before any response (resent with the same Idempotency-Key) | 0 to 5 |");
+    expect(split).toContain('| Transport retries: the vite preview proxy\'s own "fetch failed" 500 page (resent with the same Idempotency-Key) | 2 to 4 |');
+    expect(split).not.toContain("refused connects or dev-proxy failures");
+  });
+
   it("names the model in the workflow section only when its suggestions came from it", () => {
     const meta = { gitSha: head, dirty: false, llm: { modelPath: "Qwen3-1.7B-Q4_0-rtn.gguf" } };
     const body = (providerCounts: Record<string, number>, gates: Record<string, unknown>) => ({

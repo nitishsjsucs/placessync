@@ -65,12 +65,13 @@ function contentionSection(r: Record<string, unknown> & { meta: Meta }): string 
   const gen = r.generator as Record<string, unknown>;
   const control = (r.control as { naiveD1?: Record<string, unknown> } | null)?.naiveD1;
   const first = runs[0] ?? {};
-  const range = (k: string) => {
-    const v = runs.map((x) => Number(x[k]));
+  const spread = (v: number[]) => {
     const lo = Math.min(...v);
     const hi = Math.max(...v);
     return lo === hi ? num(lo) : `${num(lo)} to ${num(hi)}`;
   };
+  const range = (k: string) => spread(runs.map((x) => Number(x[k])));
+  const causes = runs.map((x) => x.transportRetryCauses as { connectErrors: number; proxyFetchFailed: number } | undefined);
   const lat = first.latencyMs as { p50: number; p95: number; p99: number };
   return [
     "### Reservation contention (local workerd)",
@@ -100,7 +101,15 @@ function contentionSection(r: Record<string, unknown> & { meta: Meta }): string 
         ]
       : []),
     `| Slot-key backstop activations | ${range("backstopHits")} |`,
-    ...(runs.every((x) => x.transportRetries !== undefined) ? [`| Transport retries (refused connects or dev-proxy failures, resent with the same Idempotency-Key) | ${range("transportRetries")} |`] : []),
+    // Results that record each retry's cause get one row per cause; older ones, one total.
+    ...(causes.every((c) => c !== undefined)
+      ? [
+          `| Transport retries: connections refused or reset before any response (resent with the same Idempotency-Key) | ${spread(causes.map((c) => c?.connectErrors ?? 0))} |`,
+          `| Transport retries: the vite preview proxy's own "fetch failed" 500 page (resent with the same Idempotency-Key) | ${spread(causes.map((c) => c?.proxyFetchFailed ?? 0))} |`,
+        ]
+      : runs.every((x) => x.transportRetries !== undefined)
+        ? [`| Transport retries (refused connects or dev-proxy failures, resent with the same Idempotency-Key) | ${range("transportRetries")} |`]
+        : []),
     `| Negative control (naive read-then-write D1): accepted, overlapping pairs | ${control ? `${num(control.accepted)}, ${num(control.overlappingPairs)}` : "not run"} |`,
     `| Latency p50 / p95 / p99, run 1 (local, single machine) | ${lat?.p50} / ${lat?.p95} / ${lat?.p99} ms |`,
     "",
