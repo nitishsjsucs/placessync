@@ -1,4 +1,5 @@
 // Reporting reads over the D1 projection (SPEC 6.1 views).
+import { addDays, siteMidnightUtc } from "../../shared/time.ts";
 
 export interface UtilizationRow {
   resourceId: string;
@@ -90,11 +91,15 @@ export async function projectionState(db: D1Database, siteId: string) {
 }
 
 export async function requestsReport(db: D1Database, siteId: string, from: string, to: string) {
-  const range = [siteId, `${from}T00:00:00.000Z`, `${to}T23:59:59.999Z`];
+  // created_at is a UTC instant, while from and to are site-local dates like every other
+  // report: select from the site's midnight at the start of `from` to the one after `to`.
+  const site = await db.prepare("SELECT timezone FROM sites WHERE id = ?").bind(siteId).first<{ timezone: string }>();
+  const tz = site?.timezone ?? "UTC";
+  const range = [siteId, new Date(siteMidnightUtc(tz, from)).toISOString(), new Date(siteMidnightUtc(tz, addDays(to, 1))).toISOString()];
   const { results: categories } = await db
     .prepare(
       `SELECT COALESCE(final_category, '(unreviewed)') AS category, status, COUNT(*) AS n FROM facilities_requests
-       WHERE site_id = ? AND created_at BETWEEN ? AND ? GROUP BY category, status ORDER BY category, status`,
+       WHERE site_id = ? AND created_at >= ? AND created_at < ? GROUP BY category, status ORDER BY category, status`,
     )
     .bind(...range)
     .all<{ category: string; status: string; n: number }>();
@@ -104,13 +109,13 @@ export async function requestsReport(db: D1Database, siteId: string, from: strin
       `SELECT s.provider, COUNT(*) AS reviewed, SUM(r.final_category = s.category) AS agreed,
               ROUND(1.0 * SUM(r.final_category = s.category) / COUNT(*), 4) AS agreementRate
        FROM facilities_requests r JOIN triage_suggestions s ON s.request_id = r.id
-       WHERE r.review_decision IN ('accepted','reassigned') AND r.site_id = ? AND r.created_at BETWEEN ? AND ?
+       WHERE r.review_decision IN ('accepted','reassigned') AND r.site_id = ? AND r.created_at >= ? AND r.created_at < ?
        GROUP BY s.provider ORDER BY s.provider`,
     )
     .bind(...range)
     .all<{ provider: string; reviewed: number; agreed: number; agreementRate: number }>();
   const { results: reviewed } = await db
-    .prepare("SELECT created_at AS createdAt, reviewed_at AS reviewedAt FROM facilities_requests WHERE site_id = ? AND created_at BETWEEN ? AND ? AND reviewed_at IS NOT NULL")
+    .prepare("SELECT created_at AS createdAt, reviewed_at AS reviewedAt FROM facilities_requests WHERE site_id = ? AND created_at >= ? AND created_at < ? AND reviewed_at IS NOT NULL")
     .bind(...range)
     .all<{ createdAt: string; reviewedAt: string }>();
   const minutes = reviewed.map((r) => (Date.parse(r.reviewedAt) - Date.parse(r.createdAt)) / 60_000).sort((a, b) => a - b);

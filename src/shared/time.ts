@@ -39,6 +39,21 @@ export function siteToday(timeZone: string, nowMs: number): string {
   return siteClock(timeZone, nowMs).date;
 }
 
+/** The instant (ms since epoch) at which `date` begins in `timeZone`: site-local midnight. */
+export function siteMidnightUtc(timeZone: string, date: string): number {
+  const target = Date.parse(`${date}T00:00:00Z`);
+  let guess = target;
+  // Move by the zone offset seen at the guess; a second pass settles an offset change
+  // between the guess and the answer (DST).
+  for (let i = 0; i < 3; i++) {
+    const c = siteClock(timeZone, guess);
+    const diff = Date.parse(`${c.date}T00:00:00Z`) + c.minutes * 60_000 - target;
+    if (diff === 0) return guess;
+    guess -= diff;
+  }
+  return guess;
+}
+
 export function isValidDate(date: string): boolean {
   if (!DATE_RE.test(date)) return false;
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];

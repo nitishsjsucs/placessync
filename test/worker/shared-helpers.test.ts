@@ -9,6 +9,7 @@ import {
   isValidDate,
   previousBusinessDays,
   siteClock,
+  siteMidnightUtc,
   slotsFor,
   weekStartOf,
 } from "../../src/shared/time.ts";
@@ -41,6 +42,16 @@ describe("time", () => {
     // SPEC 20 item 13: 2026-11-01T09:30Z is 01:30 in Los Angeles.
     expect(siteClock("America/Los_Angeles", Date.parse("2026-11-01T09:30:00Z"))).toEqual({ date: "2026-11-01", minutes: 90 });
     expect(siteClock("America/Los_Angeles", Date.parse("2026-10-09T05:30:00Z"))).toEqual({ date: "2026-10-08", minutes: 1350 });
+  });
+
+  it("finds site-local midnight as a UTC instant, across DST changes", () => {
+    expect(new Date(siteMidnightUtc("America/Los_Angeles", "2026-10-12")).toISOString()).toBe("2026-10-12T07:00:00.000Z");
+    // 2026-11-01 begins in PDT (UTC-7); the clocks fall back at 02:00 that night.
+    expect(new Date(siteMidnightUtc("America/Los_Angeles", "2026-11-01")).toISOString()).toBe("2026-11-01T07:00:00.000Z");
+    expect(new Date(siteMidnightUtc("America/Los_Angeles", "2026-11-02")).toISOString()).toBe("2026-11-02T08:00:00.000Z");
+    expect(new Date(siteMidnightUtc("America/Los_Angeles", "2027-03-14")).toISOString()).toBe("2027-03-14T08:00:00.000Z");
+    expect(new Date(siteMidnightUtc("America/Los_Angeles", "2027-03-15")).toISOString()).toBe("2027-03-15T07:00:00.000Z");
+    expect(new Date(siteMidnightUtc("UTC", "2026-10-12")).toISOString()).toBe("2026-10-12T00:00:00.000Z");
   });
 
   it("does calendar arithmetic", () => {

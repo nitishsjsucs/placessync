@@ -108,4 +108,34 @@ describe("D1 reporting views (SPEC 6.1)", () => {
     expect(body.reviewedCount).toBe(5);
     expect(body.medianMinutesToReview).toBe(30);
   });
+
+  it("selects requests by site-local date, not by UTC date", async () => {
+    await env.DB.exec("DELETE FROM request_events");
+    await env.DB.exec("DELETE FROM triage_suggestions");
+    await env.DB.exec("DELETE FROM facilities_requests");
+    // 2026-10-12T03:00Z is 20:00 on Oct 11 in Los Angeles; 2026-10-13T06:30Z is 23:30 on Oct 12.
+    const rows: [string, string][] = [
+      ["evening_before", "2026-10-12T03:00:00.000Z"],
+      ["morning", "2026-10-12T15:00:00.000Z"],
+      ["late_evening", "2026-10-13T06:30:00.000Z"],
+      ["next_day", "2026-10-13T07:00:00.000Z"],
+    ];
+    await env.DB.batch(
+      rows.map(([id, at]) =>
+        env.DB.prepare(
+          `INSERT INTO facilities_requests (id, site_id, reporter_id, title, description, status, triage_state, created_at, updated_at)
+           VALUES (?, 'hq', 'emp_001', 'Something broke', 'Something broke near my desk today.', 'submitted', 'pending', ?, ?)`,
+        ).bind(id, at, at),
+      ),
+    );
+    const admin = await as(ADMIN);
+    const count = async (from: string, to: string) => {
+      const body = await json<{ categories: { n: number }[] }>(await admin.get(`/api/admin/reports/requests?from=${from}&to=${to}`));
+      return body.categories.reduce((n, c) => n + c.n, 0);
+    };
+    expect(await count("2026-10-12", "2026-10-12")).toBe(2);
+    expect(await count("2026-10-11", "2026-10-11")).toBe(1);
+    expect(await count("2026-10-13", "2026-10-13")).toBe(1);
+    expect(await count("2026-10-11", "2026-10-13")).toBe(4);
+  });
 });
