@@ -35,7 +35,9 @@ describe("POST /api/requests (SPEC 7.3)", () => {
       const body = await json<Created>(res);
       expect(body.triage).toBe("started");
       expect(body.request.id).toMatch(/^req_[0-9a-z]{26}$/);
-      expect(body.request.status).toBe("submitted");
+      // The 201 body is the row as read after create(); a fast Workflow may already have
+      // moved it to awaiting_review. The event order below is deterministic either way.
+      expect(["submitted", "awaiting_review"]).toContain(body.request.status);
       const instances = await intro.get();
       expect(instances).toHaveLength(1);
       await instances[0]?.waitForStatus("complete");
