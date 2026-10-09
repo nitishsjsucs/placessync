@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type WorkflowOutcome, workflowGates } from "../../scripts/lib/workflow-gates.ts";
+import { type WorkflowOutcome, appTriageMismatch, workflowGates } from "../../scripts/lib/workflow-gates.ts";
 
 const ok = (provider: string, category = "electrical_av"): WorkflowOutcome => ({ reached: true, provider, category });
 
@@ -44,5 +44,21 @@ describe("workflow-mode triage gates (SPEC 13.2)", () => {
 
   it("fails when fewer outcomes than requests were recorded", () => {
     expect(workflowGates(2, [ok("openai-compat")]).failures[0]).toBe("1 outcomes recorded for 2 requests");
+  });
+});
+
+describe("workflow-mode pre-check of the app's triage config", () => {
+  const app = { provider: "openai-compat", llmBaseUrl: "http://127.0.0.1:8130/v1", llmModel: "qwen3-1.7b" };
+
+  it("accepts the server the app calls, spelled with localhost or a trailing slash", () => {
+    expect(appTriageMismatch(app, "http://127.0.0.1:8130/v1")).toEqual([]);
+    expect(appTriageMismatch(app, "http://localhost:8130/v1/")).toEqual([]);
+  });
+
+  it("refuses an app on another provider or another llama-server", () => {
+    expect(appTriageMismatch({ ...app, provider: "stub" }, "http://127.0.0.1:8130/v1")).toEqual([
+      "the app's TRIAGE_PROVIDER is stub, not openai-compat: rebuild with TRIAGE_PROVIDER=openai-compat in .dev.vars",
+    ]);
+    expect(appTriageMismatch(app, "http://127.0.0.1:8120/v1")).toEqual(["the app's Workflow calls http://127.0.0.1:8130/v1 but --base-url is http://127.0.0.1:8120/v1"]);
   });
 });

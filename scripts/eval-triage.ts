@@ -22,7 +22,7 @@ import { StubProvider } from "../src/shared/triage/providers/stub.ts";
 import { ContextOverflowError, type LlmProvider } from "../src/shared/triage/providers/types.ts";
 import { accuracy, confusionMatrix, macroF1, perClass, percentile, round } from "./lib/eval-math.ts";
 import { ROOT, runMeta } from "./lib/meta.ts";
-import { workflowGates } from "./lib/workflow-gates.ts";
+import { type AppTriageConfig, appTriageMismatch, workflowGates } from "./lib/workflow-gates.ts";
 
 const { values: args } = parseArgs({
   options: {
@@ -202,12 +202,20 @@ async function workflowMode(): Promise<never> {
   const n = Number(args.n);
   const items = generateLabeledRequests(SEED).slice(0, n).map((r) => ({ id: r.id, category: r.category, title: r.title, description: r.description, locationNote: r.locationNote }));
   const meta = runMeta({ seed: SEED, input: items, extra: { command: `node scripts/eval-triage.ts ${process.argv.slice(2).join(" ")}`, mode: "workflow", appUrl: app } });
-  const llm = await preflightFor(new OpenAiCompatProvider(String(args["base-url"]), String(args.model)), items);
-  const health = (await (await fetch(`${app}/api/health`)).json()) as { triage: string };
   const seeded = await fetch(`${app}/api/dev/seed`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reset: true }) });
   if (!seeded.ok) throw new Error(`seed failed: ${seeded.status}`);
   const login = (await (await fetch(`${app}/api/dev/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ employeeId: "emp_001" }) })).json()) as { token: string };
   const headers = { "content-type": "application/json", "Cf-Access-Jwt-Assertion": login.token };
+  // The pre-flight below reads the model file from --base-url's /props, so that must be
+  // the server the app's Workflow calls; check before submitting anything.
+  const appTriage = (await (await fetch(`${app}/api/dev/triage`, { headers })).json()) as AppTriageConfig;
+  const mismatch = appTriageMismatch(appTriage, String(args["base-url"]));
+  if (mismatch.length > 0) {
+    for (const m of mismatch) console.error(m);
+    process.exit(1);
+  }
+  const llm = await preflightFor(new OpenAiCompatProvider(String(args["base-url"]), String(args.model)), items);
+  const health = (await (await fetch(`${app}/api/health`)).json()) as { triage: string };
   const outcomes: { id: string; truth: string; requestId: string; reached: boolean; provider: string | null; category: string | null; latencyMs: number }[] = [];
   for (const item of items) {
     const t0 = performance.now();
@@ -231,7 +239,7 @@ async function workflowMode(): Promise<never> {
   const { reachedReview, providerCounts, categoryInEnum, failures } = workflowGates(n, outcomes);
   const latencies = outcomes.filter((o) => o.reached).map((o) => o.latencyMs);
   const result = {
-    meta: { ...meta, llm, appTriage: health.triage },
+    meta: { ...meta, llm, appTriage: health.triage, appLlm: appTriage },
     mode: "workflow",
     n,
     reachedReview,

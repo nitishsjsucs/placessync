@@ -36,6 +36,12 @@ export const devRoutes = new Hono<AppEnv>()
     const body: DevLoginResponse = { token, expiresAt: new Date(exp * 1000).toISOString() };
     return c.json(body);
   })
+  // Which provider and LLM endpoint this local server's Workflow calls, so the
+  // workflow-mode triage eval can check that it pre-flights the same llama-server.
+  .get("/api/dev/triage", (c) => {
+    const config = c.get("config");
+    return c.json({ provider: config.triageProvider, llmBaseUrl: config.llmBaseUrl, llmModel: config.llmModel });
+  })
   .post("/api/dev/logout", (c) => {
     deleteCookie(c, AUTH_COOKIE, { path: "/" });
     return c.json({ ok: true });

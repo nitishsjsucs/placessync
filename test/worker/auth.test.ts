@@ -114,6 +114,15 @@ describe("dev-mode token verification", () => {
   });
 });
 
+describe("dev-only triage config", () => {
+  it("/api/dev/triage reports the provider and LLM endpoint this server's Workflow calls", async () => {
+    expect((await call("/api/dev/triage")).status).toBe(401);
+    const res = await call("/api/dev/triage", { headers: authHeaders(await tokenFor(EMPLOYEE)) });
+    expect(res.status).toBe(200);
+    expect(await json(res)).toEqual({ provider: "stub", llmBaseUrl: "http://127.0.0.1:9/v1", llmModel: "unused-in-tests" });
+  });
+});
+
 describe("request guards", () => {
   it("dev mode answers 403 to a non-localhost host", async () => {
     const res = await exports.default.fetch(new Request("https://placessync.example.com/api/health"));
@@ -215,11 +224,11 @@ describe("access mode (production code path, SPEC 9.2)", () => {
     expect((await json(res)).error).toBe("unauthenticated");
   });
 
-  it.each(["/api/dev/users", "/api/dev/seed", "/api/dev/login", "/api/dev/naive/reset", "/api/dev/naive/reserve", "/api/dev/naive/export"])(
+  it.each(["/api/dev/users", "/api/dev/seed", "/api/dev/login", "/api/dev/triage", "/api/dev/naive/reset", "/api/dev/naive/reserve", "/api/dev/naive/export"])(
     "%s is not mounted (404)",
     async (path) => {
       const { send, teamToken } = await teamSetup();
-      const method = path.endsWith("users") || path.endsWith("export") ? "GET" : "POST";
+      const method = path.endsWith("users") || path.endsWith("export") || path.endsWith("triage") ? "GET" : "POST";
       const res = await send(path, { method, headers: authHeaders(await teamToken(ADMIN)) });
       expect(res.status).toBe(404);
       await res.body?.cancel();

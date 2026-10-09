@@ -38,3 +38,29 @@ export function workflowGates(n: number, outcomes: readonly WorkflowOutcome[]): 
   if ((providerCounts["openai-compat"] ?? 0) === 0) failures.push("no suggestion came from openai-compat");
   return { reachedReview, providerCounts, categoryInEnum, failures };
 }
+
+/** The app's own report of what its Workflow calls (GET /api/dev/triage). */
+export interface AppTriageConfig {
+  provider: string;
+  llmBaseUrl: string;
+  llmModel: string;
+}
+
+const normalizeUrl = (u: string) => {
+  const url = new URL(u);
+  // localhost and 127.0.0.1 name the same server here; the path loses a trailing slash.
+  if (url.hostname === "localhost") url.hostname = "127.0.0.1";
+  return `${url.protocol}//${url.host}${url.pathname.replace(/\/$/, "")}`;
+};
+
+/**
+ * Problems that stop a workflow-mode run before any request is submitted: the app is
+ * not on openai-compat, or its Workflow calls a different server than the one the eval
+ * pre-flights (whose /props model file the results name).
+ */
+export function appTriageMismatch(app: AppTriageConfig, evalBaseUrl: string): string[] {
+  const problems: string[] = [];
+  if (app.provider !== "openai-compat") problems.push(`the app's TRIAGE_PROVIDER is ${app.provider}, not openai-compat: rebuild with TRIAGE_PROVIDER=openai-compat in .dev.vars`);
+  if (normalizeUrl(app.llmBaseUrl) !== normalizeUrl(evalBaseUrl)) problems.push(`the app's Workflow calls ${app.llmBaseUrl} but --base-url is ${evalBaseUrl}`);
+  return problems;
+}
