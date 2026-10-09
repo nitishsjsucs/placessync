@@ -3,6 +3,7 @@
 // when an instance finished without recording anything, they go to staff for manual
 // categorization. No request can sit in "submitted" forever.
 import type { Config } from "../config.ts";
+import { newId } from "../ids.ts";
 import { ledgerFor } from "../ledger/ledger-for.ts";
 import { eventStatement } from "../repo/requests.ts";
 import { type TriageWorkflowBinding, startTriage } from "./start-triage.ts";
@@ -22,14 +23,17 @@ export interface SweepSummary {
 }
 
 async function handOff(env: Env, config: Pick<Config, "siteId">, id: string, at: string, reason: string): Promise<boolean> {
+  // The event is tied to this UPDATE by a fresh change id, so an overlapping sweep run
+  // whose UPDATE changed nothing writes no second event even with the same `at`.
+  const change = newId("chg");
   const [update] = await env.DB.batch([
     env.DB.prepare(
-      "UPDATE facilities_requests SET status = 'awaiting_review', triage_state = 'unavailable', updated_at = ? WHERE id = ? AND status = 'submitted'",
-    ).bind(at, id),
+      "UPDATE facilities_requests SET status = 'awaiting_review', triage_state = 'unavailable', updated_at = ?, last_change_id = ? WHERE id = ? AND status = 'submitted'",
+    ).bind(at, change, id),
     env.DB.prepare(
       `INSERT INTO request_events (request_id, type, actor_id, data, at)
-       SELECT ?, 'triage_unavailable', NULL, ?, ? WHERE EXISTS (SELECT 1 FROM facilities_requests WHERE id = ? AND triage_state = 'unavailable' AND updated_at = ?)`,
-    ).bind(id, JSON.stringify({ reason }), at, id, at),
+       SELECT ?, 'triage_unavailable', NULL, ?, ? WHERE EXISTS (SELECT 1 FROM facilities_requests WHERE id = ? AND last_change_id = ?)`,
+    ).bind(id, JSON.stringify({ reason }), at, id, change),
   ]);
   if (!update || update.meta.changes === 0) return false;
   try {

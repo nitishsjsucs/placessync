@@ -15,15 +15,31 @@ beforeAll(async () => {
 const valid = { siteId: "hq", title: "Projector has no signal", description: "The projector in Sequoia shows no signal from the HDMI cable.", resourceId: "res_sequoia" };
 type Created = { request: { id: string; status: string; triageState: string }; triage: string };
 
-/** An app whose Workflow binding is replaced, sharing the real env otherwise. */
-function appWith(triageWorkflow: (typeof defaultDeps)["triageWorkflow"]) {
-  const app = createApp({ ...defaultDeps, triageWorkflow });
+/** An app whose Workflow binding (and optionally clock) is replaced, sharing the real env otherwise. */
+function appWith(triageWorkflow: (typeof defaultDeps)["triageWorkflow"], now: (typeof defaultDeps)["now"] = defaultDeps.now) {
+  const app = createApp({ ...defaultDeps, triageWorkflow, now });
   return async (path: string, init: RequestInit) => {
     const ctx = createExecutionContext();
     const res = await app.fetch(new Request(`${BASE}${path}`, init), env, ctx);
     await waitOnExecutionContext(ctx);
     return res;
   };
+}
+
+/**
+ * An app whose clock never moves, so two concurrent requests stamp the same updated_at.
+ * workerd advances Date.now() only across I/O, so concurrent requests usually share a
+ * timestamp anyway; a fixed clock makes that happen every time.
+ */
+function frozenApp() {
+  const fixed = Date.now();
+  const send = appWith(defaultDeps.triageWorkflow, () => fixed);
+  return async (employeeId: string, path: string, body?: unknown) =>
+    send(path, {
+      method: "POST",
+      headers: { ...authHeaders(await tokenFor(employeeId)), "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
 }
 
 describe("POST /api/requests (SPEC 7.3)", () => {
@@ -229,6 +245,21 @@ describe("staff review (SPEC 7.3 conditional write)", () => {
     await back.body?.cancel();
     expect(await eventTypes(id)).toEqual(["reviewed", "status_changed", "status_changed"]);
   });
+
+  it("two concurrent status changes at the same instant give one 200, one 409 and one status_changed event", async () => {
+    const id = await suggested();
+    await (await (await as(STAFF)).post(`/api/staff/requests/${id}/review`, { decision: "accept" })).body?.cancel();
+    const post = frozenApp();
+    const [r1, r2] = await Promise.all([
+      post(STAFF, `/api/staff/requests/${id}/status`, { status: "in_progress" }),
+      post(ADMIN, `/api/staff/requests/${id}/status`, { status: "in_progress" }),
+    ]);
+    expect([r1.status, r2.status].sort()).toEqual([200, 409]);
+    await r1.body?.cancel();
+    await r2.body?.cancel();
+    expect(await eventTypes(id)).toEqual(["reviewed", "status_changed"]);
+    expect(await requestRow(id)).toMatchObject({ status: "in_progress" });
+  });
 });
 
 describe("reporter cancel", () => {
@@ -259,5 +290,15 @@ describe("reporter cancel", () => {
     const other = await user.post(`/api/requests/${theirs}/cancel`);
     expect(other.status).toBe(404);
     await other.body?.cancel();
+  });
+
+  it("two concurrent cancels at the same instant give one 200, one 409 and one cancelled event", async () => {
+    const id = await insertRequest({ reporterId: EMPLOYEE, status: "awaiting_review", triageState: "suggested" });
+    const post = frozenApp();
+    const [r1, r2] = await Promise.all([post(EMPLOYEE, `/api/requests/${id}/cancel`), post(EMPLOYEE, `/api/requests/${id}/cancel`)]);
+    expect([r1.status, r2.status].sort()).toEqual([200, 409]);
+    await r1.body?.cancel();
+    await r2.body?.cancel();
+    expect(await eventTypes(id)).toEqual(["cancelled"]);
   });
 });

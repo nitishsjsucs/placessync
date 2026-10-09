@@ -37,6 +37,11 @@ describe("D1 migrations", () => {
     expect(row?.n).toBe(0);
   });
 
+  it("adds last_change_id to facilities_requests (0004)", async () => {
+    const { results } = await env.DB.prepare("SELECT name, type, \"notnull\" AS not_null FROM pragma_table_info('facilities_requests') WHERE name = 'last_change_id'").all();
+    expect(results).toEqual([{ name: "last_change_id", type: "TEXT", not_null: 0 }]);
+  });
+
   it("allows only one reviewed event per request", async () => {
     const at = "2026-10-08T15:00:00.000Z";
     await env.DB.batch([

@@ -111,13 +111,17 @@ export const staffRoutes = new Hono<AppEnv>()
     if (nextStatus(current, action) !== target) {
       return errorResponse(c, 409, "invalid_transition", `Cannot move a ${current} request to ${target}.`);
     }
-    const at = new Date(c.get("deps").now()).toISOString();
+    const deps = c.get("deps");
+    const at = new Date(deps.now()).toISOString();
+    // The event is tied to this UPDATE by a fresh change id, not by the timestamp: a
+    // concurrent change that lost the race can share `at` but never `change`.
+    const change = deps.newId("chg");
     const [update] = await c.env.DB.batch([
-      c.env.DB.prepare("UPDATE facilities_requests SET status = ?, updated_at = ? WHERE id = ? AND status = ?").bind(target, at, id, current),
+      c.env.DB.prepare("UPDATE facilities_requests SET status = ?, updated_at = ?, last_change_id = ? WHERE id = ? AND status = ?").bind(target, at, change, id, current),
       c.env.DB.prepare(
         `INSERT INTO request_events (request_id, type, actor_id, data, at)
-         SELECT ?, 'status_changed', ?, ?, ? WHERE EXISTS (SELECT 1 FROM facilities_requests WHERE id = ? AND status = ? AND updated_at = ?)`,
-      ).bind(id, c.get("principal").employeeId, JSON.stringify({ from: current, to: target, note: note ?? null }), at, id, target, at),
+         SELECT ?, 'status_changed', ?, ?, ? WHERE EXISTS (SELECT 1 FROM facilities_requests WHERE id = ? AND last_change_id = ?)`,
+      ).bind(id, c.get("principal").employeeId, JSON.stringify({ from: current, to: target, note: note ?? null }), at, id, change),
     ]);
     if (!update || update.meta.changes === 0) return errorResponse(c, 409, "invalid_transition", "The request changed meanwhile; reload and try again.");
     await notifyUpdated(c.env, c.get("config"), id);

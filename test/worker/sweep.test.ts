@@ -2,6 +2,7 @@ import { createExecutionContext, createScheduledController, introspectWorkflowIn
 import { env } from "cloudflare:workers";
 import { beforeAll, describe, expect, it } from "vitest";
 import worker from "../../src/worker/index.ts";
+import { sweepStrandedRequests } from "../../src/worker/triage/sweep.ts";
 import { eventTypes, insertRequest, requestRow } from "../helpers/requests.ts";
 import { seed } from "../helpers/world.ts";
 
@@ -92,6 +93,16 @@ describe("cron sweep for stranded requests (SPEC 7.3, ADR 0008)", () => {
     await clearSubmitted();
     const id = await insertRequest({ ageMinutes: 5, triageAttempts: 3 });
     await runSweep();
+    expect(await requestRow(id)).toMatchObject({ status: "awaiting_review", triage_state: "unavailable" });
+    expect(await eventTypes(id)).toEqual(["triage_unavailable"]);
+  });
+
+  it("two overlapping sweep runs at the same instant hand a row off once, with one event", async () => {
+    await clearSubmitted();
+    const id = await insertRequest({ ageMinutes: 5, triageAttempts: 3 });
+    const now = Date.now();
+    const [a, b] = await Promise.all([sweepStrandedRequests(env, { siteId: "hq" }, now), sweepStrandedRequests(env, { siteId: "hq" }, now)]);
+    expect(a.handedOff + b.handedOff).toBe(1);
     expect(await requestRow(id)).toMatchObject({ status: "awaiting_review", triage_state: "unavailable" });
     expect(await eventTypes(id)).toEqual(["triage_unavailable"]);
   });

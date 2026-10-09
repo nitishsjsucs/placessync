@@ -67,14 +67,16 @@ export const requestRoutes = new Hono<AppEnv>()
     const found = await getRequestWithSuggestion(c.env.DB, id);
     if (!found || found.reporterId !== p.employeeId) return errorResponse(c, 404, "request_not_found", "No such request.");
     const at = new Date(deps.now()).toISOString();
+    // Written only if this UPDATE took effect: the event is tied to it by a fresh change id.
+    const change = deps.newId("chg");
     const [update] = await c.env.DB.batch([
       c.env.DB.prepare(
-        "UPDATE facilities_requests SET status = 'cancelled', updated_at = ? WHERE id = ? AND reporter_id = ? AND status IN ('submitted', 'awaiting_review')",
-      ).bind(at, id, p.employeeId),
+        "UPDATE facilities_requests SET status = 'cancelled', updated_at = ?, last_change_id = ? WHERE id = ? AND reporter_id = ? AND status IN ('submitted', 'awaiting_review')",
+      ).bind(at, change, id, p.employeeId),
       c.env.DB.prepare(
         `INSERT INTO request_events (request_id, type, actor_id, data, at)
-         SELECT ?, 'cancelled', ?, '{}', ? WHERE EXISTS (SELECT 1 FROM facilities_requests WHERE id = ? AND status = 'cancelled' AND updated_at = ?)`,
-      ).bind(id, p.employeeId, at, id, at),
+         SELECT ?, 'cancelled', ?, '{}', ? WHERE EXISTS (SELECT 1 FROM facilities_requests WHERE id = ? AND last_change_id = ?)`,
+      ).bind(id, p.employeeId, at, id, change),
     ]);
     if (!update || update.meta.changes === 0) return errorResponse(c, 409, "not_cancellable", "Only a request that nobody has picked up can be cancelled.");
     try {
