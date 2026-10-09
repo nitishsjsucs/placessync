@@ -112,6 +112,8 @@ async function requestHash(input: ReserveInput): Promise<string> {
 }
 
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
+/** How long after a commit the outbox flush alarm fires, so a burst of commits shares one flush. */
+const FLUSH_DELAY_MS = 250;
 
 export class SiteLedger extends DurableObject<Env> {
   private readonly sql: SqlStorage;
@@ -121,6 +123,8 @@ export class SiteLedger extends DurableObject<Env> {
   clockOverride?: () => number;
   /** Tests only: how many times syncCatalog ran in this instance. */
   catalogSyncCount = 0;
+  /** Tests only, set through runInDurableObject: delay of the alarm a commit arms. */
+  flushDelayMs = FLUSH_DELAY_MS;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -198,11 +202,11 @@ export class SiteLedger extends DurableObject<Env> {
     );
   }
 
-  /** Arms the flush alarm 250 ms out unless one is already pending. */
+  /** Arms the flush alarm `flushDelayMs` (250 ms) out unless one is already pending. */
   private async scheduleFlush(): Promise<void> {
     if (this.alarmPending) return;
     this.alarmPending = true;
-    if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + 250);
+    if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + this.flushDelayMs);
   }
 
   private storeIdempotent(employeeId: string, key: string, hash: string, result: ReserveResult, now: number): void {

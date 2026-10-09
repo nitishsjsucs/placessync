@@ -17,6 +17,14 @@ beforeEach(async () => {
   await hqLedger().resetForDev();
   await env.DB.exec("DELETE FROM reservation_facts");
   await env.DB.exec("DELETE FROM projection_state");
+  // A commit arms the flush alarm 250 ms out. These tests drive that alarm by hand with
+  // runDurableObjectAlarm, which runs a scheduled alarm at once and does nothing when none
+  // is scheduled, so each call still proves a commit armed one. On a loaded machine the
+  // test's own RPCs took longer than 250 ms and the real alarm drained the outbox before
+  // the test looked (load average about 40), so the alarm is armed a minute out instead.
+  await runInDurableObject(hqLedger(), (i: SiteLedger) => {
+    i.flushDelayMs = 60_000;
+  });
 });
 
 async function d1Facts(date: string) {
