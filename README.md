@@ -74,7 +74,7 @@ Design decisions are recorded in [`docs/adr/`](docs/adr) (one ledger per site, s
 
 ## What runs where
 
-| Capability | Local (this Mac; CI configured but not yet run) | Production (after deploy) |
+| Capability | Local (this Mac and GitHub Actions CI) | Production (after deploy) |
 |---|---|---|
 | Worker and Hono API | workerd via `vite dev` / `vite preview`; tests via `@cloudflare/vitest-plugin` | Cloudflare Workers |
 | Static SPA | Vite build served by local workerd assets | Workers static assets |
@@ -97,7 +97,7 @@ No local stand-in is the production service. In particular:
 
 ## Run it locally
 
-Requirements: npm 11 and Node 22.22 or later (the `engines` floor). Only Node 25.9.0 on macOS (arm64) has been used so far; CI is configured for Node 24 on ubuntu-latest but has not run yet. jsdom 30.1.2 declares Node ^22.22.2, ^24.15.0 or >=26, so `npm ci` warns about the engine on Node 25, and the tests pass there anyway. No Cloudflare account is needed.
+Requirements: npm 11 and Node 22.22 or later (the `engines` floor). Development used Node 25.9.0 on macOS (arm64). GitHub Actions CI uses Node 24 on ubuntu-latest; on 2026-10-09 both of its jobs passed there with Node 24.21.0 (types, typecheck, `npm test` and build; then Playwright and a one-run contention eval against a preview server). jsdom 30.1.2 declares Node ^22.22.2, ^24.15.0 or >=26, so `npm ci` warns about the engine on Node 25, and the tests pass there anyway. No Cloudflare account is needed.
 
 ```sh
 npm ci
