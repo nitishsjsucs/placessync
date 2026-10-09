@@ -618,7 +618,8 @@ export class SiteLedger extends DurableObject<Env> {
       const failures = Number(this.meta("flush_failures")) + 1;
       this.setMeta("flush_failures", failures);
       this.setMeta("last_flush_error", err instanceof Error ? err.message : String(err));
-      await this.ctx.storage.setAlarm(Date.now() + flushBackoffMs(failures));
+      // this.now() so a test can place the backoff alarm far from real time; Date.now() in production.
+      await this.ctx.storage.setAlarm(this.now() + flushBackoffMs(failures));
       this.alarmPending = true;
     }
   }

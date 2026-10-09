@@ -24,6 +24,7 @@ beforeEach(async () => {
   // the test looked (load average about 40), so the alarm is armed a minute out instead.
   await runInDurableObject(hqLedger(), (i: SiteLedger) => {
     i.flushDelayMs = 60_000;
+    i.clockOverride = undefined;
   });
 });
 
@@ -100,31 +101,38 @@ describe("outbox projection to D1 (SPEC 7.1, ADR 0003)", () => {
 
   it("backs off with its own failure counter while D1 fails, keeps rows, then drains", async () => {
     const date = bizDay(3);
+    const stub = hqLedger();
+    const getAlarm = () => runInDurableObject(stub, (_i: SiteLedger, state) => state.storage.getAlarm());
     await env.DB.exec("ALTER TABLE reservation_facts RENAME TO rf_off");
     try {
       await mutate(date);
-      const stub = hqLedger();
+      // A failed flush re-arms the alarm at now + 2^n s. With the ledger clock an hour
+      // ahead, that alarm is an hour away in real time, so the platform cannot run it
+      // while the test drives the alarm by hand, and its time can be asserted exactly.
+      const T = Date.now() + 3_600_000;
+      await runInDurableObject(stub, (i: SiteLedger) => {
+        i.clockOverride = () => T;
+      });
       await runDurableObjectAlarm(stub);
       let status = await stub.projectionStatus();
       expect(status.lastFlushError).toContain("no such table");
       expect(status.flushFailures).toBe(1);
       expect(status.outboxDepth).toBe(4);
-      let next = await runInDurableObject(stub, (_i: SiteLedger, state) => state.storage.getAlarm());
-      expect((next ?? 0) - Date.now()).toBeGreaterThan(1500);
-      expect((next ?? 0) - Date.now()).toBeLessThanOrEqual(2000);
+      expect(await getAlarm()).toBe(T + 2000);
 
       await runDurableObjectAlarm(stub);
       status = await stub.projectionStatus();
       expect(status.flushFailures).toBe(2);
       expect(status.outboxDepth).toBe(4);
-      next = await runInDurableObject(stub, (_i: SiteLedger, state) => state.storage.getAlarm());
-      expect((next ?? 0) - Date.now()).toBeGreaterThan(3500);
-      expect((next ?? 0) - Date.now()).toBeLessThanOrEqual(4000);
+      expect(await getAlarm()).toBe(T + 4000);
     } finally {
       await env.DB.exec("ALTER TABLE rf_off RENAME TO reservation_facts");
+      await runInDurableObject(stub, (i: SiteLedger) => {
+        i.clockOverride = undefined;
+      });
     }
-    await runDurableObjectAlarm(hqLedger());
-    const status = await hqLedger().projectionStatus();
+    await runDurableObjectAlarm(stub);
+    const status = await stub.projectionStatus();
     expect(status).toMatchObject({ outboxDepth: 0, flushFailures: 0, lastFlushError: null });
     expect(await d1Facts(date)).toEqual(await ledgerRows(date));
   });
