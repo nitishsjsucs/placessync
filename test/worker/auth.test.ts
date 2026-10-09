@@ -90,10 +90,11 @@ describe("dev-mode token verification", () => {
   it("ignores a role claim in the token", async () => {
     const token = await tokenFor(EMPLOYEE, { extraClaims: { role: "facilities_admin" } });
     const res = await me(authHeaders(token));
+    expect(res.status).toBe(200);
     expect((await json<{ employee: { role: string } }>(res)).employee.role).toBe("employee");
     const admin = await call("/api/admin/projection/status", { headers: authHeaders(token) });
-    expect(admin.status).not.toBe(200);
-    await admin.body?.cancel();
+    expect(admin.status).toBe(403);
+    expect((await json(admin)).error).toBe("forbidden");
   });
 
   it("accepts the CF_Authorization cookie set by /api/dev/login", async () => {

@@ -18,9 +18,9 @@ export interface LiveClient {
 
 const open: WebSocket[] = [];
 
-export async function connect(token: string, path = "/api/sites/hq/live"): Promise<LiveClient> {
+export async function connect(token: string, path = "/api/sites/hq/live", extraHeaders: Record<string, string> = {}): Promise<LiveClient> {
   const res = await exports.default.fetch(
-    new Request(`http://localhost${path}`, { headers: { upgrade: "websocket", ...authHeaders(token) } }),
+    new Request(`http://localhost${path}`, { headers: { ...extraHeaders, upgrade: "websocket", ...authHeaders(token) } }),
   );
   const ws = res.webSocket;
   if (res.status !== 101 || !ws) throw new Error(`upgrade failed: ${res.status} ${await res.text()}`);

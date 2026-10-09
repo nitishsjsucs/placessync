@@ -1,9 +1,10 @@
 import { applyD1Migrations, reset, runInDurableObject, type D1Migration } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ACTOR_HEADER } from "../../src/worker/ledger/live.ts";
 import type { SiteLedger } from "../../src/worker/ledger/site-ledger.ts";
 import { ADMIN, EMPLOYEE, STAFF, tokenFor } from "../helpers/tokens.ts";
-import { hqLedger, seed } from "../helpers/world.ts";
+import { bizDay, hqLedger, seed } from "../helpers/world.ts";
 import { closeAll, connect, flush } from "../helpers/ws.ts";
 
 beforeEach(async () => {
@@ -39,6 +40,21 @@ describe("staff events over the live socket (SPEC 7.1, 7.2)", () => {
     expect(await hqLedger().notifyStaff({ event: "triage_unavailable", requestId: "req_x" })).toEqual({ delivered: 0 });
     await flush(emp);
     expect(emp.messages.filter((m) => m.type === "staff_event")).toHaveLength(0);
+  });
+
+  it("ignores a client-sent actor header: the socket acts as the token's employee", async () => {
+    // SPEC 7.1: the Worker builds a fresh Request for the ledger, so a forged
+    // X-PlacesSync-Actor claiming the admin never reaches it.
+    const date = bizDay(2);
+    const booked = await hqLedger().reserve({ employeeId: EMPLOYEE, role: "employee" }, { resourceId: "res_2a01", date, startMin: 540, endMin: 660 }, "ws-actor-1");
+    expect(booked.ok).toBe(true);
+    const forged = JSON.stringify({ employeeId: ADMIN, role: "facilities_admin", exp: 9_999_999_999 });
+    const emp = await connect(await tokenFor(EMPLOYEE), undefined, { [ACTOR_HEADER]: forged });
+    emp.send({ type: "subscribe_staff" });
+    expect(await emp.next()).toEqual({ type: "error", code: "forbidden" });
+    emp.send({ type: "subscribe", date });
+    const snap = await emp.next((m) => m.type === "snapshot");
+    expect((snap.busy as Record<string, unknown[]>).res_2a01).toEqual([{ startMin: 540, endMin: 660, mine: true }]);
   });
 
   it("closes an expired staff socket with 4001 instead of delivering", async () => {

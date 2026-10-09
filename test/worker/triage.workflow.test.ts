@@ -136,7 +136,7 @@ describe("TriageWorkflow (SPEC 7.3)", () => {
     expect(await requestRow(id)).toMatchObject({ status: "submitted", triage_state: "pending" });
   });
 
-  it("a missing request fails load-request without retries", async () => {
+  it("a missing request ends the instance errored because a step threw a NonRetryableError", async () => {
     const id = "req_missing_row";
     await using instance = await introspectWorkflowInstance(env.TRIAGE_WORKFLOW, id);
     await instance.modify(async (m) => {
@@ -144,6 +144,33 @@ describe("TriageWorkflow (SPEC 7.3)", () => {
     });
     await env.TRIAGE_WORKFLOW.create({ id, params: params(id) });
     await instance.waitForStatus("errored");
+    // The local engine reports the cause in its own words; the step's message is checked
+    // by the runTriage case below.
+    expect((await instance.getError()).message).toContain("a step threw an NonRetryableError");
+  });
+
+  it("load-request throws a NonRetryableError for a missing request, so the engine does not retry it", async () => {
+    const { runTriage } = await import("../../src/worker/triage/triage-workflow.ts");
+    const { NonRetryableError } = await import("cloudflare:workflows");
+    const calls: string[] = [];
+    // Runs each step body once and records it; the engine's retry decision rests on the
+    // error type, which is what this checks.
+    const step = {
+      do: async (name: string, a: unknown, b?: unknown) => {
+        calls.push(name);
+        const fn = (typeof a === "function" ? a : b) as (ctx: { attempt: number }) => Promise<unknown>;
+        return fn({ attempt: 1 });
+      },
+      waitForEvent: async () => {
+        throw new Error("unused");
+      },
+      sleep: async () => undefined,
+      sleepUntil: async () => undefined,
+    };
+    const run = runTriage(env, params("req_missing_row"), step as never);
+    await expect(run).rejects.toBeInstanceOf(NonRetryableError);
+    await expect(run).rejects.toThrow("request req_missing_row not found");
+    expect(calls).toEqual(["load-request"]);
   });
 });
 
