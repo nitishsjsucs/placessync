@@ -10,14 +10,15 @@ The headline is the race: two people book the same desk for the same hour at the
 
 Shown, in [`evals/results/production-verify.json`](../evals/results/production-verify.json) (`npm run prod:verify`, 2026-10-15, at `34f9fe2`, signed in through Access with the verification service token as `emp_verify`):
 
-- 200 concurrent attempts to book one desk for the same hour, each with its own Idempotency-Key: 1 confirmed, 199 `resource_conflict`, 0 employee conflicts, 0 server errors, 0 transport errors, and 1 confirmed booking in that hour afterwards.
-- A live WebSocket observer saw the booking and its release, with 0 gaps and 0 duplicates.
+- 200 concurrent attempts to book one desk for the same hour, each with its own Idempotency-Key, all 200 by the one service-token identity `emp_verify`: 1 confirmed, 199 `resource_conflict`, 0 employee conflicts, 0 server errors, 0 transport errors, and 1 confirmed booking in that hour afterwards. The ledger checks the desk before the employee, so the 199 were recorded as desk conflicts; with one identity, the employee rule would have refused them too. The evidence for many employees at once is local: 100 employees over 20 resources, 5 runs, 0 overlapping confirmed bookings ([`contention.json`](../evals/results/contention.json), local workerd).
+- A live WebSocket observer saw that check's own booking (2026-10-19, 07:00 to 08:00) and its release: 2 deltas, 0 gaps and 0 duplicates.
 - 3 of 3 facilities requests went through the Workflow and got a suggestion from Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`), each on the first attempt, each in the four-category enum.
 - The CPU gate failed. Over the 218 requests in the analytics range around the burst, CPU p50 was 15.72 ms and p99 40.97 ms, above the Free plan's nominal 10 ms; all 218 ended with status `success`. So the file's overall `passed` is `false`. Say this if CPU or the Free plan comes up.
 
 Not shown in production, so do not claim it:
 
 - A person's One-time PIN sign-in. `prod:verify` used the service token, so no results file covers the two-persona flow below. Rehearse it the day before.
+- A contended burst across several people. Every production attempt came from `emp_verify`.
 - The booking reaching the D1 report view (`projection.checked` is `false`; it needs an admin sign-in).
 - The Cron Trigger firing, CPU per Workflow step, and every failure path: the Workflow's retry, keyword fallback and review timeout, the outbox's backoff when D1 fails, and Durable Object eviction. There is no fault injection in production. Those paths have run only in local tests on Miniflare, so call them local when you mention them.
 - Any Workers AI accuracy. Three requests written for the check are a sanity check, not a measurement.
@@ -45,9 +46,9 @@ The day before: run the whole 4-minute version once, end to end, then clean up (
 2. Window B (private): the same, with `nitishsancs@gmail.com`.
 3. Check that both headers match the table above.
 4. In both windows open Find a space. Next to the heading the status should read "Live updates on".
-5. In both windows pick the same date in the "Booking date" calendar: a weekday in the next few days, not today. On today, slots that have started cannot be picked; weekends and dates more than 14 days ahead are disabled. Then click the "Desks" tab. Desk 2A-01 is the first row.
+5. In both windows pick the same date in the month calendar (its heading on screen is the month and year; "Booking date" is only its accessible name): a weekday in the next few days, not today. On today, slots that have started cannot be picked; weekends and dates more than 14 days ahead are disabled. Then click the "Desks" tab and check that the line above the grid reads "<n> spaces on <that date>." in both windows. Desk 2A-01 is the first row.
 6. Check that Desk 2A-01 is free from 10:00 to 11:00, and that neither persona has an upcoming desk booking at that hour (My bookings, Upcoming). Times are the site's local time, America/Los_Angeles.
-7. Keep each window at least 640 px wide. Narrower than that, the slot grid becomes a list of time buttons for one space at a time (`COMPACT_QUERY` in `src/client/hooks/useMediaQuery.ts`).
+7. Keep each window at least 640 px wide. Narrower than that, the slot grid becomes a list of time buttons for one space at a time (`COMPACT_QUERY` in `src/client/hooks/useMediaQuery.ts`). Below 1024 px wide, as two windows side by side on a laptop usually are, the calendar and filters stack above the grid (`.layout` in `src/client/pages/pages.module.css`); scroll both windows so the Desk 2A-01 row and the 10:00 column are in view before you share the screen.
 8. Window B: Staff, "Triage queue" tab. It should read "Nothing waiting for review.", so the demo request will be the only row.
 9. Have the fallback ready: the local server built and running, and the README open at Results (see [If something misbehaves](#if-something-misbehaves)).
 
@@ -56,9 +57,9 @@ The day before: run the whole 4-minute version once, end to end, then clean up (
 Staged beforehand in both windows: Find a space, the same date, the "Desks" tab. In the Desk 2A-01 row, click the cell under 10:00, then Shift+click the next cell, so the button reads "Book Desk 2A-01, 10:00 to 11:00". Click it. Both windows now show the dialog "Book Desk 2A-01" with a "Confirm booking" button.
 
 1. **0:00.** Say: "Two people, two separate Cloudflare Access sessions, the same desk for the same hour. Both have the confirm dialog open."
-2. **0:10.** Click "Confirm booking" in window A, then straight away in window B. Window A: the dialog closes and the hour shows as Yours. Window B: the dialog says "Someone else booked this first: 10:00 to 11:00 is taken. The grid has been refreshed; pick another time.", and B's grid shows the hour as Booked.
+2. **0:10.** Click "Confirm booking" in window A, then straight away in window B. Window A: the dialog closes and the hour shows as Yours. Window B: the dialog says "Someone else booked this first: 10:00 to 11:00 is taken. The grid has been refreshed; pick another time." The dialog covers the grid, so click "Cancel" in B's dialog; B's grid now shows the hour as Booked. If B won instead, say the same with the windows swapped.
 3. **0:20.** Say: "Every booking for this site goes through one Durable Object, the SiteLedger. It runs the overlap check and the insert in one SQLite transaction with nothing awaited in between, and it also claims each 15-minute slot under a primary key as a backstop. So exactly one request wins. After the commit it pushes the change to every browser watching that date over hibernatable WebSockets."
-4. **0:40.** Say: "Two clicks a moment apart are a small race, so the production check fired 200 concurrent attempts at one desk for one hour: 1 confirmed, 199 conflicts, 0 server errors, and a live observer saw the booking and its release. The same app sends each facilities request through a Workflow to Workers AI for a suggested category, which staff accept or change; 3 of 3 check requests got a Workers AI suggestion. I can show that next."
+4. **0:40.** Say: "Two clicks a moment apart are a small race, so the production check fired 200 concurrent attempts from one test identity at one desk for one hour: 1 confirmed, 199 conflicts, 0 server errors, and a live observer saw that booking and its release. The same app sends each facilities request through a Workflow to Workers AI for a suggested category, which staff accept or change; 3 of 3 check requests got a Workers AI suggestion. I can show that next."
 
 ## The 4-minute version
 
@@ -78,21 +79,21 @@ Say: "The browser checks the booking rules inline with the same pure function th
 
 Do: click "Confirm booking" in window A, then in window B.
 
-What happens: A's dialog closes and the hour shows as Yours (the grid legend reads Booked, Yours, Selected). B's dialog shows "Someone else booked this first: 10:00 to 11:00 is taken. The grid has been refreshed; pick another time." Whichever request reaches the SiteLedger first wins; with A clicked first, that is normally A.
+What happens: A's dialog closes and the hour shows as Yours (the grid legend reads Booked, Yours, Selected). B's dialog shows "Someone else booked this first: 10:00 to 11:00 is taken. The grid has been refreshed; pick another time." Whichever request reaches the SiteLedger first wins; with A clicked first, that is normally A. If B won, swap the roles: say the same thing with the windows swapped, and in step 3 cancel from window B's My bookings while window A watches.
 
-Say: "B's dialog stays open on purpose. It captured the booking when it opened, so a live update cannot change the request under the user, and the server's 409 is the answer. B's grid shows the hour as booked: that arrived over the WebSocket as a delta, separately from B's own request."
+Say: "B's dialog stays open on purpose. It captured the booking when it opened, so a live update cannot change the request under the user, and the server's 409 is the answer."
 
-Do: click "Cancel" in B's dialog.
+Do: click "Cancel" in B's dialog. The dialog is modal and dims the page behind it, so close it before pointing at B's grid.
 
-Say: "Inside the ledger, one synchronous transaction does the idempotency lookup, the rules, an overlap query on the desk, an overlap query on the employee, the insert, a slot row per 15 minutes for the desk and for the employee under primary keys, the version bumps, an outbox row for reporting, and the stored response. If any slot is already claimed, the whole transaction rolls back. In production, 200 concurrent attempts on one desk gave 1 confirmed and 199 conflicts with 0 server errors."
+Say: "B's grid shows the hour as booked. The ledger pushed a delta over the WebSocket, and the 409 also refreshed the grid, so this screen alone cannot show which got there first. The release in a moment is the clean proof of the push, because B sends no request there. Inside the ledger, one synchronous transaction does the idempotency lookup, the rules, an overlap query on the desk, an overlap query on the employee, the insert, a slot row per 15 minutes for the desk and for the employee under primary keys, the version bumps, an outbox row for reporting, and the stored response. If any slot is already claimed, the whole transaction rolls back. In production, 200 concurrent attempts from one test identity on one desk gave 1 confirmed and 199 conflicts with 0 server errors."
 
 ### 3. The release (1:30 to 1:50)
 
 Do: window A, My bookings, "Upcoming" tab. On the Desk 2A-01 row click "Cancel booking". In the dialog "Cancel this booking?" click "Cancel booking" (the other button is "Keep booking").
 
-What happens: window B is still on Find a space for that date, and the hour turns free again without a reload.
+What happens: window B is still on Find a space for that date, and the hour turns free again without a reload. B sent no request, so the change can only have come over the WebSocket.
 
-Say: "Cancelling is the same path in reverse: one transaction deletes the slot claims and marks the booking cancelled, and a released delta goes out. The production observer saw exactly this pair, the booking and its release, with no gaps."
+Say: "Cancelling is the same path in reverse: one transaction deletes the slot claims and marks the booking cancelled, and a released delta goes out. Window B made no request; the push alone updated it. In production a live observer saw the same kind of pair for the check's own booking: the booking and its release, 2 deltas, no gaps."
 
 ### 4. A facilities request (1:50 to 2:50)
 
@@ -108,7 +109,7 @@ Click "Submit request". Window A moves to the request page with "Your request wa
 
 Submit one request only. Each classification spends Workers AI neurons from the Free plan's 10,000 a day, which this account shares with three other apps (README, Production on the Workers Free plan; neuron use has never been read from the account).
 
-Say: "The request is committed to D1 first. Then a Workflow instance starts with the request id as its instance id, so a retry cannot start a second one. Its steps load the request, ask Workers AI in JSON mode for one of four categories, record the suggestion, and notify staff over the same WebSocket. Then it waits up to 24 hours for a review."
+Say: "The request is committed to D1 first. Then a Workflow instance starts with the request id as its instance id, so a retry cannot start a second one. Its steps load the request, ask Workers AI in JSON mode for one of four categories, record the suggestion, and notify staff over the ledger's WebSocket channel. Then it waits up to 24 hours for a review."
 
 Do: watch window B. When the staff event arrives, the Staff page reloads its queue: the new row shows the suggested category, a confidence percentage and a "Workers AI" label. In `prod:verify` each of the 3 suggestions was recorded at most 5,449 to 7,782 ms after submitting (the file records upper bounds, `production-verify.json`). No production results file covers the staff event itself, so if the row has not appeared after about 15 seconds, reload the page.
 
@@ -137,7 +138,7 @@ Close: "That's the app. I'm happy to go deeper into any part of it."
 For a People team audience, the framing is trust in an internal tool: nobody loses a desk they were told they had, every screen shows the same truth, and a model never routes a request without a person.
 
 - **One writer per site.** The `SiteLedger` Durable Object is the only writer of reservations for its site, and its SQLite is the source of truth. A booking is one `transactionSync` with no `await` inside (`src/worker/ledger/site-ledger.ts`). Slot rows under primary keys are a second line of defence if the overlap query were ever wrong ([ADR 0002](adr/0002-slot-claims-under-a-primary-key.md)).
-- **Live updates.** Browsers subscribe per date over hibernatable WebSockets. Each commit bumps that date's version in the same transaction; a client applies a delta only when its version is the last one plus 1, ignores duplicates, and resubscribes that date for a fresh snapshot on a gap ([ADR 0007](adr/0007-per-date-live-versions.md)). Pings are answered by the runtime's auto-response, so keepalives do not wake the object.
+- **Live updates.** Browsers subscribe per date over hibernatable WebSockets. Each commit bumps that date's version in the same transaction; a client applies a delta only when its version is the last one plus 1, ignores duplicates, and resubscribes that date for a fresh snapshot on a gap ([ADR 0007](adr/0007-per-date-live-versions.md)). The object registers a ping/pong auto-response, so a client keepalive would not wake it; the browser client sends none and reconnects with backoff if a socket drops.
 - **Reporting.** D1 is a projection. Each commit writes an outbox row in the same transaction, and the object's alarm flushes it to D1 with version-guarded upserts, so a crash between commit and send loses nothing ([ADR 0003](adr/0003-transactional-outbox.md)).
 - **Triage.** One Workflow instance per request, with retries and a timeout on the model call, a labelled keyword fallback, an idempotent record step, a staff notification and a 24-hour wait for review ([ADR 0006](adr/0006-workflow-for-triage.md)). A cron sweep every 2 minutes creates, restarts or hands off the Workflow for requests stranded in `submitted` ([ADR 0008](adr/0008-triage-sweep.md)); no results file shows it firing in production yet.
 - **Sign-in.** Access runs in front of the hostname. The Worker still verifies the `Cf-Access-Jwt-Assertion` token itself, and roles come only from D1 ([ADR 0004](adr/0004-explicit-access-jwt-verification.md)).
@@ -151,7 +152,7 @@ Because the rules span resources. An employee may hold one desk and one room at 
 
 ### What does the Idempotency-Key do?
 
-It makes a resent booking safe. The browser creates a new key for each attempt (`web-` plus a UUID, `src/client/api/client.ts`) and reuses it only to resend the same body after getting no definitive answer; after a 409 or 422, or with a changed body, it makes a new one (`src/client/pages/BookingDialog.tsx`). The API requires 8 to 64 characters. Inside the booking's transaction the ledger stores the key (scoped to the employee), a SHA-256 of the request and the full response, 409s included. A resend with the same key and body gets the stored response back, so a timeout after the commit cannot become a second booking; the same key with a different body gets 422 `idempotency_key_reuse`. The alarm deletes keys older than 24 hours. In the local contention eval, run 1 resent 107 attempts after connect timeouts with their original keys and still had 0 phantom or lost acceptances ([`contention.json`](../evals/results/contention.json), local). In production each of the 200 attempts had its own key, so the 199 conflicts are 199 different requests, not replays.
+It makes a resent booking safe. The browser creates a new key for each attempt (`web-` plus a UUID, `src/client/api/client.ts`) and reuses it only to resend the same body after getting no definitive answer; after a 409 or 422, or with a changed body, it makes a new one (`src/client/pages/BookingDialog.tsx`). The API requires 8 to 64 characters. Inside the booking's transaction the ledger stores the key (scoped to the employee), a SHA-256 of the request and the full response, 409s included. A resend with the same key and body gets the stored response back, so a timeout after the commit cannot become a second booking; the same key with a different body gets 422 `idempotency_key_reuse`. The alarm deletes keys older than 24 hours. In the local contention eval, run 1 resent 107 attempts after connection errors, with their original keys, and still had 0 phantom or lost acceptances ([`contention.json`](../evals/results/contention.json), local). In production each of the 200 attempts had its own key, so the 199 conflicts are 199 different requests, not replays.
 
 ### How does the naive D1 version double-book?
 
@@ -165,11 +166,11 @@ The evidence is local only: `test/ws/live.test.ts` ("survives hibernation: the a
 
 ### Was that really simultaneous?
 
-Not in the browser: two clicks are a moment apart. The browser demo shows the user experience. The concurrency evidence is the production check, 200 concurrent attempts on one desk for one hour with 1 confirmed and 199 conflicts (`production-verify.json`), and locally 5 runs of 1,000 generated attempts with 0 overlapping confirmed bookings (`contention.json`). The production check is pass or fail, not a load test.
+Not in the browser: two clicks are a moment apart. The browser demo shows the user experience. The concurrency evidence is the production check, 200 concurrent attempts on one desk for one hour, all 200 by the one service-token identity `emp_verify`, with 1 confirmed and 199 conflicts (`production-verify.json`). That shows the ledger serializing one desk; it is not 200 people. Production has not run a burst across several people. The evidence for many employees is local: 5 runs of 1,000 generated attempts by 100 employees over 20 resources, with 0 overlapping confirmed bookings and 0 employee double bookings (`contention.json`, local workerd). The production check is pass or fail, not a load test.
 
 ### How do the screens stay in sync without missing an update?
 
-Per-date versions. A snapshot carries the date's version; each delta must be exactly the next one. A duplicate is ignored, and a jump makes the client resubscribe that date alone for a fresh snapshot, so a booking on another date never looks like a gap. The production observer saw 0 gaps and 0 duplicates (`production-verify.json`). Locally, 4 observers per run saw 0 date-version gaps and 0 final-state mismatches across 5 runs (`contention.json`), and in Playwright, from the booking request to the busy cell in a second browser took p50 11 ms and p95 13.6 ms over 20 bookings ([`e2e.json`](../evals/results/e2e.json), local Chromium; the README rounds the p95 to 14).
+Per-date versions. A snapshot carries the date's version; each delta must be exactly the next one. A duplicate is ignored, and a jump makes the client resubscribe that date alone for a fresh snapshot, so a booking on another date never looks like a gap. The production observer saw 0 gaps and 0 duplicates over its 2 deltas, the check's own booking and release (`production-verify.json`). Locally, 4 observers per run saw 0 date-version gaps and 0 final-state mismatches across 5 runs (`contention.json`), and in Playwright, from the booking request to the busy cell in a second browser took p50 11 ms and p95 13.6 ms over 20 bookings ([`e2e.json`](../evals/results/e2e.json), local Chromium; the README rounds the p95 to 14).
 
 ### Does it fit the Workers Free plan?
 
@@ -201,7 +202,7 @@ npm run preview            # http://localhost:8783
 npm run seed:local         # in a second terminal
 ```
 
-Open http://localhost:8783 in a normal window and a private window. The page "Sign in (local development)" has "Quick picks" buttons by role (for example "Employee: ..." and "Facilities admin: ..."). Then run the same steps. Say out loud what differs: sign-in is simulated by a token signed with a key generated on this machine, and triage uses the keyword stub, labelled "Keyword stub (keyword-v1)", which is not an LLM. Stop the preview server with Ctrl+C afterwards.
+Open http://localhost:8783 in a normal window and a private window. The page "Sign in (local development)" has "Quick picks" buttons by role (for example "Employee: ..." and "Facilities admin: ..."). Then run the same steps. Say out loud what differs: sign-in is simulated by a token signed with a key generated on this machine, and triage uses the keyword stub, labelled "Keyword stub (keyword-v1)", which is not an LLM. The local data also differs: `npm run seed:local` inserts 40 demo requests with keyword stub suggestions (`seedRequests` in `src/worker/seed.ts`), some still awaiting review. So the Staff "Triage queue" will not read "Nothing waiting for review."; the seeded rows are labelled Keyword stub, and the new request is the last row, since the queue is oldest first. On Admin, the agreement row will read "Keyword stub (keyword-v1) agreement". Stop the preview server with Ctrl+C afterwards.
 
 Then show the committed local contention numbers, in the README Results block or [`contention.json`](../evals/results/contention.json) (local workerd on one Mac, 2026-10-09, at `b76baab`):
 
@@ -220,7 +221,8 @@ To run it live, use the CI form against the local preview: `npm run eval:content
 ### Workers AI is slow, out of neurons, or failing
 
 - **The row shows "Keyword fallback" instead of "Workers AI".** That is the designed failure path: after the classify step's retries, the Workflow records the keyword classifier's answer under its own label, and the review works the same way. Say so, and say it has been tested locally ("falls back to the keyword classifier when classify exhausts its retries" in `test/worker/triage.workflow.test.ts`), not seen in production.
-- **No row appears.** The queue lists a request still in `submitted` once it is 2 minutes old (`listStaffQueue` in `src/worker/repo/requests.ts`), as "Classification pending" with a "Categorize" button. Click it, choose a Category in the dialog "Categorize the request", and click "Save category". Do not wait for the cron sweep; no results file shows it firing in production.
+- **The model hangs.** The classify step allows three attempts of up to 60 seconds each, with 2 and 4 second waits between them (`src/worker/triage/triage-workflow.ts`), so the keyword fallback can take about 3 minutes, longer than the triage segment. Do not wait: move to the Admin step or the local numbers, and come back to the Staff page afterwards.
+- **No row appears.** The queue lists a request still in `submitted` once it is 2 minutes old (`listStaffQueue` in `src/worker/repo/requests.ts`), as "Classification pending" with a "Categorize" button. The Staff page reloads its queue only when it opens, after an action, or on a staff event, so after 2 minutes reload the page yourself. Click "Categorize", choose a Category in the dialog "Categorize the request", and click "Save category". Do not wait for the cron sweep; no results file shows it firing in production.
 - For the numbers, use the production triage line (3 of 3 via Workers AI, `production-verify.json`) and the local Workflow run: 20 of 20 requests reached review with a suggestion from the local Qwen3-1.7B, submit to review p50 1,293.7 ms ([`triage-workflow-local.json`](../evals/results/triage-workflow-local.json), local).
 
 ### Live updates show "Live updates offline, retrying"
@@ -229,11 +231,11 @@ Reload the page. The client reconnects on its own with backoff, and the grid als
 
 ### A window says "You already have a desk booked at that time"
 
-That persona already holds another desk overlapping that hour. The ledger checks the desk first and the employee second, so this request was refused under the employee rule and the other window's request got the desk. Cancel the old booking in My bookings, or pick another hour. It is a fair moment to explain the employee rule, which is why the ledger is per site rather than per desk.
+That persona already holds another desk overlapping that hour. The ledger checks the desk first and the employee second, so this message means the desk was still free when this request ran, but this persona already holds a desk at that hour, and the employee rule refused it. The other window's request can then take the desk. Cancel the old booking in My bookings, or pick another hour. It is a fair moment to explain the employee rule, which is why the ledger is per site rather than per desk.
 
 ## After the demo
 
-- The race booking was cancelled in step 3. If you skipped that step, cancel it in window A under My bookings.
-- Window B: Staff, "In progress" tab, "Resolve" the demo request (and the dry run's), so the next demo starts with an empty queue. Resolved requests still count in the Admin reports.
+- The race booking was cancelled in step 3. If you skipped that step, cancel it under My bookings in the window that won.
+- Window B: Staff, "In progress" tab, "Resolve" the demo request so the In progress tab stays clear (the Triage queue is already empty once it is accepted), and any left over from the dry run. Resolved requests still count in the Admin reports.
 - Close the private window.
 - Do not run `npm run prod:verify` as a warm-up. It books, cancels and submits requests in production, spends Workers AI neurons and needs `CF_API_TOKEN` (README, Production setup).
