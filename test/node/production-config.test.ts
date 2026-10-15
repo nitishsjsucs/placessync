@@ -19,7 +19,22 @@ import {
 } from "../../scripts/lib/prod-config.ts";
 import { parseConfig } from "../../src/worker/config.ts";
 
-const text = readWranglerConfig();
+// The committed file holds what prod-setup wrote on 2026-10-15 (D1 id, AUD, service Client ID, provider).
+// The tests below about the pre-setup state run on that file with those four values put back to the
+// placeholder, which is byte for byte what a fresh clone held before setup.
+const committed = readWranglerConfig();
+const committedProd = readProductionValues(committed);
+const setupValue = (v: string | undefined): string => {
+  if (!v) throw new Error("wrangler.jsonc env.production is missing a setup value");
+  return v;
+};
+const text = isPlaceholder(committedProd.accessAud)
+  ? committed
+  : committed
+      .replace(setupValue(committedProd.databaseId), PLACEHOLDER)
+      .replace(setupValue(committedProd.accessAud), PLACEHOLDER)
+      .replace(setupValue(committedProd.serviceClientId), PLACEHOLDER)
+      .replace('"TRIAGE_PROVIDER": "workers-ai"', `"TRIAGE_PROVIDER": "${PLACEHOLDER}"`);
 const cfg = parseJsonc(text) as Record<string, unknown> & { env: { production: Record<string, unknown> } };
 const prod = readProductionValues(text);
 const AUD = "a".repeat(64);
@@ -65,6 +80,18 @@ describe("wrangler.jsonc env.production", () => {
       expect(r.config.triageProvider).toBe("workers-ai");
       expect(r.config.triageModel).toBe(PROD.model);
     }
+  });
+
+  it("holds either the placeholders or the values Cloudflare issued at setup, never anything else", () => {
+    if (isPlaceholder(committedProd.accessAud)) {
+      expect(committed).toBe(text);
+      return;
+    }
+    expect(committedProd.databaseId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(committedProd.accessAud).toMatch(/^[0-9a-f]{64}$/);
+    expect(committedProd.serviceClientId).toMatch(/^[0-9a-f]{32}\.access$/);
+    expect(committedProd.triageProvider).toBe("workers-ai");
+    expect(parseConfig(committedProd.vars).ok).toBe(true);
   });
 
   it("names every Cloudflare resource with the placessync prefix", () => {
