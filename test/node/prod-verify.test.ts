@@ -3,13 +3,14 @@
 // 10 ms, and the README section, which refuses anything but a run against the deployed
 // Worker.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ResultsRefused, loadResults, renderBlock } from "../../scripts/render-results.ts";
-import { cpuVerdict, splitJsonStream, summarizeGraphql, summarizeTail, tailKind } from "../../scripts/lib/cpu-summary.ts";
-import { type AttemptOutcome, checkDate, evaluateContention, pickWindow } from "../../scripts/lib/prod-checks.ts";
+import { cpuUnitFromSchema, cpuVerdict, splitJsonStream, summarizeGraphql, summarizeTail, tailKind } from "../../scripts/lib/cpu-summary.ts";
+import { type AttemptOutcome, PROD_TRIAGE_REQUESTS, checkDate, evaluateContention, pickWindow } from "../../scripts/lib/prod-checks.ts";
+import { CATEGORIES } from "../../src/shared/triage/categories.ts";
 
 const root = path.join(import.meta.dirname, "..", "..");
 const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
@@ -37,17 +38,29 @@ describe("evaluateContention", () => {
 describe("pickWindow and checkDate", () => {
   const desk = (id: string, busy: { startMin: number; endMin: number; mine: boolean }[] = []) => ({ resource: { id, kind: "desk", active: true }, busy });
 
-  it("takes the first hour with two free desks and none held by the person", () => {
+  it("takes the first hour with a free desk (or two) that the person holds nothing in", () => {
     const rows = [desk("a", [{ startMin: 420, endMin: 480, mine: false }]), desk("b"), desk("c", [{ startMin: 480, endMin: 540, mine: true }]), { resource: { id: "r", kind: "room", active: true }, busy: [] }];
+    expect(pickWindow(rows, 420, 1140)).toEqual({ startMin: 420, endMin: 480, desks: ["b"] });
     // 07:00 has only b and c free; 08:00 is excluded because the person holds c then.
-    expect(pickWindow(rows, 420, 1140)).toEqual({ startMin: 420, endMin: 480, desks: ["b", "c"] });
-    const busy = [desk("a", [{ startMin: 420, endMin: 1140, mine: false }]), desk("b")];
+    expect(pickWindow(rows, 420, 1140, 2)).toEqual({ startMin: 420, endMin: 480, desks: ["b", "c"] });
+    const busy = [desk("a", [{ startMin: 420, endMin: 1140, mine: false }]), desk("b", [{ startMin: 420, endMin: 1140, mine: false }])];
     expect(pickWindow(busy, 420, 1140)).toBeNull();
   });
 
   it("books two business days out", () => {
     expect(checkDate("2026-10-15")).toBe("2026-10-19");
     expect(checkDate("2026-10-19")).toBe("2026-10-21");
+  });
+});
+
+describe("production triage requests", () => {
+  it("are one clear request per category, written for this check and absent from the eval sets", () => {
+    expect(PROD_TRIAGE_REQUESTS.map((r) => r.category).sort()).toEqual([...CATEGORIES].sort());
+    const evalText = ["triage-hard.jsonl", "triage-injection.jsonl"].map((f) => readFileSync(path.join(root, "evals", "data", f), "utf8")).join("\n");
+    for (const r of PROD_TRIAGE_REQUESTS) {
+      expect(evalText).not.toContain(r.title);
+      expect(evalText).not.toContain(r.description);
+    }
   });
 });
 
@@ -98,6 +111,30 @@ describe("CPU summaries", () => {
     expect(cpuVerdict(null, slow).verdict).toBe("exceeds");
   });
 
+  it("judges analytics only when the schema says its quantiles are microseconds", async () => {
+    const g = summarizeGraphql({ viewer: { accounts: [{ workersInvocationsAdaptive: [{ dimensions: { status: "success" }, sum: { requests: 5, errors: 0, subrequests: 0 }, quantiles: { cpuTimeP50: 900, cpuTimeP99: 4200 } }] }] } });
+    const unconfirmed = cpuVerdict(null, g, false);
+    expect(unconfirmed.verdict).toBe("unmeasured");
+    expect(unconfirmed.reasons[0]).toMatch(/not judged/);
+    // The schema walk: Query.viewer -> accounts -> workersInvocationsAdaptive -> quantiles -> cpuTimeP50.
+    const types: Record<string, { name: string; description: string | null; type: { name: string | null; ofType: null } }[]> = {
+      Query: [{ name: "viewer", description: null, type: { name: "viewer", ofType: null } }],
+      viewer: [{ name: "accounts", description: null, type: { name: "account", ofType: null } }],
+      account: [{ name: "workersInvocationsAdaptive", description: null, type: { name: "AccountWorkersInvocationsAdaptive", ofType: null } }],
+      AccountWorkersInvocationsAdaptive: [{ name: "quantiles", description: null, type: { name: "Quantiles", ofType: null } }],
+      Quantiles: [{ name: "cpuTimeP50", description: "CPU time 50th percentile - microseconds", type: { name: "Float", ofType: null } }],
+    };
+    const fake = {
+      async graphql<T>(q: string, v: Record<string, unknown>): Promise<T> {
+        if (q.includes("__schema")) return { __schema: { queryType: { name: "Query" } } } as T;
+        return { __type: types[String(v.name)] ? { fields: types[String(v.name)] } : null } as T;
+      },
+    };
+    expect(await cpuUnitFromSchema(fake)).toEqual({ field: "Quantiles.cpuTimeP50", description: "CPU time 50th percentile - microseconds", microseconds: true });
+    types.Quantiles = [{ name: "cpuTimeP50", description: "CPU time 50th percentile", type: { name: "Float", ofType: null } }];
+    expect((await cpuUnitFromSchema(fake)).microseconds).toBe(false);
+  });
+
   it("claims nothing when no source returned CPU time", () => {
     const noCpu = summarizeTail([{ outcome: "ok", event: { request: { url: "u" } } }]);
     expect(cpuVerdict(noCpu, null).verdict).toBe("unmeasured");
@@ -114,13 +151,20 @@ describe("README production section", () => {
       JSON.stringify({
         meta: { gitSha: head, dirty: false, timestamp: "2026-10-20T00:00:00.000Z", command: "npm run prod:verify" },
         target,
-        principal: { role: "facilities_admin" },
-        contention: { attempts: 20, accepted: 1, rejectedResourceConflict: 9, rejectedEmployeeConflict: 10, otherRejections: 0, serverErrors: 0, confirmedInWindow: 1 },
+        principal: { id: "emp_verify", role: "employee", via: "service token" },
+        contention: { desks: 1, attempts: 200, accepted: 1, rejectedResourceConflict: 199, rejectedEmployeeConflict: 0, otherRejections: 0, serverErrors: 0, transportErrors: 0, confirmedInWindow: 1 },
         live: { sawBooking: true, sawRelease: true, gaps: 0, duplicates: 0 },
-        projection: { checked: true, reachedD1: true, lagMsUpperBound: 1500 },
-        triage: { provider: "workers-ai", model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", category: "building_systems", submitToSuggestionMsUpperBound: 2400, providerLatencyMs: 900 },
+        projection: { checked: false, reason: "needs a facilities admin sign-in" },
+        triage: {
+          requests: 3,
+          expectedProvider: "workers-ai",
+          viaExpectedProvider: 3,
+          categoryInEnum: 3,
+          matchesWrittenCategory: 3,
+          items: [1, 2, 3].map((n) => ({ provider: "workers-ai", model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", category: "building_systems", submitToSuggestionMsUpperBound: 2000 + n, providerLatencyMs: 900 + n })),
+        },
         cpu: { verdict: "unmeasured", reasons: ["neither wrangler tail nor GraphQL analytics returned CPU time"], tail: null, graphql: null, graphqlError: "no account API token with Account Analytics Read" },
-        gates: { health: true, contention: true, live: true, projection: true, triage: true, cpu: false },
+        gates: { health: true, contention: true, live: true, triage: true, cpu: false },
         passed: false,
       }),
     );
@@ -130,7 +174,12 @@ describe("README production section", () => {
   it("renders a run against the deployed Worker, naming the failed gate", () => {
     const block = renderBlock(loadResults([fixture({ baseUrl: "https://placessync-production.nitish-ratakonda.workers.dev", worker: "placessync-production", plan: "Workers Free" })], root));
     expect(block).toContain("### Production verification (deployed Worker, Cloudflare Workers Free plan)");
-    expect(block).toContain("| Triage through the Workflow: provider, model, category | workers-ai, @cf/meta/llama-3.3-70b-instruct-fp8-fast, building_systems |");
+    expect(block).toContain("signed in by service token as `emp_verify` (employee)");
+    expect(block).toContain("| Contention: concurrent attempts for the same hour on one desk, each with its own Idempotency-Key | 200 |");
+    expect(block).toContain("| Triage through the Workflow: requests, suggested by workers-ai, category in the enum, equal to the category the request was written for | 3, 3, 3, 3 |");
+    expect(block).toContain("| Triage model | @cf/meta/llama-3.3-70b-instruct-fp8-fast |");
+    expect(block).toContain("| Triage: submit to suggestion (upper bound) max / provider latency max | 2003 ms / 903 ms |");
+    expect(block).toContain("not an accuracy measurement");
     expect(block).toContain("| CPU per invocation against the Free plan's 10 ms | unmeasured (neither wrangler tail nor GraphQL analytics returned CPU time) |");
     expect(block).toContain("Failed gates: cpu.");
   });

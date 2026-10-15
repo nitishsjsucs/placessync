@@ -222,12 +222,18 @@ function productionSection(r: Record<string, unknown> & { meta: Meta }): string 
   const c = (r.contention ?? {}) as Record<string, unknown>;
   const live = (r.live ?? {}) as Record<string, unknown>;
   const proj = (r.projection ?? {}) as Record<string, unknown>;
-  const t = (r.triage ?? {}) as Record<string, unknown>;
+  const t = (r.triage ?? {}) as { requests?: number; expectedProvider?: string; viaExpectedProvider?: number; categoryInEnum?: number; matchesWrittenCategory?: number; items?: Record<string, unknown>[] };
+  const items = t.items ?? [];
+  const models = [...new Set(items.map((i) => i.model).filter((m): m is string => typeof m === "string"))];
+  const upper = items.map((i) => i.submitToSuggestionMsUpperBound).filter((x): x is number => typeof x === "number");
+  const providerMs = items.map((i) => i.providerLatencyMs).filter((x): x is number => typeof x === "number");
   const cpu = (r.cpu ?? {}) as { verdict?: string; reasons?: string[]; tail?: { all: Record<string, unknown> } | null; graphql?: Record<string, unknown> | null; graphqlError?: string | null };
   const gates = (r.gates ?? {}) as Record<string, boolean>;
   const failed = Object.entries(gates).filter(([, v]) => !v).map(([k]) => k);
+  const principal = (r.principal ?? {}) as { id?: string; role?: string; via?: string };
   const tail = cpu.tail?.all;
   const gql = cpu.graphql;
+  const desks = typeof c.desks === "number" ? c.desks : 1;
   return [
     "### Production verification (deployed Worker, Cloudflare Workers Free plan)",
     "",
@@ -235,20 +241,25 @@ function productionSection(r: Record<string, unknown> & { meta: Meta }): string 
     "",
     "| Check | Result |",
     "|---|---|",
-    `| Target | \`${target.worker}\` at ${target.baseUrl} through Cloudflare Access, signed in as a ${String((r.principal as { role?: string } | undefined)?.role ?? "?")} |`,
-    `| Contention: concurrent attempts by one person for the same hour on two desks | ${num(c.attempts)} |`,
-    `| Confirmed / resource conflict / employee conflict / other / server errors | ${num(c.accepted)} / ${num(c.rejectedResourceConflict)} / ${num(c.rejectedEmployeeConflict)} / ${num(c.otherRejections)} / ${num(c.serverErrors)} |`,
+    `| Target | \`${target.worker}\` at ${target.baseUrl} through Cloudflare Access, signed in by ${principal.via ?? "?"} as \`${principal.id ?? "?"}\` (${principal.role ?? "?"}) |`,
+    `| Contention: concurrent attempts for the same hour on ${desks === 1 ? "one desk" : `${desks} desks`}, each with its own Idempotency-Key | ${num(c.attempts)} |`,
+    `| Confirmed / resource conflict / employee conflict / other / server errors / no response | ${num(c.accepted)} / ${num(c.rejectedResourceConflict)} / ${num(c.rejectedEmployeeConflict)} / ${num(c.otherRejections)} / ${num(c.serverErrors)} / ${num(c.transportErrors)} |`,
     `| Confirmed bookings in that hour afterwards | ${num(c.confirmedInWindow)} |`,
     `| Live observer: saw the booking, saw its release, gaps, duplicates | ${yesNo(live.sawBooking)}, ${yesNo(live.sawRelease)}, ${num(live.gaps)}, ${num(live.duplicates)} |`,
     `| Booking reached the D1 report view | ${proj.checked ? `${yesNo(proj.reachedD1)} (within ${ms(proj.lagMsUpperBound)})` : "not checked (needs an admin sign-in)"} |`,
-    `| Triage through the Workflow: provider, model, category | ${String(t.provider ?? "none")}, ${String(t.model ?? "none")}, ${String(t.category ?? "none")} |`,
-    `| Triage: submit to suggestion (upper bound) / provider latency | ${ms(t.submitToSuggestionMsUpperBound)} / ${ms(t.providerLatencyMs)} |`,
+    `| Triage through the Workflow: requests, suggested by ${t.expectedProvider ?? "?"}, category in the enum, equal to the category the request was written for | ${num(t.requests)}, ${num(t.viaExpectedProvider)}, ${num(t.categoryInEnum)}, ${num(t.matchesWrittenCategory)} |`,
+    `| Triage model | ${models.length ? models.join(", ") : "none"} |`,
+    `| Triage: submit to suggestion (upper bound) max / provider latency max | ${upper.length ? ms(Math.max(...upper)) : "n/a"} / ${providerMs.length ? ms(Math.max(...providerMs)) : "n/a"} |`,
     `| CPU per invocation against the Free plan's 10 ms | ${cpu.verdict ?? "n/a"}${cpu.reasons?.length ? ` (${cpu.reasons.join("; ")})` : ""} |`,
     `| CPU from wrangler tail: invocations with CPU time, p50 / p99 / max | ${tail ? `${num(tail.withCpuTime)} of ${num(tail.invocations)}, ${ms(tail.p50Ms)} / ${ms(tail.p99Ms)} / ${ms(tail.maxMs)}` : "not recorded"} |`,
     `| CPU from GraphQL analytics: requests, highest p50 / p99 | ${gql ? `${num(gql.requests)}, ${ms(gql.p50Ms)} / ${ms(gql.p99Ms)}` : `not recorded${cpu.graphqlError ? ` (${cpu.graphqlError})` : ""}`} |`,
     "",
+    t.requests ? "The triage requests are a handful written for this check, to show Workers AI answering through the Workflow; they are not an accuracy measurement." : "",
+    "",
     r.passed ? "Every production gate passed." : `Failed gates: ${failed.join(", ") || "none recorded"}${r.error ? ` (stopped: ${String(r.error)})` : ""}.`,
-  ].join("\n");
+  ]
+    .join("\n")
+    .replace(/\n\n\n+/g, "\n\n");
 }
 
 export function renderBlock(results: Record<string, { meta: Meta } & Record<string, unknown>>): string {

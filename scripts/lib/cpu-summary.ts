@@ -173,6 +173,37 @@ export function summarizeGraphql(data: { viewer: { accounts: { workersInvocation
   };
 }
 
+/**
+ * Reads the unit of workersInvocationsAdaptive's CPU quantiles from the GraphQL schema
+ * (introspection), so the results file records what the API says instead of assuming it.
+ * summarizeGraphql divides by 1,000 (microseconds to ms); the verdict is only trusted when
+ * the description returned here says microseconds.
+ */
+export async function cpuUnitFromSchema(cf: { graphql<T>(q: string, v: Record<string, unknown>): Promise<T> }): Promise<{ field: string; description: string | null; microseconds: boolean }> {
+  type Field = { name: string; description: string | null; type: { name: string | null; ofType: { name: string | null; ofType: { name: string | null } | null } | null } };
+  const typeOf = (f: Field) => f.type.name ?? f.type.ofType?.name ?? f.type.ofType?.ofType?.name ?? null;
+  const fields = async (name: string): Promise<Field[]> =>
+    (
+      await cf.graphql<{ __type: { fields: Field[] } | null }>(
+        "query PlacesSyncType($name: String!) { __type(name: $name) { fields { name description type { name ofType { name ofType { name } } } } } }",
+        { name },
+      )
+    ).__type?.fields ?? [];
+  const step = async (typeName: string | null, field: string): Promise<string | null> => {
+    if (!typeName) return null;
+    const f = (await fields(typeName)).find((x) => x.name === field);
+    return f ? typeOf(f) : null;
+  };
+  const root = (await cf.graphql<{ __schema: { queryType: { name: string } } }>("query { __schema { queryType { name } } }", {})).__schema.queryType.name;
+  const viewer = await step(root, "viewer");
+  const account = await step(viewer, "accounts");
+  const group = await step(account, "workersInvocationsAdaptive");
+  const quantiles = await step(group, "quantiles");
+  const cpu = quantiles ? (await fields(quantiles)).find((x) => x.name === "cpuTimeP50") : undefined;
+  const description = cpu?.description ?? null;
+  return { field: `${quantiles ?? "?"}.cpuTimeP50`, description, microseconds: /microsecond/i.test(description ?? "") };
+}
+
 export type CpuVerdict = "fits" | "exceeds" | "unmeasured";
 
 /**
@@ -180,9 +211,14 @@ export type CpuVerdict = "fits" | "exceeds" | "unmeasured";
  * the p99 is under 10 ms (GraphQL). exceeds: any of those failed. unmeasured: neither
  * source produced CPU numbers, so nothing is claimed.
  */
-export function cpuVerdict(tail: TailSummary | null, gql: GraphqlSummary | null): { verdict: CpuVerdict; reasons: string[] } {
+export function cpuVerdict(tail: TailSummary | null, gql: GraphqlSummary | null, gqlUnitIsMicroseconds = true): { verdict: CpuVerdict; reasons: string[] } {
   const reasons: string[] = [];
   let measured = false;
+  if (gql && !gqlUnitIsMicroseconds) {
+    // Without the schema saying microseconds, the analytics numbers are kept in the file but not judged.
+    reasons.push("analytics CPU quantiles not judged: the schema did not confirm they are microseconds");
+    gql = null;
+  }
   if (tail) {
     if (tail.all.limitOutcomes > 0) reasons.push(`${tail.all.limitOutcomes} tail invocation(s) ended with a resource-limit outcome`);
     if (tail.all.withCpuTime > 0) {
@@ -195,7 +231,9 @@ export function cpuVerdict(tail: TailSummary | null, gql: GraphqlSummary | null)
     if (gql.limitOutcomes > 0) reasons.push(`${gql.limitOutcomes} request(s) with a resource-limit status in analytics`);
     if (gql.p99Ms > CPU_LIMIT_MS) reasons.push(`analytics CPU p99 ${gql.p99Ms} ms is over ${CPU_LIMIT_MS} ms`);
   }
-  if (reasons.length) return { verdict: "exceeds", reasons };
-  if (!measured) return { verdict: "unmeasured", reasons: ["neither wrangler tail nor GraphQL analytics returned CPU time"] };
-  return { verdict: "fits", reasons: [] };
+  const notes = reasons.filter((r) => r.startsWith("analytics CPU quantiles not judged"));
+  const problems = reasons.filter((r) => !notes.includes(r));
+  if (problems.length) return { verdict: "exceeds", reasons };
+  if (!measured) return { verdict: "unmeasured", reasons: [...notes, "neither wrangler tail nor GraphQL analytics returned CPU time"] };
+  return { verdict: "fits", reasons: notes };
 }

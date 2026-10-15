@@ -1,9 +1,40 @@
 // The small production contention check (prod-verify): N concurrent reservation attempts
-// by one signed-in person for the same time window on two desks. The ledger must confirm
-// exactly one: the other attempts on that desk lose with resource_conflict, and every
-// attempt on the other desk loses with resource_conflict or employee_conflict (one person
-// cannot hold two desks at once). Pure functions, tested in test/node/prod-verify.test.ts.
+// (200 by default) for the same hour on one desk, each with its own Idempotency-Key, by the
+// one identity prod-verify signs in as. The ledger must confirm exactly one; every other
+// attempt must lose with a conflict (resource_conflict, or employee_conflict when the
+// person already holds that hour), with no server error and no dropped response. With
+// --desks 2 the attempts alternate between two desks, which also exercises the
+// one-desk-at-a-time rule. Pure functions, tested in test/node/prod-verify.test.ts.
 import { addBusinessDays } from "../../src/shared/time.ts";
+import type { Category } from "../../src/shared/triage/categories.ts";
+
+/**
+ * The facilities requests prod-verify submits, one per category, written for this check
+ * (not taken from the eval sets). A few clear requests show that Workers AI answers through
+ * the Workflow; they are not an accuracy measurement.
+ */
+export const PROD_TRIAGE_REQUESTS: readonly { title: string; description: string; category: Category }[] = [
+  {
+    title: "Radiator cold in the north meeting room",
+    description: "The radiator under the window in the north meeting room stays cold all morning while the heating runs elsewhere.",
+    category: "building_systems",
+  },
+  {
+    title: "Projector in room 2B will not turn on",
+    description: "The ceiling projector in room 2B shows no power light and the screen stays blank when we connect a laptop.",
+    category: "electrical_av",
+  },
+  {
+    title: "Coffee spilled by the second floor stairs",
+    description: "Someone spilled a large coffee on the floor next to the second floor stairs and it is slippery.",
+    category: "cleaning_safety",
+  },
+  {
+    title: "Armrest snapped off a desk chair",
+    description: "The left armrest on the chair at desk 3A-04 snapped off and the chair wobbles when you sit down.",
+    category: "furniture_fixtures",
+  },
+];
 
 export interface AttemptOutcome {
   resourceId: string;
@@ -63,16 +94,16 @@ export interface AvailabilityRow {
 const overlaps = (a: { startMin: number; endMin: number }, b: { startMin: number; endMin: number }) => a.startMin < b.endMin && b.startMin < a.endMin;
 
 /**
- * The first one-hour window, on the hour, where two active desks are free and the person
- * holds no desk: so any rejection in the check comes from the attempts themselves.
+ * The first one-hour window, on the hour, where `count` active desks are free and the
+ * person holds no desk: so any rejection in the check comes from the attempts themselves.
  */
-export function pickWindow(rows: readonly AvailabilityRow[], openMin: number, closeMin: number, minutes = 60): { startMin: number; endMin: number; desks: [string, string] } | null {
+export function pickWindow(rows: readonly AvailabilityRow[], openMin: number, closeMin: number, count = 1, minutes = 60): { startMin: number; endMin: number; desks: string[] } | null {
   const desks = rows.filter((r) => r.resource.kind === "desk" && r.resource.active);
   for (let start = Math.ceil(openMin / 60) * 60; start + minutes <= closeMin; start += 60) {
     const w = { startMin: start, endMin: start + minutes };
     if (desks.some((d) => d.busy.some((b) => b.mine && overlaps(b, w)))) continue;
     const free = desks.filter((d) => !d.busy.some((b) => overlaps(b, w)));
-    if (free.length >= 2) return { ...w, desks: [(free[0] as AvailabilityRow).resource.id, (free[1] as AvailabilityRow).resource.id] };
+    if (free.length >= count) return { ...w, desks: free.slice(0, count).map((d) => d.resource.id) };
   }
   return null;
 }
