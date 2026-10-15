@@ -12,9 +12,14 @@ on:
 permissions:
   contents: read
 
+# Both jobs name the image instead of ubuntu-latest, which GitHub moves to Ubuntu 26.04
+# from 2026-10-19 (actions/runner-images#14748). Every passing run so far used
+# ubuntu-24.04: `playwright install --with-deps` installs that release's apt packages,
+# and the e2e layout checks were validated with its fonts. Moving to 26.04 is a
+# deliberate change, made with a CI run that proves it.
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -31,7 +36,7 @@ jobs:
 
   e2e:
     needs: verify
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
