@@ -1,0 +1,157 @@
+{
+  "meta": {
+    "gitSha": "34f9fe21de2e48b6a838865279f998c287903129",
+    "dirty": false,
+    "timestamp": "2026-10-15T21:10:23.389Z",
+    "node": "v25.9.0",
+    "wrangler": "4.149.0",
+    "os": "Darwin 25.5.0 arm64",
+    "cpu": "Apple M5",
+    "seed": null,
+    "inputSha256": null,
+    "command": "node scripts/prod-verify.ts",
+    "label": "production: deployed Worker on the Cloudflare Workers Free plan, through Cloudflare Access",
+    "baseUrl": "https://placessync-production.nitish-ratakonda.workers.dev"
+  },
+  "target": {
+    "baseUrl": "https://placessync-production.nitish-ratakonda.workers.dev",
+    "worker": "placessync-production",
+    "plan": "Workers Free"
+  },
+  "cleanup": {
+    "reservationCancelled": true,
+    "requestsCancelled": "3 of 3"
+  },
+  "health": {
+    "authMode": "access",
+    "triage": "ready",
+    "seeded": true
+  },
+  "principal": {
+    "id": "emp_verify",
+    "role": "employee",
+    "via": "service token"
+  },
+  "contention": {
+    "date": "2026-10-19",
+    "window": {
+      "startMin": 420,
+      "endMin": 480
+    },
+    "desks": 1,
+    "attempts": 200,
+    "accepted": 1,
+    "rejectedResourceConflict": 199,
+    "rejectedEmployeeConflict": 0,
+    "otherRejections": 0,
+    "serverErrors": 0,
+    "transportErrors": 0,
+    "confirmedInWindow": 1,
+    "latencyMs": {
+      "p50": 1839.3,
+      "max": 1999.7
+    },
+    "passed": true,
+    "failures": []
+  },
+  "projection": {
+    "checked": false,
+    "reason": "needs a facilities admin sign-in (--person as the owner)"
+  },
+  "live": {
+    "connected": true,
+    "deltas": 2,
+    "gaps": 0,
+    "duplicates": 0,
+    "errors": 0,
+    "unexpectedCloses": 0,
+    "sawBooking": true,
+    "sawRelease": true
+  },
+  "triage": {
+    "requests": 3,
+    "expectedProvider": "workers-ai",
+    "viaExpectedProvider": 3,
+    "categoryInEnum": 3,
+    "matchesWrittenCategory": 3,
+    "items": [
+      {
+        "started": "started",
+        "reachedReview": true,
+        "provider": "workers-ai",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "category": "building_systems",
+        "expectedCategory": "building_systems",
+        "confidence": 0.9,
+        "categoryInEnum": true,
+        "providerLatencyMs": 1886,
+        "providerAttempts": 1,
+        "submitToSuggestionMsUpperBound": 7782
+      },
+      {
+        "started": "started",
+        "reachedReview": true,
+        "provider": "workers-ai",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "category": "electrical_av",
+        "expectedCategory": "electrical_av",
+        "confidence": 0.9,
+        "categoryInEnum": true,
+        "providerLatencyMs": 1788,
+        "providerAttempts": 1,
+        "submitToSuggestionMsUpperBound": 6522
+      },
+      {
+        "started": "started",
+        "reachedReview": true,
+        "provider": "workers-ai",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "category": "cleaning_safety",
+        "expectedCategory": "cleaning_safety",
+        "confidence": 0.9,
+        "categoryInEnum": true,
+        "providerLatencyMs": 2156,
+        "providerAttempts": 1,
+        "submitToSuggestionMsUpperBound": 5449
+      }
+    ]
+  },
+  "window": {
+    "start": "2026-10-15T21:10:43.486Z",
+    "end": "2026-10-15T21:11:04.209Z"
+  },
+  "cpu": {
+    "limitMs": 10,
+    "tail": null,
+    "graphql": {
+      "source": "GraphQL workersInvocationsAdaptive",
+      "requests": 218,
+      "errors": 0,
+      "subrequests": 408,
+      "statuses": {
+        "success": 218
+      },
+      "p50Ms": 15.72,
+      "p99Ms": 40.97,
+      "limitOutcomes": 0
+    },
+    "graphqlCpuUnit": {
+      "field": "AccountWorkersInvocationsAdaptiveQuantiles.cpuTimeP50",
+      "description": "CPU time 50th percentile - microseconds",
+      "microseconds": true
+    },
+    "graphqlError": null,
+    "verdict": "exceeds",
+    "reasons": [
+      "analytics CPU p99 40.97 ms is over 10 ms"
+    ]
+  },
+  "gates": {
+    "health": true,
+    "contention": true,
+    "live": true,
+    "triage": true,
+    "cpu": false
+  },
+  "passed": false
+}
