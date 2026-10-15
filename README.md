@@ -86,7 +86,7 @@ Design decisions are recorded in [`docs/adr/`](docs/adr) (one ledger per site, s
 | Auth | `jose` verifying RS256 tokens signed by a locally generated dev key; dev login page; cookie or header | Cloudflare Access (Zero Trust Free, team `old-truth-a7dc`): a self-hosted application for the workers.dev hostname, the account's One-time PIN login only, an Allow policy for the owner and two persona addresses, and a Service Auth policy for the verification service token; JWKS from `https://old-truth-a7dc.cloudflareaccess.com/cdn-cgi/access/certs`; header only |
 | Contention eval | local workerd, single machine, numbers labeled local. This Mac: 5 runs, the numbers in Results. CI: 1 run as a pass/fail gate, not reported | `npm run prod:verify`: 200 concurrent attempts for one hour on one desk, through Access with the service token; a pass/fail check, not a load test. Not run yet; nothing claimed |
 | Triage eval | Qwen3-1.7B via llama.cpp, labeled with the model; this Mac only, CI runs no triage eval | `npm run prod:verify`: 3 requests through the Workflow, each must get a Workers AI suggestion; a sanity check, not an accuracy measurement. Not run yet; no Workers AI accuracy is claimed |
-| CPU time | not meaningful locally | `npm run prod:verify` measures it (wrangler tail and GraphQL analytics) against the Free plan's 10 ms. Not run yet |
+| CPU time | not meaningful locally | measured in production on 2026-10-15 (see Results and the Free plan section): median within 10 ms, tail above it, no request stopped |
 | PITR, location hints, AI Gateway analytics | unavailable | available, unused in v1 |
 
 No local stand-in is the production service. In particular:
@@ -227,6 +227,29 @@ Command: `npm run test:e2e`. Run 2026-10-09 (UTC) at commit `b76baab` on Apple M
 | Layout checks at 375x812 and 768x1024 and failures | 22 checks, 0 failures |
 | Keyboard-only booking and cancellation | passed |
 | Live update propagation, 20 bookings, p50 / p95 (local Chromium, booking request to busy cell in a second browser) | 11 / 14 ms |
+
+### Production verification (deployed Worker, Cloudflare Workers Free plan)
+
+Command: `node scripts/prod-verify.ts`. Run 2026-10-15 (UTC) at commit `34f9fe2` on Apple M5 (Darwin 25.5.0 arm64, Node v25.9.0).
+
+| Check | Result |
+|---|---|
+| Target | `placessync-production` at https://placessync-production.nitish-ratakonda.workers.dev through Cloudflare Access, signed in by service token as `emp_verify` (employee) |
+| Contention: concurrent attempts for the same hour on one desk, each with its own Idempotency-Key | 200 |
+| Confirmed / resource conflict / employee conflict / other / server errors / no response | 1 / 199 / 0 / 0 / 0 / 0 |
+| Confirmed bookings in that hour afterwards | 1 |
+| Live observer: saw the booking, saw its release, gaps, duplicates | yes, yes, 0, 0 |
+| Booking reached the D1 report view | not checked (needs an admin sign-in) |
+| Triage through the Workflow: requests, suggested by workers-ai, category in the enum, equal to the category the request was written for | 3, 3, 3, 3 |
+| Triage model | @cf/meta/llama-3.3-70b-instruct-fp8-fast |
+| Triage: submit to suggestion (upper bound) max / provider latency max | 7782 ms / 2156 ms |
+| CPU per invocation against the Free plan's 10 ms | exceeds (analytics CPU p99 40.97 ms is over 10 ms) |
+| CPU from wrangler tail: invocations with CPU time, p50 / p99 / max | not recorded |
+| CPU from GraphQL analytics: requests, highest p50 / p99 | 218, 15.72 ms / 40.97 ms |
+
+The triage requests are a handful written for this check, to show Workers AI answering through the Workflow; they are not an accuracy measurement.
+
+Failed gates: cpu.
 <!-- results:end -->
 
 ## Production setup (not run yet)
@@ -266,7 +289,7 @@ Nitish chose the Free plan (2026-10-10). Nothing in this app needs Workers Paid:
 
 | Feature | Free limit | Source | This app | Verdict |
 |---|---|---|---|---|
-| CPU time per HTTP request and per Cron Trigger | 10 ms | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) | API requests verify one RS256 JWT, parse with zod and wait on D1, the Durable Object and Workflows (waiting is not CPU time); the cron sweep handles at most 12 rows | fits by design; `prod:verify` measures it |
+| CPU time per HTTP request and per Cron Trigger | 10 ms | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) | API requests verify one RS256 JWT, parse with zod and wait on D1, the Durable Object and Workflows (waiting is not CPU time); the cron sweep handles at most 12 rows | **Measured 2026-10-15 (GraphQL Analytics API, `workersInvocationsAdaptive`):** 40 sequential signed-in requests had CPU p50 3.2 ms, p90 10.5 ms, p99 30.1 ms; the 200-attempt contention burst had p50 15.7 ms, p99 41.0 ms (a burst spreads over fresh isolates, each paying its first-request setup). Every one of those requests ended with status `success`: none was stopped by the CPU limit, but the tail is over the nominal 10 ms, so a heavier load could be throttled |
 | CPU time per Workflow step | 10 ms | [Workflows limits](https://developers.cloudflare.com/workflows/reference/limits/) | each step is one D1 batch, one Durable Object RPC or one Workers AI call plus JSON parsing | fits by design; measured where `wrangler tail` reports it |
 | Requests per day | 100,000 per account (shared with three other apps), reset 00:00 UTC; over it, Error 1027 | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) | 720 cron runs a day plus traffic; about 250 per `prod:verify` run. Static assets are free and unlimited and the SPA is served without invoking the Worker (`run_worker_first` is `/api/*` only), per [static assets billing](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/) | fits |
 | Subrequests per invocation | 50 external, 1,000 to Cloudflare services | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) | external: the team JWKS fetch, cached per isolate; internal: a few D1, Durable Object, Workflow and Workers AI calls per request | fits |
