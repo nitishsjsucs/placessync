@@ -1,10 +1,23 @@
 // Reads the production state with read-only calls only (wrangler list/info/execute SELECT,
 // Cloudflare API GETs, one unauthenticated GET of the Worker URL) and turns it into the
 // doctor's report. prod-setup gathers the same state to decide what to create.
-import { CfApi, CfApiError, type AccessApp, type AccessPolicy, type IdentityProvider } from "./cf-api.ts";
-import { DESIRED, appDrift, findApp, findOtp, findPolicy, policyDrift } from "./access-plan.ts";
-import { PERSONAS, PROD, PROD_URL, type ProductionValues, isAccessAud, isD1Id, isPlaceholder } from "./prod-config.ts";
-import { PROD_ENV_ARGS, type Runner, findD1, lastLine, parseExecuteRows, parsePendingMigrations, parseJsonOutput, parseWhoami } from "./wrangler-cli.ts";
+import { CfApi, CfApiError, type AccessApp, type AccessPolicy, type IdentityProvider, type ServiceToken } from "./cf-api.ts";
+import { DESIRED, appDrift, checkOtp, daysToExpiry, findApp, findPolicy, findServicePolicy, findServiceToken, policyDrift, servicePolicyDrift } from "./access-plan.ts";
+import {
+  PROD,
+  PROD_URL,
+  type ProductionValues,
+  SEED_PEOPLE,
+  VERIFY_PRINCIPAL,
+  isAccessAud,
+  isD1Id,
+  isPlaceholder,
+  isServiceClientId,
+  readProductionValues,
+  readWranglerConfig,
+} from "./prod-config.ts";
+import { credentialsFromEnv, readServiceToken, serviceTokenHeaders } from "./service-token-file.ts";
+import { PROD_ENV_ARGS, type Runner, findD1, lastLine, parseExecuteRows, parsePendingMigrations, parseJsonOutput, parseWhoami, wrangler } from "./wrangler-cli.ts";
 
 /** A value that was read, or why it could not be. */
 export type Read<T> = { ok: true; value: T } | { ok: false; reason: string };
@@ -41,8 +54,14 @@ export interface ProdState {
   idps: Read<IdentityProvider[]> | null;
   policies: Read<AccessPolicy[]> | null;
   apps: Read<AccessApp[]> | null;
+  serviceTokens: Read<ServiceToken[]> | null;
+  /** Client ID of the service token credentials stored on this Mac (the secret is never read into state). */
+  localClientId: string | null;
   accountCrons: Read<{ script: string; crons: string[] }[]> | null;
   probe: Read<{ status: number; location: string | null; server: string | null }>;
+  /** GET /api/health and /api/me with the service token; null without stored credentials. */
+  serviceProbe: Read<{ healthStatus: number; health: Record<string, unknown> | null; meStatus: number; employeeId: string | null; role: string | null }> | null;
+  now: Date;
 }
 
 export interface GatherDeps {
@@ -50,6 +69,10 @@ export interface GatherDeps {
   api: CfApi | null;
   fetchImpl: typeof fetch;
   config: ProductionValues;
+  localClientId: string | null;
+  /** Headers for the stored service token, so the doctor can GET through Access as prod-verify does. */
+  serviceHeaders: Record<string, string> | null;
+  now?: Date;
 }
 
 export const CATALOG_QUERY =
@@ -105,6 +128,7 @@ export async function gatherState(deps: GatherDeps): Promise<ProdState> {
   const idps = await viaApi((a) => a.identityProviders());
   const policies = await viaApi((a) => a.accessPolicies());
   const apps = await viaApi((a) => a.accessApps());
+  const serviceTokens = await viaApi((a) => a.serviceTokens());
   const accountCrons = await viaApi(async (a) => {
     const scripts = await a.workerScripts();
     const out: { script: string; crons: string[] }[] = [];
@@ -118,7 +142,61 @@ export async function gatherState(deps: GatherDeps): Promise<ProdState> {
     return { status: res.status, location: res.headers.get("location"), server: res.headers.get("server") };
   });
 
-  return { config, whoami, d1, pendingMigrations, catalog, deployments, workflow, model, token: api !== null, teamDomain, subdomain, idps, policies, apps, accountCrons, probe };
+  const serviceHeaders = deps.serviceHeaders;
+  const serviceProbe = serviceHeaders
+    ? await attempt(async () => {
+        const get = async (p: string) => {
+          const res = await deps.fetchImpl(`${PROD_URL}${p}`, { redirect: "manual", headers: serviceHeaders });
+          const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+          return { status: res.status, body };
+        };
+        const health = await get("/api/health");
+        const me = await get("/api/me");
+        const employee = (me.body?.employee ?? null) as { id?: string; role?: string } | null;
+        return { healthStatus: health.status, health: health.body, meStatus: me.status, employeeId: employee?.id ?? null, role: employee?.role ?? null };
+      })
+    : null;
+
+  return {
+    config,
+    whoami,
+    d1,
+    pendingMigrations,
+    catalog,
+    deployments,
+    workflow,
+    model,
+    token: api !== null,
+    teamDomain,
+    subdomain,
+    idps,
+    policies,
+    apps,
+    serviceTokens,
+    localClientId: deps.localClientId,
+    accountCrons,
+    probe,
+    serviceProbe,
+    now: deps.now ?? new Date(),
+  };
+}
+
+/**
+ * The live state with this Mac's wrangler, wrangler.jsonc and stored service token. The
+ * stored credentials (or PLACESSYNC_VERIFY_CLIENT_ID and _SECRET) are only used as request
+ * headers for two GETs; the secret is never part of the returned state.
+ */
+export async function gatherProduction(api: CfApi | null): Promise<ProdState> {
+  const stored = readServiceToken();
+  const creds = credentialsFromEnv() ?? stored;
+  return gatherState({
+    wrangler,
+    api,
+    fetchImpl: fetch,
+    config: readProductionValues(readWranglerConfig()),
+    localClientId: stored?.clientId ?? null,
+    serviceHeaders: creds ? serviceTokenHeaders(creds) : null,
+  });
 }
 
 // ---------- the report ----------
@@ -153,6 +231,18 @@ export function doctorReport(s: ProdState): Check[] {
     isPlaceholder(cfg.accessAud) ? "ACCESS_AUD is the placeholder, so the Worker answers 500 misconfigured (fail-closed)" : "ACCESS_AUD is set",
     SETUP,
   );
+  add(
+    "config.service-client-id",
+    cfg.serviceClientId && isServiceClientId(cfg.serviceClientId) ? "ok" : "missing",
+    cfg.serviceClientId && isServiceClientId(cfg.serviceClientId) ? `ACCESS_SERVICE_CLIENT_ID = ${cfg.serviceClientId}` : "ACCESS_SERVICE_CLIENT_ID is not set to the verification service token, so the Worker fails closed",
+    SETUP,
+  );
+  add(
+    "config.provider",
+    cfg.triageProvider === "workers-ai" ? "ok" : "missing",
+    cfg.triageProvider === "workers-ai" ? `TRIAGE_PROVIDER = workers-ai, TRIAGE_MODEL = ${cfg.vars.TRIAGE_MODEL ?? "default"}` : "TRIAGE_PROVIDER is not workers-ai yet (setup writes it once the model is in the catalog), so the Worker fails closed",
+    SETUP,
+  );
 
   // wrangler.
   if (!s.whoami.ok || !s.whoami.value.loggedIn) add("wrangler.login", "missing", "wrangler is not logged in", "npx wrangler login");
@@ -173,7 +263,7 @@ export function doctorReport(s: ProdState): Check[] {
   else if (!s.catalog.ok) add("d1.catalog", "unknown", s.catalog.reason);
   else {
     const cat = s.catalog.value;
-    const missingPeople = PERSONAS.filter((p) => !cat.people.some((q) => q.email.toLowerCase() === p.email.toLowerCase() && q.role === p.role && Number(q.active) === 1));
+    const missingPeople = SEED_PEOPLE.filter((p) => !cat.people.some((q) => q.email.toLowerCase() === p.email.toLowerCase() && q.role === p.role && Number(q.active) === 1));
     const good = cat.sites === 1 && cat.resources === 20 && missingPeople.length === 0;
     add(
       "d1.catalog",
@@ -207,8 +297,8 @@ export function doctorReport(s: ProdState): Check[] {
 
     if (s.idps && !s.idps.ok) add("access.otp", "unknown", s.idps.reason + permissionHint(s.idps));
     else if (s.idps?.ok) {
-      const otp = findOtp(s.idps.value);
-      add("access.otp", otp ? "ok" : "missing", otp ? `One-time PIN login ${otp.name}` : "no One-time PIN login method", SETUP);
+      const otp = checkOtp(s.idps.value);
+      add("access.otp", otp.ok ? "ok" : "missing", otp.ok ? `One-time PIN login ${otp.idp.id} (${otp.idp.name})` : otp.reason, "setup only references this login; restore it in Zero Trust or update PROD.otpIdpId");
     }
 
     let policy: AccessPolicy | null = null;
@@ -217,6 +307,38 @@ export function doctorReport(s: ProdState): Check[] {
       policy = findPolicy(s.policies.value);
       const drift = policy ? policyDrift(policy) : [];
       add("access.policy", policy && drift.length === 0 ? "ok" : "missing", policy ? (drift.length ? drift.join("; ") : `${DESIRED.policyName} allows ${DESIRED.emails.length} emails`) : `no reusable policy ${DESIRED.policyName}`, SETUP);
+    }
+
+    let token: ServiceToken | null = null;
+    if (s.serviceTokens && !s.serviceTokens.ok) add("access.service-token", "unknown", s.serviceTokens.reason + permissionHint(s.serviceTokens));
+    else if (s.serviceTokens?.ok) {
+      try {
+        token = findServiceToken(s.serviceTokens.value);
+        if (!token) add("access.service-token", "missing", `no service token ${DESIRED.serviceTokenName}`, SETUP);
+        else {
+          const days = daysToExpiry(token, s.now);
+          const problems = [
+            ...(s.localClientId === token.client_id ? [] : [s.localClientId ? "the Client ID stored on this Mac is another token's" : "its secret is not stored on this Mac (.prod/), so prod:verify cannot sign in"]),
+            ...(cfg.serviceClientId === token.client_id ? [] : ["wrangler.jsonc ACCESS_SERVICE_CLIENT_ID is not its Client ID"]),
+            ...(days !== null && days < 30 ? [`expires in ${days} days`] : []),
+          ];
+          add("access.service-token", problems.length ? "missing" : "ok", problems.length ? problems.join("; ") : `${token.name} (${token.client_id})${days !== null ? `, expires in ${days} days` : ""}`, SETUP);
+        }
+      } catch (e) {
+        add("access.service-token", "missing", e instanceof Error ? e.message : String(e), "delete the extra token in Zero Trust");
+      }
+    }
+
+    let servicePolicy: AccessPolicy | null = null;
+    if (s.policies?.ok) {
+      servicePolicy = findServicePolicy(s.policies.value);
+      const drift = servicePolicy && token ? servicePolicyDrift(servicePolicy, token.id) : [];
+      add(
+        "access.service-policy",
+        servicePolicy && token && drift.length === 0 ? "ok" : "missing",
+        !servicePolicy ? `no Service Auth policy ${DESIRED.servicePolicyName}` : !token ? "no service token for it to admit" : drift.length ? drift.join("; ") : `${DESIRED.servicePolicyName} admits only ${DESIRED.serviceTokenName}`,
+        SETUP,
+      );
     }
 
     if (s.apps && !s.apps.ok) add("access.app", "unknown", s.apps.reason + permissionHint(s.apps));
@@ -228,9 +350,8 @@ export function doctorReport(s: ProdState): Check[] {
         add("access.app", "missing", e instanceof Error ? e.message : String(e), "delete the extra application in Zero Trust");
       }
       if (app) {
-        const otp = s.idps?.ok ? findOtp(s.idps.value) : null;
-        const drift = otp && policy ? appDrift(app, otp.id, policy.id) : ["login method or policy missing"];
-        add("access.app", drift.length ? "missing" : "ok", drift.length ? drift.join("; ") : `${app.name} protects ${DESIRED.host}`, SETUP);
+        const drift = policy && servicePolicy ? appDrift(app, policy.id, servicePolicy.id) : ["a policy is missing"];
+        add("access.app", drift.length ? "missing" : "ok", drift.length ? drift.join("; ") : `${app.name} protects ${DESIRED.host} (One-time PIN, Allow then Service Auth)`, SETUP);
         add("access.aud", app.aud === cfg.accessAud ? "ok" : "missing", app.aud === cfg.accessAud ? "wrangler.jsonc ACCESS_AUD matches the application" : "wrangler.jsonc ACCESS_AUD differs from the application's AUD", SETUP);
       } else if (!c.some((x) => x.id === "access.app")) {
         add("access.app", "missing", `no Access application protects ${DESIRED.host}`, SETUP);
@@ -254,6 +375,22 @@ export function doctorReport(s: ProdState): Check[] {
     if ((status === 302 || status === 301 || status === 303) && toTeam) add("edge.access", "ok", `unauthenticated GET /api/health is redirected to the ${PROD.teamDomain} sign-in`);
     else if (status === 404) add("edge.access", "missing", "no Worker answers on the workers.dev hostname yet (404)", SETUP);
     else add("edge.access", "missing", `unauthenticated GET /api/health returned ${status}${location ? ` to ${location}` : ""}: Access is not in front of the Worker`, SETUP);
+  }
+
+  const sp = s.serviceProbe;
+  if (!sp) add("edge.service-token", "unknown", "no service token credentials on this Mac (.prod/ or PLACESSYNC_VERIFY_CLIENT_ID and _SECRET), so the signed-in path is unchecked", SETUP);
+  else if (!sp.ok) add("edge.service-token", "unknown", `GET through Access with the service token failed: ${sp.reason}`);
+  else {
+    const h = sp.value.health ?? {};
+    const good = sp.value.healthStatus === 200 && h.authMode === "access" && h.triage === "ready" && h.seeded === true && sp.value.meStatus === 200 && sp.value.employeeId === VERIFY_PRINCIPAL.id;
+    add(
+      "edge.service-token",
+      good ? "ok" : "missing",
+      good
+        ? `through Access with the service token: /api/health ok (access mode, Workers AI ready, seeded), /api/me is ${sp.value.employeeId} (${sp.value.role})`
+        : `through Access with the service token: /api/health ${sp.value.healthStatus}${sp.value.healthStatus === 200 ? ` (authMode ${String(h.authMode)}, triage ${String(h.triage)}, seeded ${String(h.seeded)})` : h.error ? ` (${String(h.error)})` : ""}, /api/me ${sp.value.meStatus}${sp.value.employeeId ? ` as ${sp.value.employeeId}` : ""}`,
+      SETUP,
+    );
   }
   return c;
 }

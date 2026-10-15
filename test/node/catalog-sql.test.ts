@@ -1,12 +1,13 @@
 // The production catalog seed (scripts/export-catalog-sql.ts) applied to the real D1
 // migrations in SQLite: it seeds the site, 20 resources and the sign-in people, and
 // applying it again changes nothing except to converge the people rows.
+import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { catalogSql } from "../../scripts/export-catalog-sql.ts";
-import { PERSONAS } from "../../scripts/lib/prod-config.ts";
+import { PERSONAS, SEED_PEOPLE } from "../../scripts/lib/prod-config.ts";
 
 const root = path.join(import.meta.dirname, "..", "..");
 
@@ -20,16 +21,23 @@ function migratedDb(): DatabaseSync {
 const count = (db: DatabaseSync, table: string) => Number((db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n);
 
 describe("production catalog SQL", () => {
-  it("seeds one site, 20 resources and the owner plus personas with their roles", () => {
+  it("seeds one site, 20 resources, the owner plus personas and the verification employee, with their roles", () => {
     const db = migratedDb();
-    db.exec(catalogSql(PERSONAS, "2026-10-15T00:00:00.000Z"));
+    db.exec(catalogSql(SEED_PEOPLE, "2026-10-15T00:00:00.000Z"));
     expect(count(db, "sites")).toBe(1);
     expect(count(db, "resources")).toBe(20);
-    expect(count(db, "employees")).toBe(PERSONAS.length);
+    expect(count(db, "employees")).toBe(SEED_PEOPLE.length);
     const rows = db.prepare("SELECT id, email, role, active FROM employees ORDER BY id").all();
     expect(rows).toEqual(
-      [...PERSONAS].sort((a, b) => a.id.localeCompare(b.id)).map((p) => ({ id: p.id, email: p.email, role: p.role, active: 1 })),
+      [...SEED_PEOPLE].sort((a, b) => a.id.localeCompare(b.id)).map((p) => ({ id: p.id, email: p.email, role: p.role, active: 1 })),
     );
+  });
+
+  it("is what the export script prints by default", () => {
+    const out = execFileSync(process.execPath, [path.join(root, "scripts", "export-catalog-sql.ts")], { encoding: "utf8" });
+    const db = migratedDb();
+    db.exec(out);
+    expect(db.prepare("SELECT id FROM employees ORDER BY id").all().map((r) => (r as { id: string }).id)).toEqual(SEED_PEOPLE.map((p) => p.id).sort());
   });
 
   it("is idempotent, keeps admin edits to resources, and converges the people rows", () => {

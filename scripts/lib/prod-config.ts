@@ -1,11 +1,14 @@
 // Production facts for PlacesSync on Nitish's Cloudflare account (Workers Free plan,
 // Zero Trust Free), shared by prod-setup, prod-doctor and prod-verify. Nothing here is a
-// secret: the account id, workers.dev subdomain and team domain appear in every URL and
-// token the deployment serves. Values Cloudflare creates at setup time (the D1 database
-// id and the Access application's AUD tag) are written into wrangler.jsonc by
-// `npm run prod:setup`, never typed by hand.
+// secret: the account id, workers.dev subdomain, team domain and One-time PIN login id
+// appear in every URL and token the deployment serves. Values Cloudflare creates at setup
+// time (the D1 database id, the Access application's AUD tag and the verification service
+// token's Client ID) and the Workers AI provider setting are written into wrangler.jsonc by
+// `npm run prod:setup`, never typed by hand. The service token's secret is never here: it
+// lives in the gitignored .prod/ folder (service-token-file.ts).
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { SERVICE_PRINCIPAL_ID } from "../../src/shared/service-principal.ts";
 import { ROOT } from "./meta.ts";
 
 export const PROD = {
@@ -18,8 +21,13 @@ export const PROD = {
   workflowName: "placessync-triage",
   accessAppName: "placessync-production",
   accessPolicyName: "placessync-owner-and-personas",
-  /** Used only if the account has no One-time PIN login yet (one per account). */
-  otpIdpName: "placessync-one-time-pin",
+  /** The account's existing One-time PIN login; setup only references it, never creates one. */
+  otpIdpId: "743683e8-42d4-44e9-9991-ba57a1bb0dec",
+  /** Access service token prod-verify signs in with, and its Service Auth policy. */
+  serviceTokenName: "placessync-verify",
+  servicePolicyName: "placessync-verify-service-auth",
+  /** One year, Access's default; `npm run prod:doctor` warns 30 days before it expires. */
+  serviceTokenDuration: "8760h",
   /** Matches the 8-hour dev tokens; role changes reach open sockets within this. */
   sessionDuration: "8h",
   model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
@@ -54,6 +62,22 @@ export const PERSONAS: readonly Persona[] = [
 ];
 
 export const OWNER = PERSONAS[0] as Persona;
+
+/**
+ * The employee prod-verify acts as, through the service token (src/worker/auth/service-token.ts).
+ * Its address is in the reserved .invalid domain, so no person can sign in as it, and it
+ * is not in the Allow policy: only the Service Auth policy reaches it.
+ */
+export const VERIFY_PRINCIPAL: Persona = {
+  id: SERVICE_PRINCIPAL_ID,
+  email: "placessync-verify@service-token.invalid",
+  role: "employee",
+  displayName: "Production verification (service token)",
+  department: "Verification",
+};
+
+/** Every employee row the production seed writes. */
+export const SEED_PEOPLE: readonly Persona[] = [...PERSONAS, VERIFY_PRINCIPAL];
 
 // ---------- wrangler.jsonc ----------
 
@@ -99,6 +123,8 @@ export interface ProductionValues {
   databaseId: string | undefined;
   teamDomain: string | undefined;
   accessAud: string | undefined;
+  serviceClientId: string | undefined;
+  triageProvider: string | undefined;
   workersDev: boolean | undefined;
   previewUrls: boolean | undefined;
   vars: Record<string, string>;
@@ -123,6 +149,8 @@ export function readProductionValues(text: string): ProductionValues {
     databaseId: db?.database_id,
     teamDomain: prod.vars?.ACCESS_TEAM_DOMAIN,
     accessAud: prod.vars?.ACCESS_AUD,
+    serviceClientId: prod.vars?.ACCESS_SERVICE_CLIENT_ID,
+    triageProvider: prod.vars?.TRIAGE_PROVIDER,
     workersDev: prod.workers_dev,
     previewUrls: prod.preview_urls,
     vars: prod.vars ?? {},
@@ -138,6 +166,8 @@ export const isPlaceholder = (v: string | undefined): boolean => !v || v.include
 const D1_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** Access AUD tags are 64 hex characters. */
 const AUD = /^[0-9a-f]{64}$/;
+/** Service token Client IDs end in .access (config.ts accepts the same shape). */
+const CLIENT_ID = /^[A-Za-z0-9_-]+\.access$/;
 
 export function isD1Id(v: string): boolean {
   return D1_ID.test(v);
@@ -147,14 +177,22 @@ export function isAccessAud(v: string): boolean {
   return AUD.test(v);
 }
 
+export function isServiceClientId(v: string): boolean {
+  return CLIENT_ID.test(v);
+}
+
+export type ProductionKey = "database_id" | "ACCESS_AUD" | "ACCESS_SERVICE_CLIENT_ID" | "TRIAGE_PROVIDER";
+
 /**
  * Sets one value inside env.production only (the top-level local D1 id is never touched)
  * and returns the new text with formatting and comments kept. Refuses values that do not
  * look like what Cloudflare issues, so a typo cannot be written.
  */
-export function setProductionValue(text: string, key: "database_id" | "ACCESS_AUD", value: string): string {
+export function setProductionValue(text: string, key: ProductionKey, value: string): string {
   if (key === "database_id" && !isD1Id(value)) throw new Error(`refusing to write database_id ${JSON.stringify(value)}: not a D1 UUID`);
   if (key === "ACCESS_AUD" && !isAccessAud(value)) throw new Error("refusing to write ACCESS_AUD: not a 64-character hex AUD tag");
+  if (key === "ACCESS_SERVICE_CLIENT_ID" && !isServiceClientId(value)) throw new Error("refusing to write ACCESS_SERVICE_CLIENT_ID: not a service token Client ID");
+  if (key === "TRIAGE_PROVIDER" && value !== "workers-ai") throw new Error("refusing to write TRIAGE_PROVIDER: production uses workers-ai");
   const start = text.search(/"production"\s*:\s*\{/);
   if (start < 0) throw new Error("wrangler.jsonc has no env.production block");
   const head = text.slice(0, start);

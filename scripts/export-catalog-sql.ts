@@ -1,8 +1,9 @@
 // Production catalog seed (SPEC 17 step 6, run by `npm run prod:setup`): the site, the
 // amenities, the 20 resources and the people who may sign in. No synthetic employees:
 // in production every employee row is a real sign-in. By default those are the owner and
-// persona addresses in scripts/lib/prod-config.ts; --admin-email seeds one admin instead
-// (for someone else's deployment).
+// persona addresses in scripts/lib/prod-config.ts plus the verification employee that the
+// prod-verify service token acts as; --admin-email seeds one admin instead (for someone
+// else's deployment).
 //
 //   mkdir -p .seed && node scripts/export-catalog-sql.ts > .seed/catalog.sql
 //   node scripts/export-catalog-sql.ts --admin-email you@example.com > .seed/catalog.sql
@@ -11,7 +12,7 @@
 // app survive), and the people rows converge to the list given here.
 import { parseArgs } from "node:util";
 import { AMENITIES, SITE, generateResources } from "../src/shared/synthetic/resources.ts";
-import { PERSONAS, type Persona } from "./lib/prod-config.ts";
+import { type Persona, SEED_PEOPLE } from "./lib/prod-config.ts";
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -49,6 +50,6 @@ if (import.meta.main) {
   }
   const people: Persona[] = adminEmail
     ? [{ id: "emp_admin", email: adminEmail, role: "facilities_admin", displayName: String(values["admin-name"]), department: "Facilities" }]
-    : [...PERSONAS];
+    : [...SEED_PEOPLE];
   console.log(catalogSql(people, new Date().toISOString()));
 }

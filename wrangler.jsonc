@@ -51,7 +51,8 @@
         "SITE_ID": "hq",
         "ACCESS_TEAM_DOMAIN": "https://old-truth-a7dc.cloudflareaccess.com",
         "ACCESS_AUD": "SET_ME_BY_npm_run_prod_setup",
-        "TRIAGE_PROVIDER": "workers-ai",
+        "ACCESS_SERVICE_CLIENT_ID": "SET_ME_BY_npm_run_prod_setup",
+        "TRIAGE_PROVIDER": "SET_ME_BY_npm_run_prod_setup",
         "TRIAGE_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
         "AI_GATEWAY_ID": ""
       }

@@ -16,8 +16,9 @@ export const TOKEN_ENV_VAR = "CF_API_TOKEN";
  * the analytics permission lets prod-verify measure CPU time.
  */
 export const TOKEN_PERMISSIONS = [
-  "Account > Access: Apps and Policies > Edit (Access application and its policy)",
-  "Account > Access: Organizations, Identity Providers, and Groups > Edit (One-time PIN login; Read is enough once it exists)",
+  "Account > Access: Apps and Policies > Edit (the Access application and its two policies)",
+  "Account > Access: Service Tokens > Edit (the verification service token)",
+  "Account > Access: Organizations, Identity Providers, and Groups > Read (team domain, the One-time PIN login)",
   "Account > Workers Scripts > Read (workers.dev subdomain, the account's Cron Triggers)",
   "Account > Account Analytics > Read (CPU time in prod-verify)",
 ] as const;
@@ -53,7 +54,21 @@ export interface IdentityProvider {
 }
 export interface AccessRule {
   email?: { email: string };
+  service_token?: { token_id: string };
   [other: string]: unknown;
+}
+export interface ServiceToken {
+  id: string;
+  name: string;
+  client_id: string;
+  duration?: string;
+  expires_at?: string;
+}
+/** Create and rotate return the Client Secret, once. */
+export interface ServiceTokenSecret {
+  id?: string;
+  client_id: string;
+  client_secret: string;
 }
 export interface AccessPolicy {
   id: string;
@@ -125,8 +140,15 @@ export class CfApi {
   identityProviders(): Promise<IdentityProvider[]> {
     return this.call("GET", this.acct("/access/identity_providers"));
   }
-  createIdentityProvider(body: unknown): Promise<IdentityProvider> {
-    return this.call("POST", this.acct("/access/identity_providers"), body);
+  serviceTokens(): Promise<ServiceToken[]> {
+    return this.call("GET", this.acct("/access/service_tokens?per_page=100"));
+  }
+  createServiceToken(body: { name: string; duration: string }): Promise<ServiceToken & ServiceTokenSecret> {
+    return this.call("POST", this.acct("/access/service_tokens"), body);
+  }
+  /** Issues a new Client Secret for the same Client ID; the old secret stops working at once. */
+  rotateServiceToken(id: string): Promise<ServiceTokenSecret> {
+    return this.call("POST", this.acct(`/access/service_tokens/${encodeURIComponent(id)}/rotate`), {});
   }
   accessPolicies(): Promise<AccessPolicy[]> {
     return this.call("GET", this.acct("/access/policies?per_page=100"));
