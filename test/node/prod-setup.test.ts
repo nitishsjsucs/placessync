@@ -59,6 +59,7 @@ function fresh(over: Partial<ProdState> = {}): ProdState {
     config: config(),
     whoami: ok({ loggedIn: true, email: "owner@example.com", accountIds: [PROD.accountId] }),
     d1: ok(null),
+    d1Count: ok(3),
     pendingMigrations: null,
     catalog: null,
     deployments: ok(0),
@@ -247,6 +248,7 @@ describe("doctorReport", () => {
       "config.provider",
       "wrangler.login",
       "d1.database",
+      "free.d1-databases",
       "d1.migrations",
       "d1.catalog",
       "worker.deployed",
@@ -295,6 +297,10 @@ describe("doctorReport", () => {
     expect(status({ ...s, catalog: ok({ sites: 1, resources: 20, people }) })["d1.catalog"]).toBe("missing");
     const crons = [1, 2, 3].map((n) => ({ script: `other-${n}`, crons: ["0 * * * *", "30 * * * *"] }));
     expect(status({ ...s, accountCrons: ok(crons) })["free.crons"]).toBe("missing");
+    expect(status({ ...s, d1Count: ok(10) })["free.d1-databases"]).toBe("ok");
+    expect(status({ ...s, d1Count: ok(11) })["free.d1-databases"]).toBe("missing");
+    // A database still to be created counts too.
+    expect(status(fresh({ d1Count: ok(10) }))["free.d1-databases"]).toBe("missing");
     expect(status({ ...s, localClientId: null })["access.service-token"]).toBe("missing");
     expect(status({ ...s, serviceTokens: ok([{ ...TOKEN, expires_at: "2026-10-30T00:00:00Z" }]) })["access.service-token"]).toBe("missing");
     expect(status({ ...s, idps: ok([]) })["access.otp"]).toBe("missing");

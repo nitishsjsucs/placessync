@@ -17,7 +17,7 @@ import {
   readWranglerConfig,
 } from "./prod-config.ts";
 import { credentialsFromEnv, readServiceToken, serviceTokenHeaders } from "./service-token-file.ts";
-import { PROD_ENV_ARGS, type Runner, findD1, lastLine, parseExecuteRows, parsePendingMigrations, parseJsonOutput, parseWhoami, wrangler } from "./wrangler-cli.ts";
+import { PROD_ENV_ARGS, type Runner, lastLine, listD1, parseExecuteRows, parsePendingMigrations, parseJsonOutput, parseWhoami, wrangler } from "./wrangler-cli.ts";
 
 /** A value that was read, or why it could not be. */
 export type Read<T> = { ok: true; value: T } | { ok: false; reason: string };
@@ -43,6 +43,8 @@ export interface ProdState {
   config: ProductionValues;
   whoami: Read<{ loggedIn: boolean; email: string | null; accountIds: string[] }>;
   d1: Read<{ uuid: string } | null>;
+  /** D1 databases on the account (all apps), for the Free plan's 10. */
+  d1Count: Read<number>;
   pendingMigrations: Read<string[]> | null;
   catalog: Read<CatalogState> | null;
   deployments: Read<number>;
@@ -84,7 +86,9 @@ export async function gatherState(deps: GatherDeps): Promise<ProdState> {
   const loggedIn = whoami.ok && whoami.value.loggedIn && whoami.value.accountIds.includes(PROD.accountId);
   const notLoggedIn = "wrangler is not logged in to the production account";
 
-  const d1: Read<{ uuid: string } | null> = loggedIn ? await attempt(async () => findD1(await wrangler(["d1", "list", "--json"]), PROD.d1Name)) : fail(notLoggedIn);
+  const d1List: Read<{ name: string; uuid: string }[]> = loggedIn ? await attempt(async () => listD1(await wrangler(["d1", "list", "--json"]))) : fail(notLoggedIn);
+  const d1: Read<{ uuid: string } | null> = d1List.ok ? ok(((hit) => (hit ? { uuid: hit.uuid } : null))(d1List.value.find((d) => d.name === PROD.d1Name))) : d1List;
+  const d1Count: Read<number> = d1List.ok ? ok(d1List.value.length) : d1List;
   const d1Ready = d1.ok && d1.value !== null && config.databaseId === d1.value.uuid;
   const pendingMigrations = d1Ready ? await attempt(async () => parsePendingMigrations(await wrangler(["d1", "migrations", "list", "DB", "--remote", ...PROD_ENV_ARGS]))) : null;
   const catalog =
@@ -161,6 +165,7 @@ export async function gatherState(deps: GatherDeps): Promise<ProdState> {
     config,
     whoami,
     d1,
+    d1Count,
     pendingMigrations,
     catalog,
     deployments,
@@ -215,6 +220,8 @@ const permissionHint = (r: { ok: false; reason: string }) => (/HTTP 403|10000|91
 
 /** Cron Triggers per account on Workers Free (https://developers.cloudflare.com/workers/platform/limits/). */
 export const FREE_CRONS_PER_ACCOUNT = 5;
+/** D1 databases per account on Workers Free (https://developers.cloudflare.com/d1/platform/limits/). */
+export const FREE_D1_DATABASES_PER_ACCOUNT = 10;
 
 export function doctorReport(s: ProdState): Check[] {
   const c: Check[] = [];
@@ -253,6 +260,16 @@ export function doctorReport(s: ProdState): Check[] {
   else if (!s.d1.value) add("d1.database", "missing", `no D1 database named ${PROD.d1Name}`, SETUP);
   else if (s.d1.value.uuid !== cfg.databaseId) add("d1.database", "missing", `${PROD.d1Name} is ${s.d1.value.uuid}, but wrangler.jsonc says ${cfg.databaseId}`, SETUP);
   else add("d1.database", "ok", `${PROD.d1Name} = ${s.d1.value.uuid}`);
+
+  if (s.d1Count.ok) {
+    const total = s.d1Count.value + (s.d1.ok && s.d1.value === null ? 1 : 0);
+    add(
+      "free.d1-databases",
+      total <= FREE_D1_DATABASES_PER_ACCOUNT ? "ok" : "missing",
+      `${total} of ${FREE_D1_DATABASES_PER_ACCOUNT} D1 databases on the account with ${PROD.d1Name}`,
+      "delete an unused D1 database; Free allows 10 per account",
+    );
+  }
 
   if (s.pendingMigrations === null) add("d1.migrations", "unknown", "not checked until the database exists and is configured");
   else if (!s.pendingMigrations.ok) add("d1.migrations", "unknown", s.pendingMigrations.reason);

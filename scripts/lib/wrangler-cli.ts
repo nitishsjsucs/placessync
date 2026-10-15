@@ -71,10 +71,13 @@ export function parseWhoami(r: RunResult): Whoami {
   return { loggedIn: d.loggedIn === true, email: d.email ?? null, accountIds: (d.accounts ?? []).map((a) => a.id) };
 }
 
-export function findD1(r: RunResult, name: string): { uuid: string } | null {
+export function listD1(r: RunResult): { name: string; uuid: string }[] {
   if (r.code !== 0) throw new Error(`wrangler d1 list failed: ${lastLine(r)}`);
-  const list = parseJsonOutput<{ name: string; uuid: string }[]>(r.stdout);
-  const hit = list.find((d) => d.name === name);
+  return parseJsonOutput<{ name: string; uuid: string }[]>(r.stdout);
+}
+
+export function findD1(r: RunResult, name: string): { uuid: string } | null {
+  const hit = listD1(r).find((d) => d.name === name);
   return hit ? { uuid: hit.uuid } : null;
 }
 
