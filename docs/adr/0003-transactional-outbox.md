@@ -8,7 +8,7 @@ Reports run in D1, but a reservation commits in the Durable Object's SQLite. A p
 
 ## Decision
 
-Every committed mutation writes exactly one outbox row in the same transaction. The object's alarm flushes up to 50 rows per batch into `reservation_facts` with an upsert guarded by `ledger_version`, deletes the flushed rows, and re-arms if more remain. Failures are caught, counted in `meta.flush_failures`, and retried with backoff `min(2^n s, 60 s)`; rows are never dropped. The constructor re-arms the alarm when the outbox is non-empty.
+Every committed mutation writes exactly one outbox row in the same transaction. The object's alarm flushes up to 40 rows per batch (50 before 2026-10-15; 40 upserts plus the `projection_state` upsert keep one flush within D1's 50 queries per invocation on Workers Free) into `reservation_facts` with an upsert guarded by `ledger_version`, deletes the flushed rows, and re-arms if more remain. Failures are caught, counted in `meta.flush_failures`, and retried with backoff `min(2^n s, 60 s)`; rows are never dropped. The constructor re-arms the alarm when the outbox is non-empty.
 
 ## Consequences
 

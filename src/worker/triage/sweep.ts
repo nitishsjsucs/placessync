@@ -3,12 +3,22 @@
 // when an instance finished without recording anything, they go to staff for manual
 // categorization. No request can sit in "submitted" forever.
 import type { Config } from "../config.ts";
+import { D1_QUERIES_PER_INVOCATION } from "../free-plan.ts";
 import { newId } from "../ids.ts";
 import { ledgerFor } from "../ledger/ledger-for.ts";
 import { eventStatement } from "../repo/requests.ts";
 import { type TriageWorkflowBinding, startTriage } from "./start-triage.ts";
 
-export const SWEEP_BATCH = 25;
+/**
+ * Rows examined per cron run. One run is one invocation, and on Workers Free D1 allows
+ * 50 queries per invocation. The worst row (no instance yet, so startTriage runs) costs
+ * 3 statements: its 2-statement batch, then one UPDATE or DELETE. 1 SELECT + 12 x 3 = 37,
+ * which leaves room. Rows beyond 12 wait for the next run, 2 minutes later.
+ */
+export const SWEEP_BATCH = 12;
+/** D1 statements one sweep run issues at most: the SELECT plus the worst row, per row. */
+export const SWEEP_MAX_D1_STATEMENTS = 1 + 3 * SWEEP_BATCH;
+if (SWEEP_MAX_D1_STATEMENTS > D1_QUERIES_PER_INVOCATION) throw new Error("SWEEP_BATCH exceeds the Workers Free D1 query budget");
 export const STRANDED_AFTER_MS = 2 * 60_000;
 export const MAX_TRIAGE_ATTEMPTS = 3;
 
@@ -54,10 +64,13 @@ export async function sweepStrandedRequests(
 ): Promise<SweepSummary> {
   const summary: SweepSummary = { examined: 0, created: 0, createFailed: 0, restarted: 0, handedOff: 0, inFlight: 0 };
   const at = new Date(nowMs).toISOString();
+  // site_id first, so the query searches idx_requests_status (site_id, status, created_at)
+  // instead of scanning it: the cron runs 720 times a day, and on Workers Free D1 allows
+  // 5 million rows read per day. Requests only exist for the configured site.
   const { results } = await env.DB.prepare(
-    "SELECT id, site_id AS siteId, triage_attempts AS attempts FROM facilities_requests WHERE status = 'submitted' AND created_at < ? ORDER BY created_at LIMIT ?",
+    "SELECT id, site_id AS siteId, triage_attempts AS attempts FROM facilities_requests WHERE site_id = ? AND status = 'submitted' AND created_at < ? ORDER BY created_at LIMIT ?",
   )
-    .bind(new Date(nowMs - STRANDED_AFTER_MS).toISOString(), SWEEP_BATCH)
+    .bind(config.siteId, new Date(nowMs - STRANDED_AFTER_MS).toISOString(), SWEEP_BATCH)
     .all<{ id: string; siteId: string; attempts: number }>();
 
   for (const row of results) {

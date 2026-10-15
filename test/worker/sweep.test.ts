@@ -2,7 +2,7 @@ import { createExecutionContext, createScheduledController, introspectWorkflowIn
 import { env } from "cloudflare:workers";
 import { beforeAll, describe, expect, it } from "vitest";
 import worker from "../../src/worker/index.ts";
-import { sweepStrandedRequests } from "../../src/worker/triage/sweep.ts";
+import { SWEEP_BATCH, sweepStrandedRequests } from "../../src/worker/triage/sweep.ts";
 import { eventTypes, insertRequest, requestRow } from "../helpers/requests.ts";
 import { seed } from "../helpers/world.ts";
 
@@ -139,10 +139,11 @@ describe("cron sweep for stranded requests (SPEC 7.3, ADR 0008)", () => {
     expect(await requestRow(id)).toMatchObject({ status: "awaiting_review", triage_state: "unavailable" });
   });
 
-  it("(f) examines at most 25 rows per run", async () => {
+  it("(f) examines at most SWEEP_BATCH (12) rows per run", async () => {
+    expect(SWEEP_BATCH).toBe(12);
     await clearSubmitted();
     const ids: string[] = [];
-    for (let i = 0; i < 30; i++) ids.push(await insertRequest({ ageMinutes: 10 + i, triageAttempts: 3 }));
+    for (let i = 0; i < SWEEP_BATCH + 5; i++) ids.push(await insertRequest({ ageMinutes: 10 + i, triageAttempts: 3 }));
     await runSweep();
     const { results } = await env.DB.prepare(
       `SELECT status, COUNT(*) AS n FROM facilities_requests WHERE id IN (${ids.map(() => "?").join(",")}) GROUP BY status ORDER BY status`,
@@ -150,7 +151,7 @@ describe("cron sweep for stranded requests (SPEC 7.3, ADR 0008)", () => {
       .bind(...ids)
       .all();
     expect(results).toEqual([
-      { status: "awaiting_review", n: 25 },
+      { status: "awaiting_review", n: SWEEP_BATCH },
       { status: "submitted", n: 5 },
     ]);
   });

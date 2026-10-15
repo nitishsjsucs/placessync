@@ -591,7 +591,7 @@ export class SiteLedger extends DurableObject<Env> {
   }
 
   /**
-   * Flushes up to 50 outbox rows to D1 in one batch. Errors are caught (never rethrown,
+   * Flushes up to FLUSH_BATCH (40) outbox rows to D1 in one batch. Errors are caught (never rethrown,
    * so the platform retry budget is unused) and drive our own backoff counter (m1).
    */
   async alarm(): Promise<void> {

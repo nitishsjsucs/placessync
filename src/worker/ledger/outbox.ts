@@ -1,6 +1,7 @@
 // Transactional outbox flush (SPEC 6.1, 7.1, ADR 0003). Each committed mutation wrote
 // one outbox row in its own transaction; the alarm copies them to D1 with upserts
 // guarded by ledger_version, so replays and reordering are harmless.
+import { D1_QUERIES_PER_INVOCATION } from "../free-plan.ts";
 
 export interface FactPayload {
   reservationId: string;
@@ -18,7 +19,13 @@ export interface FactPayload {
   ledgerVersion: number;
 }
 
-export const FLUSH_BATCH = 50;
+/**
+ * Outbox rows per flush. A flush is one alarm invocation sending one D1 batch of
+ * FLUSH_BATCH upserts plus the projection_state upsert. On Workers Free D1 allows 50
+ * queries per invocation and counts each statement in a batch, so 40 + 1 = 41.
+ */
+export const FLUSH_BATCH = 40;
+if (FLUSH_BATCH + 1 > D1_QUERIES_PER_INVOCATION) throw new Error("FLUSH_BATCH exceeds the Workers Free D1 query budget");
 export const MAX_BACKOFF_MS = 60_000;
 
 /** Backoff after the n-th consecutive failure: min(2^n s, 60 s). */
