@@ -1,13 +1,15 @@
 // Minimal Cloudflare REST client for prod-setup, prod-doctor and prod-verify. The account
-// API token comes from the environment (PLACESSYNC_CF_API_TOKEN, or CF_SETUP_TOKEN) and is
-// only ever placed in the Authorization header: it is never printed, logged, written to a
-// file or included in an error. wrangler keeps its own OAuth login for everything wrangler
-// can do; this client covers what wrangler cannot (Access, the workers.dev subdomain, the
+// API token comes from the environment variable CF_API_TOKEN and is only ever placed in the
+// Authorization header: it is never printed, logged, written to a file or included in an
+// error. wrangler keeps its own OAuth login for everything wrangler can do, and never sees
+// the token: wrangler would read CF_API_TOKEN as a deprecated alias of
+// CLOUDFLARE_API_TOKEN, so childEnv() in wrangler-cli.ts removes it from every child
+// process. This client covers what wrangler cannot (Access, the workers.dev subdomain, the
 // account's Cron Triggers, GraphQL analytics). fetch is injectable so tests use fakes.
 export const CF_API = "https://api.cloudflare.com/client/v4";
 
-/** Environment variables the token may come from, in order. */
-export const TOKEN_ENV_VARS = ["PLACESSYNC_CF_API_TOKEN", "CF_SETUP_TOKEN"] as const;
+/** The environment variable the account API token comes from. */
+export const TOKEN_ENV_VAR = "CF_API_TOKEN";
 
 /**
  * Permissions the token needs, per use. Setup needs the first two; doctor reads with them;
@@ -21,11 +23,7 @@ export const TOKEN_PERMISSIONS = [
 ] as const;
 
 export function tokenFromEnv(env: NodeJS.ProcessEnv = process.env): string | null {
-  for (const name of TOKEN_ENV_VARS) {
-    const v = env[name]?.trim();
-    if (v) return v;
-  }
-  return null;
+  return env[TOKEN_ENV_VAR]?.trim() || null;
 }
 
 export class CfApiError extends Error {

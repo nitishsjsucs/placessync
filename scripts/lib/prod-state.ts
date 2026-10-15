@@ -194,7 +194,7 @@ export function doctorReport(s: ProdState): Check[] {
 
   // Cloudflare API (needs the token).
   if (!s.token) {
-    add("api.token", "missing", "no account API token in PLACESSYNC_CF_API_TOKEN or CF_SETUP_TOKEN, so Access, the subdomain and the account's crons are unchecked", "export PLACESSYNC_CF_API_TOKEN (permissions in the README)");
+    add("api.token", "missing", "no account API token in CF_API_TOKEN, so Access, the subdomain and the account's crons are unchecked", "export CF_API_TOKEN (permissions in the README)");
   } else {
     add("api.token", "ok", "account API token present (not printed)");
     const t = s.teamDomain;

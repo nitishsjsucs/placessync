@@ -2,13 +2,15 @@
 // state shapes (no network, no wrangler). The setup must stop before deploying anything
 // when Access cannot be configured, converge rather than duplicate, and the doctor must
 // name exactly what is missing.
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { DESIRED, appBody, appDrift, findApp, planAccess, policyBody, policyDrift } from "../../scripts/lib/access-plan.ts";
 import { CfApi, CfApiError, tokenFromEnv } from "../../scripts/lib/cf-api.ts";
 import { PERSONAS, PLACEHOLDER, PROD, PROD_HOST, PROD_URL, type ProductionValues } from "../../scripts/lib/prod-config.ts";
 import { type ProdState, doctorReport, gatherState } from "../../scripts/lib/prod-state.ts";
 import { describeStep, planSetup } from "../../scripts/prod-setup.ts";
-import { findD1, parsePendingMigrations, parseWhoami, type Runner } from "../../scripts/lib/wrangler-cli.ts";
+import { WRANGLER_CREDENTIAL_VARS, childEnv, findD1, parsePendingMigrations, parseWhoami, type Runner } from "../../scripts/lib/wrangler-cli.ts";
 
 const D1 = "0f0e0d0c-0b0a-4908-8706-050403020100";
 const AUD = "b".repeat(64);
@@ -275,9 +277,19 @@ describe("wrangler and API helpers", () => {
     expect(inspect(api)).not.toContain(secret);
   });
 
-  it("reads the token from PLACESSYNC_CF_API_TOKEN, then CF_SETUP_TOKEN, trimmed", () => {
-    expect(tokenFromEnv({ CF_SETUP_TOKEN: " b \n" })).toBe("b");
-    expect(tokenFromEnv({ PLACESSYNC_CF_API_TOKEN: "a", CF_SETUP_TOKEN: "b" })).toBe("a");
+  it("reads the token from CF_API_TOKEN, trimmed", () => {
+    expect(tokenFromEnv({ CF_API_TOKEN: " b \n" })).toBe("b");
+    expect(tokenFromEnv({ CF_API_TOKEN: "  " })).toBeNull();
+    expect(tokenFromEnv({ CLOUDFLARE_API_TOKEN: "x" })).toBeNull();
     expect(tokenFromEnv({})).toBeNull();
+  });
+
+  it("never hands an API credential to wrangler, which would use it instead of its OAuth login", () => {
+    const env = childEnv({ PATH: "/bin", HOME: "/home/x", CF_API_TOKEN: "t", CLOUDFLARE_API_TOKEN: "t2", CF_API_KEY: "k", CF_EMAIL: "e", CLOUDFLARE_API_KEY: "k2", CLOUDFLARE_EMAIL: "e2" });
+    for (const name of WRANGLER_CREDENTIAL_VARS) expect(env[name]).toBeUndefined();
+    expect(env).toMatchObject({ PATH: "/bin", HOME: "/home/x", CLOUDFLARE_ACCOUNT_ID: PROD.accountId });
+    // wrangler reads each of these (CF_* as deprecated aliases); keep the list in step with it.
+    const cli = readFileSync(path.join(import.meta.dirname, "..", "..", "node_modules", "wrangler", "wrangler-dist", "cli.js"), "utf8");
+    for (const name of ["CF_API_TOKEN", "CF_API_KEY", "CF_EMAIL"]) expect(cli).toContain(`deprecatedName: "${name}"`);
   });
 });

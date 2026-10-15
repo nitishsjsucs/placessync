@@ -5,7 +5,7 @@
 // question, --plan prints the plan and exits).
 //
 //   npx wrangler login                     once; setup uses wrangler's OAuth for Workers and D1
-//   export PLACESSYNC_CF_API_TOKEN=...      account API token for Access (README lists permissions)
+//   export CF_API_TOKEN=...                account API token for Access (README lists permissions)
 //   npm run prod:setup                     plan, confirm, apply
 //   npm run prod:setup -- --plan           plan only, changes nothing
 //
@@ -93,7 +93,7 @@ export function planSetup(s: ProdState): Step[] {
   if (!s.token) {
     steps.push({
       kind: "stop",
-      reason: "no account API token (PLACESSYNC_CF_API_TOKEN or CF_SETUP_TOKEN), so Access cannot be set up; nothing is deployed until it can. Export the token and rerun.",
+      reason: "no account API token in CF_API_TOKEN, so Access cannot be set up; nothing is deployed until it can. Export the token and rerun.",
     });
     return steps;
   }

@@ -16,9 +16,21 @@ export type Runner = (args: string[], opts?: { inherit?: boolean }) => Promise<R
 
 const WRANGLER = path.join(ROOT, "node_modules", ".bin", "wrangler");
 
-/** The env every child process gets: the production account, no color, no prompts. */
+/**
+ * Credentials wrangler would use instead of its OAuth login: the current names and the
+ * deprecated CF_ aliases wrangler still reads (CF_API_TOKEN among them, which is where
+ * this repo's scripts take the account API token from). None reaches a child process.
+ */
+export const WRANGLER_CREDENTIAL_VARS = ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_KEY", "CLOUDFLARE_EMAIL", "CF_API_TOKEN", "CF_API_KEY", "CF_EMAIL"] as const;
+
+/**
+ * The env every child process gets: the production account, no color, no prompts, and no
+ * API credentials, so wrangler always uses its own OAuth login.
+ */
 export function childEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  return { ...base, CLOUDFLARE_ACCOUNT_ID: PROD.accountId, NO_COLOR: "1", FORCE_COLOR: "0", WRANGLER_SEND_METRICS: "false" };
+  const env: NodeJS.ProcessEnv = { ...base, CLOUDFLARE_ACCOUNT_ID: PROD.accountId, NO_COLOR: "1", FORCE_COLOR: "0", WRANGLER_SEND_METRICS: "false" };
+  for (const name of WRANGLER_CREDENTIAL_VARS) delete env[name];
+  return env;
 }
 
 /** Spawns a command in the repo root. With inherit, output streams to this terminal and is not captured. */
