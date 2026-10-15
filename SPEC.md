@@ -24,7 +24,15 @@ Every number and mechanism above is an acceptance criterion. Section 12 maps eac
 >
 > - Summary: "a booking interface with automated accessibility checks and full keyboard support" instead of "an accessible booking interface" (Section 15 item 8: no manual screen-reader pass yet).
 > - Bullet 2: replace "targeting zero overlapping confirmed bookings" with the count `evals/results/contention.json` reports, for example "0 overlapping confirmed bookings across 5 local runs of 1,000 concurrent attempts", and only while that file says so (Section 15 item 4).
-> - Bullet 3: "Built eight reusable UI components from a documented design-token and ARIA contract spec, with keyboard navigation, clear validation and mobile layouts, alongside a Cloudflare Workflows triage pipeline with a Workers AI provider, evaluated locally with Qwen3-1.7B, that assigns facilities requests to four service categories for staff review." No Figma file exists and the components were not built from one (Section 15 item 1), and Workers AI inference has never run (Section 15 item 2).
+> - Bullet 3: "Built eight reusable UI components from a documented design-token and ARIA contract spec, with keyboard navigation, clear validation and mobile layouts, alongside a Cloudflare Workflows triage pipeline with a Workers AI provider, evaluated locally with Qwen3-1.7B, that suggests one of four service categories for each facilities request for staff to accept or change." No Figma file exists and the components were not built from one (Section 15 item 1, `design/FIGMA.md`), and Workers AI inference has never run (Section 15 item 2).
+>
+> **Build note (2026-10-15): what is true today.**
+>
+> - "from Figma designs" is not true and cannot become true for v1: no Figma file exists, and the components were built from `src/client/ui/tokens.css` and the contracts in 14.2 (`design/FIGMA.md`). A Figma file made later could only be cited as "documented in Figma".
+> - "a Workers AI triage workflow" is not true yet. The Workflow and its Workers AI provider are built and tested against a fake binding, and the Workflow has run end to end only locally, against Qwen3-1.7B on llama.cpp. Nothing is deployed: production setup is scripted (`npm run prod:setup`, README "Production setup") but has not been run. Only after it deploys and `npm run prod:verify` records suggestions with `provider = workers-ai` may the wording say Workers AI without "provider, evaluated locally".
+> - "assigning facilities requests to four service categories" overstates the design: the Workflow records a suggestion, and a staff member accepts or changes it.
+> - "targeting zero overlapping confirmed bookings" is replaced by the measurement while `evals/results/contention.json` says so: 0 overlapping confirmed bookings in each of 5 local runs of 1,000 concurrent attempts (local workerd, one machine).
+> - "accessible" needs a manual screen-reader pass (Section 15 item 8) before it can be said without "automated checks and full keyboard support".
 
 ---
 
@@ -1289,6 +1297,8 @@ The README carries this table verbatim and states that no local stand-in is the 
 ---
 
 ## 17. Deploy steps (for when Nitish logs in)
+
+> **Build note (2026-10-15).** These manual steps are superseded by `npm run prod:setup` (README "Production setup"), which scripts them idempotently for the Workers Free plan and adds what they lacked: the existing One-time PIN login as the only login, an Allow policy for the owner and two persona addresses, a Service Auth policy and service token for `npm run prod:verify`, and the Workers AI provider setting. It has not been run; nothing is deployed.
 
 1. `npx wrangler login`
 2. `npx wrangler d1 create placessync`; paste `database_id` into `env.production.d1_databases[0]`.

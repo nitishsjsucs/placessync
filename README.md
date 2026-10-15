@@ -2,7 +2,7 @@
 
 A workplace application for reserving desks and meeting rooms, reporting facilities issues, and following each request until it is resolved. One Cloudflare Durable Object per site is the only writer of reservations and commits every booking in a single SQLite transaction, live availability reaches browsers over hibernatable WebSockets, reporting runs on D1, and a Cloudflare Workflow suggests one of four service categories for each facilities request so staff can accept or change it.
 
-Everything in this repository runs and is tested locally on workerd (through Miniflare and the Cloudflare Vite plugin). Nothing here has been deployed, and no number below comes from Cloudflare's production services. See [What runs where](#what-runs-where).
+**Status (2026-10-15).** Everything in this repository runs and is tested locally on workerd (through Miniflare and the Cloudflare Vite plugin) and in GitHub Actions CI. Production setup for Cloudflare's Workers Free plan is scripted and idempotent (`npm run prod:setup`, see [Production setup](#production-setup-not-run-yet)), but it has not been run: a read-only `npm run prod:doctor` on 2026-10-15 found no PlacesSync D1 database and no deployed Worker on the account. So nothing is deployed, the triage Workflow has never called Workers AI, and no number below comes from Cloudflare's production services. See [What runs where](#what-runs-where) and [Production on the Workers Free plan](#production-on-the-workers-free-plan).
 
 ## Why
 
@@ -74,30 +74,31 @@ Design decisions are recorded in [`docs/adr/`](docs/adr) (one ledger per site, s
 
 ## What runs where
 
-| Capability | Local (this Mac; GitHub Actions CI where noted) | Production (after deploy) |
+| Capability | Local (this Mac; GitHub Actions CI where noted) | Production (after `npm run prod:setup`, which has not been run) |
 |---|---|---|
-| Worker and Hono API | workerd via `vite dev` / `vite preview`; tests via `@cloudflare/vitest-plugin` (this Mac and CI) | Cloudflare Workers |
+| Worker and Hono API | workerd via `vite dev` / `vite preview`; tests via `@cloudflare/vitest-plugin` (this Mac and CI) | Cloudflare Workers Free plan: Worker `placessync-production` at `https://placessync-production.nitish-ratakonda.workers.dev` (workers.dev only, preview URLs off) |
 | Static SPA | Vite build served by local workerd assets | Workers static assets |
 | SiteLedger (DO SQLite, transactions, alarms, WebSocket hibernation) | Miniflare local Durable Objects, persisted in `.wrangler/state/v3` | Durable Objects (SQLite backend). Alarms may be delayed up to a minute in production, so D1 reports lag more than locally. |
 | D1 | local SQLite via Miniflare | D1 database `placessync` |
-| Workflows | local emulated engine (Cloudflare's docs say local behaviour may differ; the local "already exists" and "not found" error texts are Miniflare's) | Cloudflare Workflows |
+| Workflows | local emulated engine (Cloudflare's docs say local behaviour may differ; the local "already exists" and "not found" error texts are Miniflare's) | Cloudflare Workflows, `placessync-triage` |
 | Cron triage sweep | `scheduled()` called directly in tests via `createScheduledController`; not fired on a timer during local dev | Cron Trigger `*/2 * * * *` on `placessync-production` |
-| Triage LLM | `stub` (keyword-v1, not an LLM) by default and always in `npm test` (this Mac and CI); `openai-compat` against llama-server with Qwen3-1.7B Q4_0 (8,192 tokens per slot, 1 slot) for evals, this Mac only (CI runs no LLM); seeded suggestions are stub output and labeled so | Workers AI `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, optional AI Gateway |
-| Auth | `jose` verifying RS256 tokens signed by a locally generated dev key; dev login page; cookie or header | Cloudflare Access; JWKS from `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`; header only |
-| Contention eval | local workerd, single machine, numbers labeled local. This Mac: 5 runs, the numbers in Results. CI: 1 run as a pass/fail gate, not reported | not run (would need an Access service token); none claimed |
-| Triage eval | Qwen3-1.7B via llama.cpp, labeled with the model; this Mac only, CI runs no triage eval | not run; no Workers AI accuracy is claimed |
+| Triage LLM | `stub` (keyword-v1, not an LLM) by default and always in `npm test` (this Mac and CI); `openai-compat` against llama-server with Qwen3-1.7B Q4_0 (8,192 tokens per slot, 1 slot) for evals, this Mac only (CI runs no LLM); seeded suggestions are stub output and labeled so | Workers AI `@cf/meta/llama-3.3-70b-instruct-fp8-fast` in JSON mode, inside the Free plan's 10,000 neurons a day that this account shares with three other apps; optional AI Gateway |
+| Auth | `jose` verifying RS256 tokens signed by a locally generated dev key; dev login page; cookie or header | Cloudflare Access (Zero Trust Free, team `old-truth-a7dc`): a self-hosted application for the workers.dev hostname, the account's One-time PIN login only, an Allow policy for the owner and two persona addresses, and a Service Auth policy for the verification service token; JWKS from `https://old-truth-a7dc.cloudflareaccess.com/cdn-cgi/access/certs`; header only |
+| Contention eval | local workerd, single machine, numbers labeled local. This Mac: 5 runs, the numbers in Results. CI: 1 run as a pass/fail gate, not reported | `npm run prod:verify`: 200 concurrent attempts for one hour on one desk, through Access with the service token; a pass/fail check, not a load test. Not run yet; nothing claimed |
+| Triage eval | Qwen3-1.7B via llama.cpp, labeled with the model; this Mac only, CI runs no triage eval | `npm run prod:verify`: 3 requests through the Workflow, each must get a Workers AI suggestion; a sanity check, not an accuracy measurement. Not run yet; no Workers AI accuracy is claimed |
+| CPU time | not meaningful locally | `npm run prod:verify` measures it (wrangler tail and GraphQL analytics) against the Free plan's 10 ms. Not run yet |
 | PITR, location hints, AI Gateway analytics | unavailable | available, unused in v1 |
 
 No local stand-in is the production service. In particular:
 
-- **Access is simulated locally.** The dev login signs a token with a key generated on this machine; the same verifier then checks it. Tests also run the production code path against a fake team JWKS. This proves the verifier's checks, not Cloudflare's login flow.
+- **Access is simulated locally.** The dev login signs a token with a key generated on this machine; the same verifier then checks it. Tests also run the production code path against a fake team JWKS, including a service-token token (no email, the Client ID as `common_name`). This proves the verifier's checks, not Cloudflare's login flow.
 - **The keyword stub is not an LLM.** It is the default provider offline and in every test, and the UI labels it "Keyword stub (keyword-v1)". The word "AI" appears only next to Workers AI suggestions.
-- **Workers AI has not run.** The provider is tested against a fake binding. The only model numbers below are from Qwen3-1.7B on a local llama.cpp server.
+- **Workers AI has not run.** The provider is tested against a fake binding. The triage Workflow will first call Workers AI after `npm run prod:setup` deploys it; until `npm run prod:verify` records a `workers-ai` suggestion, nothing here shows that it works there. The only model numbers below are from Qwen3-1.7B on a local llama.cpp server.
 - **Workflows, Durable Objects, D1 and cron are Miniflare's local implementations.**
 
 ## Run it locally
 
-Requirements: npm 11 and Node ^22.22.2, ^24.15.0 or 25 and later. That `engines` range is the narrowest one the dependencies declare (jsdom 30.1.2: ^22.22.2, ^24.15.0 or >=26) plus Node 25, which development used. Tested on Node 25.9.0 (macOS arm64, this Mac) and Node 24.21.0 (GitHub Actions CI on ubuntu-latest, where on 2026-10-09 both jobs passed: types, typecheck, `npm test` and build; then Playwright and a one-run contention eval against a preview server). Node 22 has not been tried. On Node 25 `npm ci` warns that jsdom does not list it, and the tests pass anyway. No Cloudflare account is needed.
+Requirements: npm 11 and Node ^22.22.2, ^24.15.0 or 25 and later. That `engines` range is the narrowest one the dependencies declare (jsdom 30.1.2: ^22.22.2, ^24.15.0 or >=26) plus Node 25, which development used. Tested on Node 25.9.0 (macOS arm64, this Mac) and Node 24.21.0 (GitHub Actions CI on the Ubuntu 24.04 image, where on 2026-10-09 both jobs passed: types, typecheck, `npm test` and build; then Playwright and a one-run contention eval against a preview server). Since 2026-10-15 both CI jobs name `ubuntu-24.04` instead of `ubuntu-latest`, which GitHub moves to Ubuntu 26.04 from 2026-10-19, and pin every action to a commit SHA; that version of the workflow has not run on GitHub yet. Node 22 has not been tried. On Node 25 `npm ci` warns that jsdom does not list it, and the tests pass anyway. No Cloudflare account is needed.
 
 ```sh
 npm ci
@@ -228,21 +229,64 @@ Command: `npm run test:e2e`. Run 2026-10-09 (UTC) at commit `b76baab` on Apple M
 | Live update propagation, 20 bookings, p50 / p95 (local Chromium, booking request to busy cell in a second browser) | 11 / 14 ms |
 <!-- results:end -->
 
-## Deploy (not done yet)
+## Production setup (not run yet)
 
-Nothing has been deployed from this repository. The steps, for an account holder:
+Nothing has been deployed from this repository. Production is Nitish's Cloudflare account `dc93c3bc8aa4f9e09a0d7e7354a80873` on the Workers Free plan, its workers.dev subdomain `nitish-ratakonda` and its Zero Trust Free team `old-truth-a7dc`. Every resource name starts with `placessync`. These facts live in [`scripts/lib/prod-config.ts`](scripts/lib/prod-config.ts) and `wrangler.jsonc` `env.production`.
 
-1. `npx wrangler login`
-2. `npx wrangler d1 create placessync` and paste the `database_id` into `env.production.d1_databases[0]` in `wrangler.jsonc`.
-3. In Zero Trust, create a self-hosted Access application for `placessync-production.<account-subdomain>.workers.dev` (the `production` environment suffix is part of the Worker name). Copy the Application Audience tag and the team domain into `ACCESS_AUD` and `ACCESS_TEAM_DOMAIN`, replacing the `SET_ME` placeholders. Until then every API route answers 500 `misconfigured` by design.
-4. Optional: create an AI Gateway and set `AI_GATEWAY_ID`.
-5. `npx wrangler d1 migrations apply DB --remote -c wrangler.jsonc --env production`
-6. `mkdir -p .seed && node scripts/export-catalog-sql.ts --admin-email <your-email> > .seed/catalog.sql`, then `npx wrangler d1 execute DB --remote -c wrangler.jsonc --env production --file .seed/catalog.sql`. `.seed/` is gitignored.
-7. `npm run deploy` (rebuilds with `CLOUDFLARE_ENV=production`, then `wrangler deploy`).
-8. Through Access: book a desk, watch the live update in a second browser, submit a facilities request, and confirm a `triage_suggestions` row with `provider = 'workers-ai'`. Check that the Cron Triggers tab shows `*/2 * * * *`.
+```sh
+npx wrangler login                    # once; wrangler always uses this OAuth login
+export CF_API_TOKEN=...               # account API token for Access and analytics (permissions below); never printed
+npm run prod:doctor                   # read-only: what exists and what is missing
+npm run prod:setup -- --dry-run       # prints the plan, changes nothing
+npm run prod:setup                    # prints the plan, asks, applies (add --yes to skip the question)
+git add wrangler.jsonc && git commit  # the D1 id, AUD and service token Client ID are not secrets
+npm run prod:verify                   # contention, triage and CPU checks through Access; writes evals/results/production-verify.json
+```
 
-## Known gaps
+wrangler never sees `CF_API_TOKEN`: wrangler reads that name as a deprecated alias of `CLOUDFLARE_API_TOKEN`, so the scripts remove it (and every other Cloudflare credential variable) from each child process. The token only goes into the Authorization header of Cloudflare API calls. Its permissions: Account > Access: Apps and Policies > Edit; Access: Service Tokens > Edit; Access: Organizations, Identity Providers, and Groups > Read; Workers Scripts > Read; Account Analytics > Read (CPU time in `prod:verify`).
 
+What `npm run prod:setup` does, in order. It first reads everything (the same read-only calls as the doctor) and changes nothing if any check fails: wrangler logged in to the account, `CF_API_TOKEN` set, the token's Zero Trust team and workers.dev subdomain as above, the One-time PIN login `743683e8-42d4-44e9-9991-ba57a1bb0dec` present, Access readable, the Workers AI model in the account's catalog. Then each step runs only if needed:
+
+1. Create the D1 database `placessync` and write its id into `wrangler.jsonc`.
+2. Apply `migrations/` remotely.
+3. Seed the site, the 20 resources and four people: the owner `nitishsancs@gmail.com` (facilities admin), `nitishsancs+staff@gmail.com` (facilities staff), `nitishsancs+employee@gmail.com` (employee), and `emp_verify`, the employee the verification service token acts as (a reserved `.invalid` address no one can sign in with). Idempotent: resource edits made in the app survive.
+4. First deploy, fail-closed: `ACCESS_AUD`, `ACCESS_SERVICE_CLIENT_ID` and `TRIAGE_PROVIDER` are still `SET_ME` placeholders, so every API route answers 500 `misconfigured` and the cron sweep does nothing.
+5. Access: the reusable Allow policy `placessync-owner-and-personas` (exactly those three addresses); the service token `placessync-verify` (one year), whose secret goes straight into `.prod/verify-service-token.json` (gitignored, mode 0600; if this Mac lacks it, setup rotates the secret); the reusable Service Auth policy `placessync-verify-service-auth` (exactly that token); and the self-hosted application `placessync-production` for the workers.dev hostname, allowing only the One-time PIN login, with the Allow policy first and Service Auth second. A hostname application rather than Worker-level Access, because Cloudflare's docs say Worker-level policies refuse WebSocket upgrades. Setup never creates a login method.
+6. Write the application's AUD, the service token's Client ID and the Workers AI provider (`TRIAGE_PROVIDER=workers-ai`) into `wrangler.jsonc`.
+7. Deploy again with the real values (`npm run deploy`), then `npm run build` to restore the local build.
+8. Probe: an unauthenticated `GET /api/health` must redirect to the team's sign-in, and the service token must reach `/api/me` as `emp_verify`. Then it prints the doctor's report.
+
+A second run on a finished account changes nothing and only probes (`--redeploy` forces a deploy). The Worker accepts a token with no email only when it comes from that one service token (`common_name` equal to `ACCESS_SERVICE_CLIENT_ID`), and then acts as `emp_verify`, whose role comes from D1 like everyone else's.
+
+`npm run prod:verify` (after setup) signs in with the service token and records, in `evals/results/production-verify.json`: health and identity; 200 concurrent bookings of one hour on one desk, each with its own Idempotency-Key, where exactly one may be confirmed and a live WebSocket observer must see it and its release (the booking is cancelled afterwards); 3 facilities requests through the Workflow, each needing a Workers AI suggestion (cancelled afterwards, so none counts as a staff review); and CPU time from `wrangler tail` and the GraphQL Analytics API against the Free plan's 10 ms. A default run costs about 250 Worker requests and as many Durable Object requests, a few hundred D1 rows and about 200 Workers AI neurons. `--person` signs in as the person from `cloudflared access login` instead, which as the owner also checks that the booking reaches the D1 report view. `npm run results` renders a committed production file under its own heading in Results; it refuses a local rehearsal.
+
+## Production on the Workers Free plan
+
+Nitish chose the Free plan (2026-10-10). Nothing in this app needs Workers Paid: `wrangler.jsonc` has no `limits` block, the only Durable Object class is SQLite-backed, and there is one Cron Trigger. Every limit below was read on developers.cloudflare.com on 2026-10-15. "Fits" means by design and, where noted, by a test; no production measurement exists yet (`npm run prod:verify` records CPU time once deployed).
+
+| Feature | Free limit | Source | This app | Verdict |
+|---|---|---|---|---|
+| CPU time per HTTP request and per Cron Trigger | 10 ms | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) | API requests verify one RS256 JWT, parse with zod and wait on D1, the Durable Object and Workflows (waiting is not CPU time); the cron sweep handles at most 12 rows | fits by design; `prod:verify` measures it |
+| CPU time per Workflow step | 10 ms | [Workflows limits](https://developers.cloudflare.com/workflows/reference/limits/) | each step is one D1 batch, one Durable Object RPC or one Workers AI call plus JSON parsing | fits by design; measured where `wrangler tail` reports it |
+| Requests per day | 100,000 per account (shared with three other apps), reset 00:00 UTC; over it, Error 1027 | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) | 720 cron runs a day plus traffic; about 250 per `prod:verify` run. Static assets are free and unlimited and the SPA is served without invoking the Worker (`run_worker_first` is `/api/*` only), per [static assets billing](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/) | fits |
+| Subrequests per invocation | 50 external, 1,000 to Cloudflare services | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) | external: the team JWKS fetch, cached per isolate; internal: a few D1, Durable Object, Workflow and Workers AI calls per request | fits |
+| D1 queries per invocation | 50, each statement in a batch counted | [D1 limits](https://developers.cloudflare.com/d1/platform/limits/) | cron sweep at most 37 statements, outbox flush 41 (`test/worker/free-plan.test.ts` counts both), API routes a handful | fits (tested) |
+| D1 rows read / written per day | 5 million / 100,000, reset 00:00 UTC; over it, queries fail until then | [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/) | the sweep's indexed SELECT reads fewer than 10 rows a run (tested), so at most about 7,200 a day; bookings write a few rows each | fits |
+| D1 databases, size | 10 per account, 500 MB each | [D1 limits](https://developers.cloudflare.com/d1/platform/limits/) | one database; `prod:doctor` counts the account's | fits |
+| Durable Objects backend | SQLite-backed only | [Durable Objects limits](https://developers.cloudflare.com/durable-objects/platform/limits/) | `new_sqlite_classes: ["SiteLedger"]`, one object per site | fits |
+| Durable Object usage | 100,000 requests, 13,000 GB-s, 5 million rows read and 100,000 written per day; incoming WebSocket messages count 20:1 | [Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/) | about one RPC and one alarm per booking; hibernatable WebSockets accrue no duration while idle | fits |
+| Workflows | on Free: 100 concurrent running instances per account (waiting ones do not count), 100,000 executions a day shared with Workers, 1,024 steps, 3-day retention | [Workflows limits](https://developers.cloudflare.com/workflows/reference/limits/) | 6 or 7 steps per request; each instance then waits up to 24 hours for review, which does not count as running | fits |
+| Cron Triggers | 5 per account | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) | one, `*/2 * * * *`; `prod:doctor` counts the account's | fits if the other apps use at most 4 |
+| Workers AI | 10,000 neurons a day, reset 00:00 UTC; over it, calls fail | [Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/) | Llama 3.3 70B fp8-fast: 26,668 neurons per million input tokens, 204,805 per million output; a classification is about 1,000 tokens in and at most 160 out, about 60 to 66 neurons; up to 3 calls if the model's JSON fails validation. Shared with three other apps; `prod:verify` uses 3 requests. The model supports [JSON mode](https://developers.cloudflare.com/workers-ai/features/json-mode/) | fits a demo's traffic; once the day's neurons are gone, requests get the keyword fallback, labeled as such |
+| Access | self-hosted application on a workers.dev hostname; service tokens use no seat; 500 applications and 50 service tokens per account | [Access for Workers](https://developers.cloudflare.com/workers/configuration/cloudflare-access/), [seats](https://developers.cloudflare.com/cloudflare-one/team-and-resources/users/seat-management/), [account limits](https://developers.cloudflare.com/cloudflare-one/account-limits/) | one application, two policies, one service token, three people signing in (three seats). developers.cloudflare.com does not state the Free plan's seat count | fits |
+| Worker size and startup | 64 MiB uncompressed, no compressed limit; 1 s startup | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) | about 443 KB built Worker | fits |
+| Workers Logs | 200,000 log events a day, 3-day retention | [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) | `observability.enabled`: an invocation log per request, plus console lines only on errors and non-empty sweeps | fits a demo's traffic; logs only, requests are unaffected |
+
+## Known limitations
+
+- **Not deployed.** See the Status line at the top. No claim here is about Cloudflare's production services until `npm run prod:verify` has run and its results are committed.
+- **Free plan.** The account's daily limits (Worker requests, Workers AI neurons, D1 and Durable Object rows) are shared with three other apps, so another app's traffic can exhaust them; past a limit, Cloudflare answers with errors until 00:00 UTC. When Workers AI fails, requests get a keyword-fallback suggestion, labeled so. The cron sweep examines 12 stranded requests per run (D1's 50 queries per invocation), and alarms and Workflow steps can lag.
+- **The verification service token** expires a year after setup creates it; `npm run prod:doctor` warns 30 days ahead, and rerunning setup after deleting it makes a new one.
 - **Figma:** no Figma file exists; the UI kit follows the design tokens in `src/client/ui/tokens.css` and the contracts in SPEC 14.2. See [`design/FIGMA.md`](design/FIGMA.md).
 - **Accessibility evidence is automated:** axe on every page and component state at two viewports, component keyboard tests, and a keyboard-only booking path. No manual screen-reader pass has been done.
 - **Mobile layouts** are checked in desktop Chromium resized to 375x812 and 768x1024 (no touch or mobile user-agent emulation), not on devices.
