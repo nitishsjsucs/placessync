@@ -135,6 +135,26 @@ describe("CPU summaries", () => {
     expect((await cpuUnitFromSchema(fake)).microseconds).toBe(false);
   });
 
+  it("walks the schema through list and non-null wrappers of any depth, as the live API returns them", async () => {
+    // Cloudflare's schema returns accounts as [Account!]! and the adaptive groups as [Group!]!: three wrappers deep.
+    type Ref = { name: string | null; ofType: Ref | null };
+    const wrapped = (name: string): Ref => ({ name: null, ofType: { name: null, ofType: { name: null, ofType: { name, ofType: null } } } });
+    const types: Record<string, { name: string; description: string | null; type: Ref }[]> = {
+      Query: [{ name: "viewer", description: null, type: { name: "viewer", ofType: null } }],
+      viewer: [{ name: "accounts", description: null, type: wrapped("account") }],
+      account: [{ name: "workersInvocationsAdaptive", description: null, type: wrapped("AccountWorkersInvocationsAdaptive") }],
+      AccountWorkersInvocationsAdaptive: [{ name: "quantiles", description: null, type: { name: "AccountWorkersInvocationsAdaptiveQuantiles", ofType: null } }],
+      AccountWorkersInvocationsAdaptiveQuantiles: [{ name: "cpuTimeP50", description: "CPU time 50th percentile - microseconds", type: { name: "Float", ofType: null } }],
+    };
+    const fake = {
+      async graphql<T>(q: string, v: Record<string, unknown>): Promise<T> {
+        if (q.includes("__schema")) return { __schema: { queryType: { name: "Query" } } } as T;
+        return { __type: types[String(v.name)] ? { fields: types[String(v.name)] } : null } as T;
+      },
+    };
+    expect(await cpuUnitFromSchema(fake)).toEqual({ field: "AccountWorkersInvocationsAdaptiveQuantiles.cpuTimeP50", description: "CPU time 50th percentile - microseconds", microseconds: true });
+  });
+
   it("claims nothing when no source returned CPU time", () => {
     const noCpu = summarizeTail([{ outcome: "ok", event: { request: { url: "u" } } }]);
     expect(cpuVerdict(noCpu, null).verdict).toBe("unmeasured");

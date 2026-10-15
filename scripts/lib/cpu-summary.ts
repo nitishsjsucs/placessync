@@ -180,12 +180,18 @@ export function summarizeGraphql(data: { viewer: { accounts: { workersInvocation
  * the description returned here says microseconds.
  */
 export async function cpuUnitFromSchema(cf: { graphql<T>(q: string, v: Record<string, unknown>): Promise<T> }): Promise<{ field: string; description: string | null; microseconds: boolean }> {
-  type Field = { name: string; description: string | null; type: { name: string | null; ofType: { name: string | null; ofType: { name: string | null } | null } | null } };
-  const typeOf = (f: Field) => f.type.name ?? f.type.ofType?.name ?? f.type.ofType?.ofType?.name ?? null;
+  // Wrapped types nest NON_NULL, LIST, NON_NULL around the object (accounts is [Account!]!), so unwrap to any depth.
+  type TypeRef = { name: string | null; ofType: TypeRef | null };
+  type Field = { name: string; description: string | null; type: TypeRef };
+  const typeOf = (f: Field): string | null => {
+    let t: TypeRef | null = f.type;
+    while (t && !t.name) t = t.ofType;
+    return t?.name ?? null;
+  };
   const fields = async (name: string): Promise<Field[]> =>
     (
       await cf.graphql<{ __type: { fields: Field[] } | null }>(
-        "query PlacesSyncType($name: String!) { __type(name: $name) { fields { name description type { name ofType { name ofType { name } } } } } }",
+        "query PlacesSyncType($name: String!) { __type(name: $name) { fields { name description type { name ofType { name ofType { name ofType { name ofType { name } } } } } } } }",
         { name },
       )
     ).__type?.fields ?? [];

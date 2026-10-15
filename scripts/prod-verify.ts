@@ -200,10 +200,10 @@ async function stopTail(h: TailHandle): Promise<void> {
 
 type Gql = { viewer: { accounts: { workersInvocationsAdaptive: import("./lib/cpu-summary.ts").GraphqlGroup[] }[] } };
 
-/** Polls analytics until the window's request count stops growing (analytics lag a few minutes). */
+/** Polls analytics until the window's request count stops growing (analytics lag several minutes; up to 15). */
 async function graphqlCpu(cf: CfApi, start: Date, end: Date, minRequests: number): Promise<GraphqlSummary> {
   const vars = { accountTag: PROD.accountId, scriptName: PROD.workerName, start: start.toISOString(), end: end.toISOString() };
-  const deadline = Date.now() + 6 * 60_000;
+  const deadline = Date.now() + 15 * 60_000; // analytics took more than 6 minutes to ingest on 2026-10-15
   let last: GraphqlSummary | null = null;
   for (;;) {
     const s = summarizeGraphql(await cf.graphql<Gql>(WORKERS_CPU_QUERY, vars));
