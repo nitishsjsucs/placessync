@@ -209,6 +209,48 @@ function e2eSection(r: Record<string, unknown> & { meta: Meta }): string {
   ].join("\n");
 }
 
+const yesNo = (x: unknown) => (x === true ? "yes" : x === false ? "no" : "n/a");
+const ms = (x: unknown) => (typeof x === "number" ? `${x} ms` : "n/a");
+
+/** `npm run prod:verify` output: the deployed Worker, through Access, on the Workers Free plan. */
+function productionSection(r: Record<string, unknown> & { meta: Meta }): string {
+  const target = (r.target ?? {}) as { baseUrl?: string; worker?: string | null; plan?: string | null };
+  // A local rehearsal must never be rendered under a production heading.
+  if (target.worker !== "placessync-production" || target.plan !== "Workers Free" || !target.baseUrl?.startsWith("https://placessync-production.")) {
+    throw new ResultsRefused("production-verify: not a run against the deployed Worker");
+  }
+  const c = (r.contention ?? {}) as Record<string, unknown>;
+  const live = (r.live ?? {}) as Record<string, unknown>;
+  const proj = (r.projection ?? {}) as Record<string, unknown>;
+  const t = (r.triage ?? {}) as Record<string, unknown>;
+  const cpu = (r.cpu ?? {}) as { verdict?: string; reasons?: string[]; tail?: { all: Record<string, unknown> } | null; graphql?: Record<string, unknown> | null; graphqlError?: string | null };
+  const gates = (r.gates ?? {}) as Record<string, boolean>;
+  const failed = Object.entries(gates).filter(([, v]) => !v).map(([k]) => k);
+  const tail = cpu.tail?.all;
+  const gql = cpu.graphql;
+  return [
+    "### Production verification (deployed Worker, Cloudflare Workers Free plan)",
+    "",
+    provenance(r.meta),
+    "",
+    "| Check | Result |",
+    "|---|---|",
+    `| Target | \`${target.worker}\` at ${target.baseUrl} through Cloudflare Access, signed in as a ${String((r.principal as { role?: string } | undefined)?.role ?? "?")} |`,
+    `| Contention: concurrent attempts by one person for the same hour on two desks | ${num(c.attempts)} |`,
+    `| Confirmed / resource conflict / employee conflict / other / server errors | ${num(c.accepted)} / ${num(c.rejectedResourceConflict)} / ${num(c.rejectedEmployeeConflict)} / ${num(c.otherRejections)} / ${num(c.serverErrors)} |`,
+    `| Confirmed bookings in that hour afterwards | ${num(c.confirmedInWindow)} |`,
+    `| Live observer: saw the booking, saw its release, gaps, duplicates | ${yesNo(live.sawBooking)}, ${yesNo(live.sawRelease)}, ${num(live.gaps)}, ${num(live.duplicates)} |`,
+    `| Booking reached the D1 report view | ${proj.checked ? `${yesNo(proj.reachedD1)} (within ${ms(proj.lagMsUpperBound)})` : "not checked (needs an admin sign-in)"} |`,
+    `| Triage through the Workflow: provider, model, category | ${String(t.provider ?? "none")}, ${String(t.model ?? "none")}, ${String(t.category ?? "none")} |`,
+    `| Triage: submit to suggestion (upper bound) / provider latency | ${ms(t.submitToSuggestionMsUpperBound)} / ${ms(t.providerLatencyMs)} |`,
+    `| CPU per invocation against the Free plan's 10 ms | ${cpu.verdict ?? "n/a"}${cpu.reasons?.length ? ` (${cpu.reasons.join("; ")})` : ""} |`,
+    `| CPU from wrangler tail: invocations with CPU time, p50 / p99 / max | ${tail ? `${num(tail.withCpuTime)} of ${num(tail.invocations)}, ${ms(tail.p50Ms)} / ${ms(tail.p99Ms)} / ${ms(tail.maxMs)}` : "not recorded"} |`,
+    `| CPU from GraphQL analytics: requests, highest p50 / p99 | ${gql ? `${num(gql.requests)}, ${ms(gql.p50Ms)} / ${ms(gql.p99Ms)}` : `not recorded${cpu.graphqlError ? ` (${cpu.graphqlError})` : ""}`} |`,
+    "",
+    r.passed ? "Every production gate passed." : `Failed gates: ${failed.join(", ") || "none recorded"}${r.error ? ` (stopped: ${String(r.error)})` : ""}.`,
+  ].join("\n");
+}
+
 export function renderBlock(results: Record<string, { meta: Meta } & Record<string, unknown>>): string {
   const names = Object.keys(results).sort();
   if (names.length === 0) return "No results have been recorded yet. Numbers appear here only after `npm run results` renders committed, clean-tree eval output.";
@@ -219,6 +261,7 @@ export function renderBlock(results: Record<string, { meta: Meta } & Record<stri
   }
   if (results["triage-workflow-local"]) parts.push(workflowSection(results["triage-workflow-local"]));
   if (results.e2e) parts.push(e2eSection(results.e2e));
+  if (results["production-verify"]) parts.push(productionSection(results["production-verify"]));
   return parts.join("\n\n");
 }
 
