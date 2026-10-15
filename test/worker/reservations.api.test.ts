@@ -134,4 +134,17 @@ describe("GET /api/reservations and cancel", () => {
     expect(ok.status).toBe(200);
     await ok.body?.cancel();
   });
+
+  it("accepts the production sign-in ids (emp_admin, emp_staff, emp_employee) in the admin filter", async () => {
+    const date = bizDay(2);
+    const admin = await as(ADMIN);
+    for (const id of ["emp_admin", "emp_staff", "emp_employee"]) {
+      const res = await admin.get(`/api/reservations?from=${date}&to=${date}&employeeId=${id}`);
+      expect(res.status).toBe(200);
+      expect((await json(res)).reservations).toEqual([]);
+    }
+    const bad = await admin.get(`/api/reservations?from=${date}&to=${date}&employeeId=${encodeURIComponent("emp_x'; --")}`);
+    expect(bad.status).toBe(422);
+    await bad.body?.cancel();
+  });
 });

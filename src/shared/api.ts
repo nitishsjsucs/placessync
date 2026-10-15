@@ -185,7 +185,8 @@ export const ReservationsQuery = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD"),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD"),
   status: z.enum(["confirmed", "cancelled"]).optional(),
-  employeeId: z.string().regex(/^emp_\d{3}$/).optional(),
+  // emp_001..emp_100 locally; production sign-ins are emp_admin, emp_staff, emp_employee.
+  employeeId: z.string().regex(/^emp_[a-z0-9_]{1,32}$/).optional(),
 });
 export const ReservationsResponse = z.object({ reservations: z.array(ReservationSchema) });
 export type ReservationsResponse = z.infer<typeof ReservationsResponse>;
