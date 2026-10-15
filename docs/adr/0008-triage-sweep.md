@@ -14,3 +14,4 @@ A cron trigger every 2 minutes runs `sweepStrandedRequests`: up to 12 requests o
 
 - No request can sit in `submitted` forever.
 - The sweep is called directly in tests through the exported `scheduled` handler; it is not fired on a timer during local dev. Production firing is checked after deploy.
+- Build note (2026-10-15): deployed with the Cron Trigger `*/2 * * * *` on `placessync-production`. No results file shows it firing in production yet (PROGRESS "Open items").

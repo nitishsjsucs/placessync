@@ -15,3 +15,4 @@ A `TriageWorkflow` instance per request (instance id = request id) runs `load-re
 - Step results are cached, so a D1 failure after classification does not re-run the model.
 - The suggestion is always one of the four categories.
 - The local Workflows engine is emulated; production behaviour is unverified until deploy.
+- Build note (2026-10-15): deployed. `npm run prod:verify` sent 3 requests written for the check through the production Workflow `placessync-triage`, and each reached review with a Workers AI suggestion on the first attempt (`evals/results/production-verify.json`, committed in `7a542df`). That covers the classify-to-review path for 3 requests; the retry, keyword-fallback and review-timeout paths have run only locally.
