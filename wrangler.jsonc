@@ -39,7 +39,7 @@
         {
           "binding": "DB",
           "database_name": "placessync",
-          "database_id": "SET_ME_BY_npm_run_prod_setup",
+          "database_id": "431784f7-3f98-4870-8bc2-3b0fda9f9436",
           "migrations_dir": "migrations"
         }
       ],
@@ -50,9 +50,9 @@
         "AUTH_MODE": "access",
         "SITE_ID": "hq",
         "ACCESS_TEAM_DOMAIN": "https://old-truth-a7dc.cloudflareaccess.com",
-        "ACCESS_AUD": "SET_ME_BY_npm_run_prod_setup",
-        "ACCESS_SERVICE_CLIENT_ID": "SET_ME_BY_npm_run_prod_setup",
-        "TRIAGE_PROVIDER": "SET_ME_BY_npm_run_prod_setup",
+        "ACCESS_AUD": "8506e3cd8b2ad3139e2028f6675d0766b9b9573a4d0063132413dceb58946b7b",
+        "ACCESS_SERVICE_CLIENT_ID": "00576a3330a9c0a1b4f2432b262de203.access",
+        "TRIAGE_PROVIDER": "workers-ai",
         "TRIAGE_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
         "AI_GATEWAY_ID": ""
       }
