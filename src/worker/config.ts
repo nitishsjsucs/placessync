@@ -5,7 +5,14 @@ import { z } from "zod";
 export type TriageProviderId = "workers-ai" | "openai-compat" | "stub";
 
 export type AuthConfig =
-  | { mode: "access"; issuer: string; audience: string; jwksUrl: string }
+  | {
+      mode: "access";
+      issuer: string;
+      audience: string;
+      jwksUrl: string;
+      /** Client ID of the one Access service token mapped to the verification employee; null when none is. */
+      serviceClientId: string | null;
+    }
   | { mode: "dev"; issuer: string; audience: string; jwks: string; privateJwk: string };
 
 export interface Config {
@@ -64,10 +71,23 @@ const base = z.object({
   LLM_MODEL: z.string().optional(),
 });
 
+/**
+ * Optional. Empty or absent: no service token is accepted. Set (by `npm run prod:setup`):
+ * the Client ID of the Access service token whose requests act as the verification
+ * employee (src/worker/auth/service-token.ts). A placeholder fails closed like the AUD.
+ */
+const serviceClientId = z
+  .string()
+  .trim()
+  .refine(notPlaceholder, "placeholder value")
+  .refine((v) => v === "" || /^[A-Za-z0-9_-]+\.access$/.test(v), "must be an Access service token Client ID (<id>.access)")
+  .optional();
+
 const accessSchema = base.extend({
   AUTH_MODE: z.literal("access"),
   ACCESS_TEAM_DOMAIN: teamDomain,
   ACCESS_AUD: nonEmpty,
+  ACCESS_SERVICE_CLIENT_ID: serviceClientId,
 });
 
 const devSchema = base.extend({
@@ -95,6 +115,7 @@ export function parseConfig(env: Record<string, unknown>): ConfigResult {
           issuer: e.ACCESS_TEAM_DOMAIN.replace(/\/$/, ""),
           audience: e.ACCESS_AUD,
           jwksUrl: `${e.ACCESS_TEAM_DOMAIN.replace(/\/$/, "")}/cdn-cgi/access/certs`,
+          serviceClientId: e.ACCESS_SERVICE_CLIENT_ID || null,
         }
       : {
           mode: "dev",

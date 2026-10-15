@@ -1,10 +1,11 @@
 import { createExecutionContext, listDurableObjectIds, waitOnExecutionContext } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
-import { SignJWT, UnsecuredJWT, exportJWK, generateKeyPair } from "jose";
+import { type JWK, SignJWT, UnsecuredJWT, exportJWK, generateKeyPair, importJWK } from "jose";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createApp, defaultDeps } from "../../src/worker/app.ts";
 import { makeVerifierFactory } from "../../src/worker/auth/access-verifier.ts";
 import { signDevToken } from "../../src/worker/auth/dev-tokens.ts";
+import { SERVICE_PRINCIPAL_ID } from "../../src/worker/auth/service-token.ts";
 import { fakeJwksFetch } from "../helpers/fake-fetch.ts";
 import { ADMIN, EMPLOYEE, authHeaders, emailOf, tokenFor } from "../helpers/tokens.ts";
 import { BASE, call, json, seed } from "../helpers/world.ts";
@@ -291,8 +292,90 @@ describe("access mode (production code path, SPEC 9.2)", () => {
           nowMs: Date.now(),
         })
       ).token;
-    return { fake, send, teamToken };
+    // What Access signs for a service token: no email, an empty sub, the Client ID as common_name.
+    const serviceToken = async (clientId: string, over: Record<string, unknown> = {}) => {
+      const key = await importJWK(JSON.parse(priv) as JWK, "RS256");
+      const iat = Math.floor(Date.now() / 1000);
+      const { sub = "", ...claims } = over;
+      return new SignJWT({ common_name: clientId, type: "app", ...claims })
+        .setProtectedHeader({ alg: "RS256", kid: "team-key" })
+        .setIssuer(TEAM)
+        .setAudience("aud-test")
+        .setSubject(String(sub))
+        .setIssuedAt(iat)
+        .setExpirationTime(iat + 3600)
+        .sign(key);
+    };
+    return { fake, send, teamToken, serviceToken };
   }
+
+  describe("the verification service token", () => {
+    const CLIENT_ID = "0123456789abcdef0123456789abcdef.access";
+    const withService = { ...accessEnv, ACCESS_SERVICE_CLIENT_ID: CLIENT_ID } as Env;
+    const addVerifier = (active = 1) =>
+      env.DB.prepare(
+        "INSERT INTO employees (id, email, display_name, department, role, home_site_id, active, created_at) VALUES (?, ?, 'Production verification (service token)', 'Verification', 'employee', 'hq', ?, '2026-10-15T00:00:00.000Z')",
+      )
+        .bind(SERVICE_PRINCIPAL_ID, "placessync-verify@service-token.invalid", active)
+        .run();
+    const removeVerifier = () => env.DB.prepare("DELETE FROM employees WHERE id = ?").bind(SERVICE_PRINCIPAL_ID).run();
+
+    it("acts as the seeded verification employee, with the role from D1", async () => {
+      const { send, serviceToken } = await teamSetup();
+      await addVerifier();
+      try {
+        const res = await send("/api/me", { headers: authHeaders(await serviceToken(CLIENT_ID, { role: "facilities_admin" })) }, withService);
+        expect(res.status).toBe(200);
+        expect((await json<{ employee: { id: string; role: string } }>(res)).employee).toMatchObject({ id: SERVICE_PRINCIPAL_ID, role: "employee" });
+        const staff = await send("/api/staff/requests", { headers: authHeaders(await serviceToken(CLIENT_ID)) }, withService);
+        expect(staff.status).toBe(403);
+        expect((await json(staff)).error).toBe("forbidden");
+      } finally {
+        await removeVerifier();
+      }
+    });
+
+    it("is refused when no Client ID is configured, or another service token signs in", async () => {
+      const { send, serviceToken } = await teamSetup();
+      await addVerifier();
+      try {
+        for (const [token, e] of [
+          [await serviceToken(CLIENT_ID), accessEnv],
+          [await serviceToken("ffffffffffffffffffffffffffffffff.access"), withService],
+          // A user-shaped subject with no email is not a service token.
+          [await serviceToken(CLIENT_ID, { sub: "user-123" }), withService],
+        ] as const) {
+          const res = await send("/api/me", { headers: authHeaders(token) }, e);
+          expect(res.status).toBe(401);
+          expect((await json(res)).error).toBe("invalid_token");
+        }
+      } finally {
+        await removeVerifier();
+      }
+    });
+
+    it("is 403 unknown_user when the verification employee is missing or inactive", async () => {
+      const { send, serviceToken } = await teamSetup();
+      const missing = await send("/api/me", { headers: authHeaders(await serviceToken(CLIENT_ID)) }, withService);
+      expect(missing.status).toBe(403);
+      expect((await json(missing)).error).toBe("unknown_user");
+      await addVerifier(0);
+      try {
+        const inactive = await send("/api/me", { headers: authHeaders(await serviceToken(CLIENT_ID)) }, withService);
+        expect(inactive.status).toBe(403);
+        await inactive.body?.cancel();
+      } finally {
+        await removeVerifier();
+      }
+    });
+
+    it("leaves user sign-ins unchanged when it is configured", async () => {
+      const { send, teamToken } = await teamSetup();
+      const res = await send("/api/me", { headers: authHeaders(await teamToken(EMPLOYEE)) }, withService);
+      expect(res.status).toBe(200);
+      expect((await json<{ employee: { id: string } }>(res)).employee.id).toBe(EMPLOYEE);
+    });
+  });
 
   it("verifies a team token against the remote JWKS at /cdn-cgi/access/certs", async () => {
     const { fake, send, teamToken } = await teamSetup();
@@ -331,6 +414,7 @@ describe("access mode (production code path, SPEC 9.2)", () => {
     ["missing ACCESS_AUD", { ACCESS_AUD: undefined }],
     ["SET_ME ACCESS_AUD", { ACCESS_AUD: "SET_ME" }],
     ["SET_ME team domain", { ACCESS_TEAM_DOMAIN: "https://SET_ME.cloudflareaccess.com" }],
+    ["SET_ME service token Client ID", { ACCESS_SERVICE_CLIENT_ID: "SET_ME_BY_npm_run_prod_setup" }],
   ])("%s gives 500 misconfigured", async (_name, override) => {
     const { send, teamToken } = await teamSetup();
     const res = await send("/api/me", { headers: authHeaders(await teamToken(EMPLOYEE)) }, { ...accessEnv, ...override } as Env);

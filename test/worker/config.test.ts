@@ -29,6 +29,15 @@ describe("parseConfig (SPEC 7.4)", () => {
     }
   });
 
+  it("maps no service token unless ACCESS_SERVICE_CLIENT_ID names one", () => {
+    for (const v of [undefined, ""]) {
+      const r = parseConfig({ ...accessEnv, ACCESS_SERVICE_CLIENT_ID: v });
+      expect(r.ok && r.config.auth.mode === "access" && r.config.auth.serviceClientId).toBe(null);
+    }
+    const r = parseConfig({ ...accessEnv, ACCESS_SERVICE_CLIENT_ID: "0123456789abcdef0123456789abcdef.access" });
+    expect(r.ok && r.config.auth.mode === "access" && r.config.auth.serviceClientId).toBe("0123456789abcdef0123456789abcdef.access");
+  });
+
   it("accepts the pinned dev config", () => {
     expect(parseConfig(devEnv).ok).toBe(true);
     expect(parseConfig(env as unknown as Record<string, unknown>).ok).toBe(true);
@@ -43,6 +52,8 @@ describe("parseConfig (SPEC 7.4)", () => {
     ["non-Access host", { ...accessEnv, ACCESS_TEAM_DOMAIN: "https://evil.example.com" }],
     ["http team domain", { ...accessEnv, ACCESS_TEAM_DOMAIN: "http://team.cloudflareaccess.com" }],
     ["unknown AUTH_MODE", { ...accessEnv, AUTH_MODE: "none" }],
+    ["SET_ME service token Client ID", { ...accessEnv, ACCESS_SERVICE_CLIENT_ID: "SET_ME_BY_npm_run_prod_setup" }],
+    ["service token Client ID without .access", { ...accessEnv, ACCESS_SERVICE_CLIENT_ID: "0123456789abcdef" }],
     ["unknown TRIAGE_PROVIDER", { ...devEnv, TRIAGE_PROVIDER: "gpt" }],
     ["placeholder JWKS", { ...devEnv, DEV_ACCESS_JWKS: "REPLACE_WITH_npm_run_setup_dev" }],
     ["placeholder private JWK", { ...devEnv, DEV_ACCESS_PRIVATE_JWK: "REPLACE_WITH_npm_run_setup_dev" }],

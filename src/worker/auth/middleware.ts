@@ -8,6 +8,7 @@ import { parseConfig, type ConfigResult } from "../config.ts";
 import { errorResponse } from "../http.ts";
 import { findActiveEmployeeByEmail } from "../repo/employees.ts";
 import { TokenError } from "./access-verifier.ts";
+import { findServicePrincipal } from "./service-token.ts";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const parsedConfigs = new WeakMap<object, ConfigResult>();
@@ -90,7 +91,15 @@ export const authenticate: MiddlewareHandler<AppEnv> = async (c, next) => {
     if (err instanceof TokenError) return errorResponse(c, 401, "invalid_token", "Your session is invalid or expired.");
     throw err;
   }
-  const employee = await findActiveEmployeeByEmail(c.env.DB, verified.email);
+  let employee;
+  if (verified.kind === "user") {
+    employee = await findActiveEmployeeByEmail(c.env.DB, verified.email);
+  } else {
+    // Only the one configured service token, and only in access mode (dev tokens always carry an email).
+    const allowed = config.auth.mode === "access" ? config.auth.serviceClientId : null;
+    if (allowed === null || verified.clientId !== allowed) return errorResponse(c, 401, "invalid_token", "Your session is invalid or expired.");
+    employee = await findServicePrincipal(c.env.DB);
+  }
   if (!employee) return errorResponse(c, 403, "unknown_user", "This account is not an active employee.");
   c.set("principal", {
     employeeId: employee.id,

@@ -12,12 +12,14 @@ import {
 } from "jose";
 import type { AuthConfig } from "../config.ts";
 
-export interface VerifiedToken {
-  email: string;
-  sub: string;
-  /** Expiry in seconds since the epoch. */
-  exp: number;
-}
+/**
+ * A verified Access token. User tokens carry the email the identity provider verified.
+ * Service token tokens carry no email: `common_name` is the token's Client ID and `sub` is
+ * empty (https://developers.cloudflare.com/cloudflare-one/identity/authorization-cookie/application-token/).
+ */
+export type VerifiedToken =
+  | { kind: "user"; email: string; sub: string; /** Expiry in seconds since the epoch. */ exp: number }
+  | { kind: "service"; clientId: string; exp: number };
 
 export interface AccessVerifier {
   verify(token: string, nowMs: number): Promise<VerifiedToken>;
@@ -40,9 +42,13 @@ export function createAccessVerifier(opts: { issuer: string; audience: string; k
       } catch (err) {
         throw new TokenError(err instanceof Error ? err.message : "token verification failed");
       }
-      if (typeof payload.email !== "string" || payload.email.length === 0) throw new TokenError("token has no email claim");
       if (typeof payload.exp !== "number") throw new TokenError("token has no exp claim");
-      return { email: payload.email, sub: typeof payload.sub === "string" ? payload.sub : "", exp: payload.exp };
+      if (typeof payload.email === "string" && payload.email.length > 0) {
+        return { kind: "user", email: payload.email, sub: typeof payload.sub === "string" ? payload.sub : "", exp: payload.exp };
+      }
+      const cn = payload.common_name;
+      if (payload.sub === "" && typeof cn === "string" && cn.length > 0) return { kind: "service", clientId: cn, exp: payload.exp };
+      throw new TokenError("token has no email claim");
     },
   };
 }
