@@ -8,6 +8,7 @@ import { PROVIDER_LABELS, type SuggestionProvider } from "../../shared/triage/pr
 import { api, qs } from "../api/client.ts";
 import { ApiClientError } from "../api/client.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
+import { LoadError } from "../shell/LoadError.tsx";
 import { useStatusBanner } from "../shell/StatusBanner.tsx";
 import { Button } from "../ui/Button.tsx";
 import { Dialog } from "../ui/Dialog.tsx";
@@ -64,6 +65,7 @@ export function AdminDashboardPage() {
   const [util, setUtil] = useState<UtilizationReport | null>(null);
   const [reqs, setReqs] = useState<RequestsReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resourcesError, setResourcesError] = useState<string | null>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
   const announce = useAnnounce();
   const banner = useStatusBanner();
@@ -77,8 +79,9 @@ export function AdminDashboardPage() {
   const loadResources = useCallback(async () => {
     try {
       setResources((await api.get(`/api/sites/${site.siteId}/resources?includeInactive=1`, ResourcesResponse)).resources);
+      setResourcesError(null);
     } catch {
-      setError("Resources could not be loaded.");
+      setResourcesError("Resources could not be loaded.");
     }
   }, [site.siteId]);
 
@@ -154,10 +157,25 @@ export function AdminDashboardPage() {
           Apply range
         </Button>
       </form>
-      {error ? <p role="alert">{error}</p> : null}
       <Tabs tabs={TABS} value={tab} onChange={setTab} label="Reports">
         {(id) =>
-          id === "utilization" ? (
+          error && id !== "resources" ? (
+            <LoadError
+              message={error}
+              onRetry={() => {
+                setError(null);
+                return load();
+              }}
+            />
+          ) : resourcesError && id === "resources" ? (
+            <LoadError
+              message={resourcesError}
+              onRetry={() => {
+                setResourcesError(null);
+                return loadResources();
+              }}
+            />
+          ) : id === "utilization" ? (
             <div className={styles.stack}>
               {util ? (
                 <p>

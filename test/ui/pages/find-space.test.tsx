@@ -209,4 +209,22 @@ describe("Find a space (SPEC 14.1)", () => {
     expect(await screen.findByRole("gridcell", { name: "Desk 2A-02, 10:00 to 10:30, booked" })).toBeTruthy();
     expect(screen.getByText("Live updates on")).toBeTruthy();
   });
+
+  it("a failed availability load offers Try again, which refetches and renders the grid", async () => {
+    let failures = 1;
+    const api = installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/sites/hq/availability": (c: { url: string }) => (failures-- > 0 ? respond(500, { error: "internal", message: "x" }) : availability(c.url)),
+    });
+    renderAt("/find");
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Availability could not be loaded.");
+    expect(screen.queryByRole("grid", { name: /^Availability on/ })).toBeNull();
+    const before = availabilityCalls(api).length;
+    await userEvent.setup().click(within(alert).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("grid", { name: /^Availability on/ })).toBeTruthy();
+    expect(availabilityCalls(api).length).toBe(before + 1);
+    expect(screen.queryByText("Availability could not be loaded.")).toBeNull();
+  });
 });

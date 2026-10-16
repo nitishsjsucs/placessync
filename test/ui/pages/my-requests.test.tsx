@@ -1,7 +1,7 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { HEALTH, installFakeApi, me } from "../fake-api.ts";
+import { HEALTH, installFakeApi, me, respond } from "../fake-api.ts";
 import { renderAt } from "../render-app.tsx";
 
 const base = {
@@ -95,5 +95,53 @@ describe("My requests and request detail (SPEC 14.1)", () => {
     expect(await screen.findByText("Automatic classification unavailable; sent to staff to categorize")).toBeTruthy();
     expect(screen.getByText("No suggestion; staff will categorize it")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Cancel this request" })).toBeTruthy();
+  });
+
+  it("while loading shows a status and never 'No open requests.'; a failure shows only Try again, which reloads", async () => {
+    let release: (v: unknown) => void = () => {};
+    let calls = 0;
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/requests": () => {
+        calls += 1;
+        if (calls === 1) return new Promise((r) => (release = r)).then(() => respond(500, { error: "internal", message: "x" }));
+        return { requests: REQUESTS };
+      },
+    });
+    renderAt("/requests");
+    expect(await screen.findByText("Loading your requests…")).toBeTruthy();
+    expect(screen.queryByText("No open requests.")).toBeNull();
+    release(null);
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Your requests could not be loaded.");
+    expect(screen.queryByText("No open requests.")).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
+    await userEvent.setup().click(within(alert).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("link", { name: "Projector dead" })).toBeTruthy();
+    expect(calls).toBe(2);
+  });
+
+  it("a missing request links back to My requests; a failed load offers Try again", async () => {
+    let failures = 1;
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/requests/req_nope": respond(404, { error: "request_not_found", message: "No such request." }),
+      "GET /api/requests/req_c": () =>
+        failures-- > 0
+          ? respond(503, { error: "internal", message: "x" })
+          : { request: (({ suggestion: _s, ...r }) => r)(REQUESTS[2]!), suggestion: null, events: [{ id: 1, type: "submitted", actorId: "emp_001", data: {}, at: "2026-10-08T15:00:00.000Z" }] },
+    });
+    const { router } = renderAt("/requests/req_nope");
+    expect(await screen.findByText("There is no such request.")).toBeTruthy();
+    expect(within(screen.getByRole("main")).getByRole("link", { name: "My requests" }).getAttribute("href")).toBe("/requests");
+    await router.navigate("/requests/req_c");
+    await waitFor(() => expect(screen.queryByText("There is no such request.")).toBeNull());
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("The request could not be loaded.");
+    await userEvent.setup().click(within(alert).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Trash full" })).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 });

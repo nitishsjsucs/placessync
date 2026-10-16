@@ -1,8 +1,8 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateResources } from "../../../src/shared/synthetic/resources.ts";
-import { type FakeApi, HEALTH, installFakeApi, me } from "../fake-api.ts";
+import { type FakeApi, HEALTH, installFakeApi, me, respond } from "../fake-api.ts";
 import { renderAt } from "../render-app.tsx";
 
 let api: FakeApi;
@@ -110,5 +110,25 @@ describe("Admin dashboard (SPEC 14.1)", () => {
     expect(api.calls.find((c) => c.method === "PATCH")).toMatchObject({ url: "/api/admin/resources/res_2a01", body: { active: false } });
     expect(within(table).getByRole("button", { name: "Activate Desk 2A-02" })).toBeTruthy();
     expect((await screen.findByTestId("status-banner")).textContent).toContain("Desk 2A-01 is now inactive.");
+  });
+
+  it("failed report and resource loads each offer Try again", async () => {
+    let reportFailures = 1;
+    let resourceFailures = 1;
+    const realUtil = { from: "2026-09-10", to: "2026-10-22", kind: null, rows: [], hourly: [], daily: [], totals: { bookings: 0, bookedMin: 0, resourceDays: 0, openMinutesPerDay: 720 } };
+    api.set("GET /api/admin/reports/utilization", () => (reportFailures-- > 0 ? respond(500, { error: "internal", message: "x" }) : realUtil));
+    api.set("GET /api/sites/hq/resources", () =>
+      resourceFailures-- > 0 ? respond(500, { error: "internal", message: "x" }) : { resources: generateResources().slice(0, 2) },
+    );
+    renderAt("/admin");
+    const user = userEvent.setup();
+    const reportsAlert = (await screen.findByText("Reports could not be loaded.")).closest("[role=alert]") as HTMLElement;
+    await user.click(within(reportsAlert).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("No confirmed bookings in this range yet.")).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Resources" }));
+    const resourcesAlert = (await screen.findByText("Resources could not be loaded.")).closest("[role=alert]") as HTMLElement;
+    await user.click(within(resourcesAlert).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("table", { name: "Resources" })).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText("Resources could not be loaded.")).toBeNull());
   });
 });

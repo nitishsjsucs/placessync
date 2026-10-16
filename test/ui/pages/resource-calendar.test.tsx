@@ -85,4 +85,23 @@ describe("resource week calendar (SPEC 14.1)", () => {
     expect(screen.getByRole("gridcell", { name: "Saturday 10/10, 13:00 to 13:30, past" }).getAttribute("aria-disabled")).toBe("true");
     expect(screen.getByRole("gridcell", { name: "Friday 10/09, 13:00 to 13:30, available" }).getAttribute("aria-disabled")).toBeNull();
   });
+
+  it("a missing space links to Find a space; a failed load offers Try again", async () => {
+    let failures = 1;
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/resources/res_nope/calendar": respond(404, { error: "resource_not_found", message: "No such resource." }),
+      "GET /api/resources/res_sequoia/calendar": (c: { url: string }) => (failures-- > 0 ? respond(500, { error: "internal", message: "x" }) : calendar(c.url)),
+    });
+    const { router } = renderAt("/resources/res_nope");
+    expect(await screen.findByText("There is no such space.")).toBeTruthy();
+    expect(within(screen.getByRole("main")).getByRole("link", { name: "Find a space" }).getAttribute("href")).toBe("/find");
+    await router.navigate("/resources/res_sequoia");
+    await waitFor(() => expect(screen.queryByText("There is no such space.")).toBeNull());
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("The calendar could not be loaded.");
+    await userEvent.setup().click(within(alert).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Sequoia" })).toBeTruthy();
+  });
 });

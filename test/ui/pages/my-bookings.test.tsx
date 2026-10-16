@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateResources } from "../../../src/shared/synthetic/resources.ts";
-import { HEALTH, installFakeApi, me } from "../fake-api.ts";
+import { HEALTH, installFakeApi, me, respond } from "../fake-api.ts";
 import { renderAt } from "../render-app.tsx";
 
 const base = { employeeId: "emp_001", kind: "desk", attendees: 1, title: null, createdAt: "x", cancelledAt: null, cancelledBy: null, cancelReason: null, version: 1 };
@@ -38,6 +38,11 @@ const rowsOf = (caption: string) =>
     .slice(1)
     .map((r) => within(r).getAllByRole("cell")[0]?.textContent);
 
+// The empty Upcoming sentence keeps its words; "Find a space" inside it is a link.
+const EMPTY = "No upcoming bookings. Find a space to book one.";
+const emptyUpcoming = () => screen.getByText((_, el) => el?.tagName === "TD" && el.textContent === EMPTY);
+const queryEmptyUpcoming = () => screen.queryByText((_, el) => el?.tagName === "TD" && el.textContent === EMPTY);
+
 describe("My bookings (SPEC 14.1)", () => {
   it("splits bookings into Upcoming, Past and Cancelled tabs", async () => {
     renderAt("/bookings");
@@ -61,7 +66,8 @@ describe("My bookings (SPEC 14.1)", () => {
     await user.type(within(dialog).getByRole("textbox", { name: "Reason (optional)" }), "Working from home");
     await user.click(within(dialog).getByRole("button", { name: "Cancel booking" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    await waitFor(() => expect(screen.getByText("No upcoming bookings. Find a space to book one.")).toBeTruthy());
+    await waitFor(() => expect(emptyUpcoming()).toBeTruthy());
+    expect(within(emptyUpcoming()).getByRole("link", { name: "Find a space" }).getAttribute("href")).toBe("/find");
     await waitFor(() => expect(screen.getByTestId("announcer").textContent).toBe("Cancelled Desk 2A-01 on Monday, October 12, 2026."));
     const banner = screen.getByTestId("status-banner");
     expect(banner.textContent).toContain("Cancelled Desk 2A-01 on Monday, October 12, 2026.");
@@ -70,5 +76,40 @@ describe("My bookings (SPEC 14.1)", () => {
     await user.click(screen.getByRole("tab", { name: "Cancelled" }));
     expect(rowsOf("Cancelled bookings")).toEqual(["Desk 2A-01", "Desk 3A-01"]);
     expect(screen.getByText("Working from home")).toBeTruthy();
+  });
+
+  it("while loading shows a status and never the empty sentence", async () => {
+    let release: (v: unknown) => void = () => {};
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/sites/hq/resources": { resources: generateResources() },
+      "GET /api/reservations": () => new Promise((r) => (release = r)).then(() => ({ reservations: [] })),
+    });
+    renderAt("/bookings");
+    expect(await screen.findByText("Loading your bookings…")).toBeTruthy();
+    expect(queryEmptyUpcoming()).toBeNull();
+    release(null);
+    expect(await screen.findByRole("table", { name: "Upcoming bookings" })).toBeTruthy();
+    expect(emptyUpcoming()).toBeTruthy();
+    expect(screen.queryByText("Loading your bookings…")).toBeNull();
+  });
+
+  it("after a failed load shows only the error and Try again, which reloads the list", async () => {
+    let failures = 1;
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/sites/hq/resources": { resources: generateResources() },
+      "GET /api/reservations": () => (failures-- > 0 ? respond(500, { error: "internal", message: "x" }) : { reservations }),
+    });
+    renderAt("/bookings");
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Your bookings could not be loaded.");
+    expect(queryEmptyUpcoming()).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
+    await userEvent.setup().click(within(alert).getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(rowsOf("Upcoming bookings")).toEqual(["Desk 2A-01"]));
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

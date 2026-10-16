@@ -24,6 +24,25 @@ export class ApiClientError extends Error {
   }
 }
 
+// A 401 from any data route means the sign-in expired mid-session (the 8 h dev token,
+// or an Access session). SessionProvider listens and re-checks /api/me, so the app can
+// send the person back to sign in. The session routes themselves never notify, which
+// would loop.
+type UnauthorizedListener = () => void;
+const unauthorizedListeners = new Set<UnauthorizedListener>();
+
+export function onUnauthorized(listener: UnauthorizedListener): () => void {
+  unauthorizedListeners.add(listener);
+  return () => {
+    unauthorizedListeners.delete(listener);
+  };
+}
+
+function isSessionPath(path: string): boolean {
+  const p = path.split("?")[0] ?? path;
+  return p === "/api/me" || p === "/api/health" || p.startsWith("/api/dev/");
+}
+
 async function request<S extends z.ZodType>(method: string, path: string, schema: S | null, body?: unknown, headers: Record<string, string> = {}): Promise<z.output<S>> {
   const res = await fetch(path, {
     method,
@@ -40,6 +59,9 @@ async function request<S extends z.ZodType>(method: string, path: string, schema
   }
   if (!res.ok) {
     const err = (data && typeof data === "object" ? data : { error: "internal", message: `HTTP ${res.status}` }) as ErrorBody;
+    if (res.status === 401 && (err.error === "unauthenticated" || err.error === "invalid_token") && !isSessionPath(path)) {
+      for (const listener of [...unauthorizedListeners]) listener();
+    }
     throw new ApiClientError(res.status, err);
   }
   return (schema ? schema.parse(data) : data) as z.output<S>;

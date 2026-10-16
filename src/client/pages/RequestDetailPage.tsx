@@ -6,6 +6,7 @@ import { RequestDetailResponse } from "../../shared/api.ts";
 import { ApiClientError, api } from "../api/client.ts";
 import { useReadySession } from "../session/SessionProvider.tsx";
 import { useAnnounce } from "../shell/Announcer.tsx";
+import { LoadError } from "../shell/LoadError.tsx";
 import { Button } from "../ui/Button.tsx";
 import styles from "./pages.module.css";
 import { categoryLabel, eventLabel, formatWhen, statusLabel, suggestionText, timelineEvents } from "./requests-ui.ts";
@@ -18,18 +19,32 @@ export function RequestDetailPage() {
   const announce = useAnnounce();
   const [data, setData] = useState<RequestDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [pending, setPending] = useState(false);
   usePageTitle(data ? data.request.title : "Request");
   const created = (location.state as { created?: boolean; triage?: string } | null) ?? null;
 
-  const load = useCallback(() => {
-    api
-      .get(`/api/requests/${encodeURIComponent(id)}`, RequestDetailResponse)
-      .then(setData)
-      .catch((err) => setError(err instanceof ApiClientError && err.status === 404 ? "There is no such request." : "The request could not be loaded."));
-  }, [id]);
+  const load = useCallback(
+    () =>
+      api
+        .get(`/api/requests/${encodeURIComponent(id)}`, RequestDetailResponse)
+        .then((r) => {
+          setData(r);
+          setError(null);
+        })
+        .catch((err) => {
+          if (err instanceof ApiClientError && err.status === 404) setNotFound(true);
+          else setError("The request could not be loaded.");
+        }),
+    [id],
+  );
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    setData(null);
+    setError(null);
+    setNotFound(false);
+    void load();
+  }, [load]);
 
   async function cancel() {
     setPending(true);
@@ -44,15 +59,32 @@ export function RequestDetailPage() {
     }
   }
 
-  if (error) {
+  if (notFound) {
     return (
-      <section>
+      <section className={styles.stack}>
         <h1>Request</h1>
-        <p role="alert">{error}</p>
+        <p role="alert">There is no such request.</p>
+        <p>
+          <Link to="/requests">My requests</Link>
+        </p>
       </section>
     );
   }
-  if (!data) return <p role="status">Loading…</p>;
+  if (error) {
+    return (
+      <section className={styles.stack}>
+        <h1>Request</h1>
+        <LoadError
+          message={error}
+          onRetry={() => {
+            setError(null);
+            return load();
+          }}
+        />
+      </section>
+    );
+  }
+  if (!data) return <p role="status">Loading the request…</p>;
   const { request: r, suggestion, events } = data;
   const canCancel = r.reporterId === employee.id && (r.status === "submitted" || r.status === "awaiting_review");
 

@@ -1,9 +1,10 @@
 // My requests (SPEC 14.1): monitoring request status, the suggested category with its
 // provider label, and the final category.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 import { MyRequestsResponse, type RequestWithSuggestion } from "../../shared/api.ts";
 import { api } from "../api/client.ts";
+import { LoadError } from "../shell/LoadError.tsx";
 import { DataTable } from "../ui/DataTable.tsx";
 import { Tabs } from "../ui/Tabs.tsx";
 import styles from "./pages.module.css";
@@ -22,12 +23,21 @@ export function MyRequestsPage() {
   const [rows, setRows] = useState<RequestWithSuggestion[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const load = useCallback(
+    () =>
+      api
+        .get("/api/requests", MyRequestsResponse)
+        .then((r) => {
+          setRows(r.requests);
+          setError(null);
+        })
+        .catch(() => setError("Your requests could not be loaded.")),
+    [],
+  );
+
   useEffect(() => {
-    api
-      .get("/api/requests", MyRequestsResponse)
-      .then((r) => setRows(r.requests))
-      .catch(() => setError("Your requests could not be loaded."));
-  }, []);
+    void load();
+  }, [load]);
 
   const columns = [
     { key: "title", header: "Request", render: (r: RequestWithSuggestion) => <Link to={`/requests/${r.id}`}>{r.title}</Link> },
@@ -43,8 +53,17 @@ export function MyRequestsPage() {
         <h1>My requests</h1>
         <Link to="/requests/new">Report an issue</Link>
       </div>
-      {error ? <p role="alert">{error}</p> : null}
-      {rows === null && !error ? <p role="status">Loading…</p> : null}
+      {error ? (
+        <LoadError
+          message={error}
+          onRetry={() => {
+            setError(null);
+            return load();
+          }}
+        />
+      ) : rows === null ? (
+        <p role="status">Loading your requests…</p>
+      ) : (
       <Tabs tabs={TABS} value={tab} onChange={setTab} label="Requests">
         {(id) => (
           <DataTable
@@ -56,6 +75,7 @@ export function MyRequestsPage() {
           />
         )}
       </Tabs>
+      )}
     </section>
   );
 }

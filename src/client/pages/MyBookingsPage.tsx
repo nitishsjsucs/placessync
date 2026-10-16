@@ -7,6 +7,7 @@ import { hasStarted } from "../../shared/rules.ts";
 import { addDays } from "../../shared/time.ts";
 import { ApiClientError, api, qs } from "../api/client.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
+import { LoadError } from "../shell/LoadError.tsx";
 import { useStatusBanner } from "../shell/StatusBanner.tsx";
 import { Button } from "../ui/Button.tsx";
 import { DataTable } from "../ui/DataTable.tsx";
@@ -106,8 +107,17 @@ export function MyBookingsPage() {
   return (
     <section className={styles.stack}>
       <h1>My bookings</h1>
-      {error ? <p role="alert">{error}</p> : null}
-      {list === null && !error ? <p role="status">Loading…</p> : null}
+      {error ? (
+        <LoadError
+          message={error}
+          onRetry={() => {
+            setError(null);
+            return load();
+          }}
+        />
+      ) : list === null ? (
+        <p role="status">Loading your bookings…</p>
+      ) : (
       <Tabs tabs={TABS} value={tab} onChange={setTab} label="Bookings">
         {(id) => (
           <DataTable
@@ -115,7 +125,15 @@ export function MyBookingsPage() {
             columns={id === "cancelled" ? cancelledColumns : columns}
             rows={groups[id] ?? []}
             rowKey={(r) => r.id}
-            empty={id === "upcoming" ? "No upcoming bookings. Find a space to book one." : "Nothing here."}
+            empty={
+              id === "upcoming" ? (
+                <>
+                  No upcoming bookings. <Link to="/find">Find a space</Link> to book one.
+                </>
+              ) : (
+                "Nothing here."
+              )
+            }
             rowActions={
               id === "upcoming"
                 ? (r) => (
@@ -139,6 +157,7 @@ export function MyBookingsPage() {
           />
         )}
       </Tabs>
+      )}
       <Dialog
         open={cancelling !== null}
         onClose={() => setCancelling(null)}

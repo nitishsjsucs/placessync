@@ -9,6 +9,7 @@ import { providerLabel } from "../../shared/triage/provider-labels.ts";
 import { ApiClientError, api } from "../api/client.ts";
 import { useStaffEvents } from "../live/useStaffEvents.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
+import { LoadError } from "../shell/LoadError.tsx";
 import { useStatusBanner } from "../shell/StatusBanner.tsx";
 import { Button } from "../ui/Button.tsx";
 import { Combobox } from "../ui/Combobox.tsx";
@@ -54,14 +55,27 @@ export function StaffDashboardPage() {
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [today, setToday] = useState<Booking[] | null>(null);
+  // Today's bookings has its own error, so it never hides or replaces the queue's.
+  const [todayError, setTodayError] = useState<string | null>(null);
+  const [todayTick, setTodayTick] = useState(0);
 
   useEffect(() => {
     if (tab !== "today") return;
+    let cancelled = false;
     api
       .get(`/api/staff/bookings?date=${site.today}`, StaffBookingsResponse)
-      .then((r) => setToday(r.bookings))
-      .catch(() => setError("Today's bookings could not be loaded."));
-  }, [tab, site.today]);
+      .then((r) => {
+        if (cancelled) return;
+        setToday(r.bookings);
+        setTodayError(null);
+      })
+      .catch(() => {
+        if (!cancelled) setTodayError("Today's bookings could not be loaded.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, site.today, todayTick]);
 
   const load = useCallback(async () => {
     try {
@@ -174,7 +188,15 @@ export function StaffDashboardPage() {
           {liveStatus === "live" ? "Live updates on" : "Live updates offline"}
         </span>
       </div>
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? (
+        <LoadError
+          message={error}
+          onRetry={() => {
+            setError(null);
+            return load();
+          }}
+        />
+      ) : null}
       {notice ? (
         <p role="alert" className={styles.notice}>
           {notice}
@@ -228,6 +250,15 @@ export function StaffDashboardPage() {
             />
           ) : id === "resolved" ? (
             <DataTable caption="Resolved" columns={workColumns} rows={resolved} rowKey={(r) => r.id} empty="Nothing resolved yet." />
+          ) : todayError ? (
+            <LoadError
+              message={todayError}
+              onRetry={() => {
+                setTodayError(null);
+                setToday(null);
+                setTodayTick((t) => t + 1);
+              }}
+            />
           ) : (
             <DataTable
               caption={`Bookings today, ${site.today}`}

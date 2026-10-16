@@ -1,13 +1,14 @@
 // Resource detail and week booking calendar (SPEC 14.1): a SlotGrid with the seven days
 // as rows, live updates for the week's dates, and booking from a selected range.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { type CalendarResponse, CalendarResponse as CalendarSchema, type Reservation } from "../../shared/api.ts";
 import { AMENITIES } from "../../shared/synthetic/resources.ts";
 import { addDays, isWeekday, weekStartOf } from "../../shared/time.ts";
 import { ApiClientError, api, qs } from "../api/client.ts";
 import { useLiveAvailability } from "../live/useLiveAvailability.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
+import { LoadError } from "../shell/LoadError.tsx";
 import { useStatusBanner } from "../shell/StatusBanner.tsx";
 import { Button } from "../ui/Button.tsx";
 import { DateGrid, longDate } from "../ui/DateGrid.tsx";
@@ -27,11 +28,18 @@ export function ResourcePage() {
   const banner = useStatusBanner();
   const [weekStart, setWeekStart] = useState(() => weekStartOf(site.today));
   const [data, setData] = useState<CalendarResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<"not_found" | "failed" | null>(null);
   const [selection, setSelection] = useState<SlotSelection | null>(null);
   const [booking, setBooking] = useState<SlotSelection | null>(null);
   const [tick, setTick] = useState(0);
   usePageTitle(data ? data.resource.name : "Resource");
+
+  // Another space: nothing from the previous one (its data or its error) carries over.
+  useEffect(() => {
+    setData(null);
+    setError(null);
+    setSelection(null);
+  }, [id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,7 +52,7 @@ export function ResourcePage() {
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof ApiClientError && err.status === 404 ? "There is no such space." : "The calendar could not be loaded.");
+        if (!cancelled) setError(err instanceof ApiClientError && err.status === 404 ? "not_found" : "failed");
       });
     return () => {
       cancelled = true;
@@ -78,15 +86,32 @@ export function ResourcePage() {
     refresh();
   };
 
-  if (error) {
+  if (error === "not_found") {
     return (
-      <section>
+      <section className={styles.stack}>
         <h1>Space</h1>
-        <p role="alert">{error}</p>
+        <p role="alert">There is no such space.</p>
+        <p>
+          <Link to="/find">Find a space</Link>
+        </p>
       </section>
     );
   }
-  if (!data) return <p role="status">Loading…</p>;
+  if (error) {
+    return (
+      <section className={styles.stack}>
+        <h1>Space</h1>
+        <LoadError
+          message="The calendar could not be loaded."
+          onRetry={() => {
+            setError(null);
+            refresh();
+          }}
+        />
+      </section>
+    );
+  }
+  if (!data) return <p role="status">Loading the calendar…</p>;
   const r = data.resource;
 
   return (

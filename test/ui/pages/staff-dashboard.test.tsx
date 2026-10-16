@@ -145,4 +145,30 @@ describe("Staff dashboard (SPEC 14.1)", () => {
     await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(2));
     expect(within(table).getAllByRole("cell").map((c) => c.textContent)).toEqual(["10:00 to 11:00", "Alder", "Noah Yamamoto", "4 attending, Planning"]);
   });
+
+  it("a failed queue load offers Try again; Today's bookings fails on its own without touching the queue error", async () => {
+    let queueFailures = 1;
+    let todayFailures = 1;
+    api.set("GET /api/staff/requests", () => (queueFailures-- > 0 ? respond(500, { error: "internal", message: "x" }) : { requests: queue }));
+    api.set("GET /api/staff/bookings", () =>
+      todayFailures-- > 0
+        ? respond(500, { error: "internal", message: "x" })
+        : { date: "2026-10-08", bookings: [{ id: "rsv_1", resourceId: "res_alder", resourceName: "Alder", kind: "room", employeeId: "emp_001", employeeName: "Noah Yamamoto", startMin: 600, endMin: 660, attendees: 4, title: "Planning" }] },
+    );
+    renderAt("/staff");
+    const user = userEvent.setup();
+    const queueAlert = await screen.findByText("The queue could not be loaded.");
+    await user.click(screen.getByRole("tab", { name: "Today's bookings" }));
+    const todayAlert = await screen.findByText("Today's bookings could not be loaded.");
+    // Both errors show, each with its own Try again.
+    expect(screen.getByText("The queue could not be loaded.")).toBe(queueAlert);
+    expect(screen.getAllByRole("button", { name: "Try again" })).toHaveLength(2);
+    await user.click(within(todayAlert.closest("[role=alert]") as HTMLElement).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("table", { name: "Bookings today, 2026-10-08" })).toBeTruthy();
+    expect(screen.getByText("The queue could not be loaded.")).toBeTruthy();
+    await user.click(within(queueAlert.closest("[role=alert]") as HTMLElement).getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(screen.queryByText("The queue could not be loaded.")).toBeNull());
+    await user.click(screen.getByRole("tab", { name: "Triage queue" }));
+    expect(await screen.findByRole("link", { name: "Projector dead" })).toBeTruthy();
+  });
 });

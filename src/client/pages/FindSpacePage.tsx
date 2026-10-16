@@ -8,6 +8,7 @@ import { formatMinutes } from "../../shared/time.ts";
 import { api, qs } from "../api/client.ts";
 import { useLiveAvailability } from "../live/useLiveAvailability.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
+import { LoadError } from "../shell/LoadError.tsx";
 import { useStatusBanner } from "../shell/StatusBanner.tsx";
 import { Button } from "../ui/Button.tsx";
 import { DateGrid, longDate } from "../ui/DateGrid.tsx";
@@ -93,6 +94,11 @@ export function FindSpacePage() {
 
   const selectedResource = data?.resources.find((r) => r.resource.id === selection?.rowId)?.resource ?? null;
   const refresh = useCallback(() => setRefreshTick((t) => t + 1), []);
+  const retry = () => {
+    setLoadError(null);
+    setData(null);
+    refresh();
+  };
   const onSelect = useCallback((s: SlotSelection | null) => setSelection(s), []);
 
   const onBooked = (r: Reservation) => {
@@ -196,9 +202,9 @@ export function FindSpacePage() {
           }} label="Kind of space">
             {() => (
               <div className={styles.stack}>
-                {loadError ? <p role="alert">{loadError}</p> : null}
+                {loadError ? <LoadError message={loadError} onRetry={retry} /> : null}
                 {data === null && !loadError ? <p role="status">Loading availability…</p> : null}
-                {data !== null ? (
+                {data !== null && !loadError ? (
                   <>
                     <p className={styles.muted}>
                       {rows.length} {rows.length === 1 ? "space" : "spaces"} on {longDate(date)}.
