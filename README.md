@@ -6,6 +6,8 @@ A workplace application for reserving desks and meeting rooms, reporting facilit
 
 **Live demo.** [`docs/DEMO.md`](docs/DEMO.md) is the walkthrough of the deployed app: two personas race for one desk, then one facilities request goes through Workers AI triage to staff review.
 
+**User workflows.** [`docs/USER-WORKFLOWS.md`](docs/USER-WORKFLOWS.md) walks each persona through the local build step by step, including the usability changes of 2026-10-15, which production does not have yet.
+
 ## Why
 
 A workplace team shares a fixed set of desks and rooms across many employees. As the office fills up, two requests race for the same desk, booking screens show availability that changed seconds ago, and facilities issues land in one inbox where someone has to read and route each one. PlacesSync treats a booking as a write to a per-site ledger that cannot double-book, pushes each committed change to every screen watching that date, and has a model suggest the service category for each issue while the decision stays with facilities staff.

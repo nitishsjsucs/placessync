@@ -2,6 +2,8 @@
 
 A script for showing the deployed app in an interview: a short walkthrough in two browser windows, then technical talking points and answers to likely questions. Every button, label and route below exists in the code at this commit. Every measured number names the committed file in [`evals/results/`](../evals/results) it comes from. Plan limits and code settings name the file or README section where they are written down.
 
+Note (2026-10-15, later the same day): a usability round changed the local code after this script was written, and production has not been redeployed, so the walkthrough below still describes the deployed app. Locally, one click on a desk selects an hour (the staged click and Shift+click still give 10:00 to 11:00), the grid legend also lists "Past or closed", a lost race offers "Pick another time" beside "Cancel", "Resolve" asks for an optional note first, and the Staff queue refreshes itself every 60 seconds. [`USER-WORKFLOWS.md`](USER-WORKFLOWS.md) lists every change.
+
 Live URL: https://placessync-production.nitish-ratakonda.workers.dev (Cloudflare Workers Free plan, behind Cloudflare Access, team `old-truth-a7dc`, One-time PIN as the only login).
 
 The headline is the race: two people book the same desk for the same hour at the same moment, exactly one wins, the other gets a conflict, and both screens update live.
