@@ -11,12 +11,19 @@
 // check the connection, inside the dialog, which stays open so a typed note is kept.
 // After a 409 the control that was used is gone (its dialog closes and the refresh
 // removes its row), so the notice takes focus once the dialog has closed.
+// Above the tabs, "Work at a glance" counts the four stages that need staff with their
+// oldest wait (charts/work-summary.ts), from the four lists the page already loads; a
+// queue row a day old or more carries an "Over 24 h" pill.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { StaffBookingsResponse, StaffQueueResponse } from "../../shared/api.ts";
 import { CATEGORIES } from "../../shared/triage/categories.ts";
 import { providerLabel } from "../../shared/triage/provider-labels.ts";
 import { ApiClientError, api } from "../api/client.ts";
+import { WorkSummary } from "../charts/WorkSummary.tsx";
+import chartStyles from "../charts/charts.module.css";
+import { WarningIcon } from "../charts/icons.tsx";
+import { OVER_DAY_MINUTES, type TileId, ageShort, summarize } from "../charts/work-summary.ts";
 import { useStaffEvents } from "../live/useStaffEvents.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
 import { LoadError } from "../shell/LoadError.tsx";
@@ -51,11 +58,8 @@ function hhmm(d: Date): string {
 type Booking = StaffBookingsResponse["bookings"][number];
 const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ value: c, label: categoryLabel(c) }));
 
-function age(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`;
-  if (minutes < 48 * 60) return `${Math.floor(minutes / 60)} h`;
-  return `${Math.floor(minutes / 1440)} d`;
-}
+/** The tab a work-at-a-glance tile opens. */
+const TILE_TAB: Record<TileId, string> = { suggested: "queue", manual: "queue", assigned: "working", in_progress: "working" };
 
 export function StaffDashboardPage() {
   usePageTitle("Facilities staff");
@@ -89,6 +93,9 @@ export function StaffDashboardPage() {
   // Today's bookings has its own error, so it never hides or replaces the queue's.
   const [todayError, setTodayError] = useState<string | null>(null);
   const [todayTick, setTodayTick] = useState(0);
+  // After a work-at-a-glance tile opens a tab, focus moves to that tab's panel once it shows.
+  const [focusPanelFor, setFocusPanelFor] = useState<string | null>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (tab !== "today") return;
@@ -177,6 +184,12 @@ export function StaffDashboardPage() {
   useEffect(() => {
     if (noticeFocus) noticeRef.current?.focus();
   }, [noticeFocus]);
+
+  useEffect(() => {
+    if (!focusPanelFor || focusPanelFor !== tab) return;
+    tabsRef.current?.querySelector<HTMLElement>('[role="tabpanel"]:not([hidden])')?.focus();
+    setFocusPanelFor(null);
+  }, [focusPanelFor, tab]);
 
   function openReview(item: QueueItem, mode: ReviewMode) {
     setCategory(mode === "reassign" ? (item.suggestion?.category ?? null) : null);
@@ -279,7 +292,23 @@ export function StaffDashboardPage() {
       ),
     },
     { key: "where", header: "Where", render: (r: QueueItem) => r.resourceName ?? (r.locationNote || "Not given") },
-    { key: "age", header: "Age", render: (r: QueueItem) => age(r.ageMinutes), sortValue: (r: QueueItem) => r.ageMinutes },
+    {
+      key: "age",
+      header: "Age",
+      render: (r: QueueItem) =>
+        r.ageMinutes >= OVER_DAY_MINUTES ? (
+          <span className={chartStyles.stackTight}>
+            <span>{ageShort(r.ageMinutes)}</span>
+            <span className={chartStyles.warn}>
+              <WarningIcon />
+              Over 24 h
+            </span>
+          </span>
+        ) : (
+          ageShort(r.ageMinutes)
+        ),
+      sortValue: (r: QueueItem) => r.ageMinutes,
+    },
   ];
   const queueColumns = [
     ...base,
@@ -324,11 +353,15 @@ export function StaffDashboardPage() {
           }}
         />
       ) : null}
+      {/* Only after a successful load, and never beside the load error: stale or zero
+          numbers would mislead. A failed refetch keeps the last values until the error shows. */}
+      {queue !== null && !error ? <WorkSummary tiles={summarize(queue, working)} onActivate={(t) => setFocusPanelFor(TILE_TAB[t.id])} /> : null}
       {notice ? (
         <p ref={noticeRef} tabIndex={-1} role="alert" className={styles.notice}>
           {notice}
         </p>
       ) : null}
+      <div ref={tabsRef}>
       <Tabs tabs={TABS} value={tab} onChange={setTab} label="Staff views">
         {(id) =>
           id === "queue" ? (
@@ -402,6 +435,7 @@ export function StaffDashboardPage() {
           )
         }
       </Tabs>
+      </div>
       <Dialog
         open={review !== null}
         onClose={() => setReview(null)}

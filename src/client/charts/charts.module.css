@@ -1,0 +1,97 @@
+/* Charts and figures (the visual pass). Every color is a design token from tokens.css,
+   so light and dark follow prefers-color-scheme. Marks that carry meaning use
+   --color-primary; context marks (ended, booked ahead) use --color-border-strong and
+   always carry a word as well. Status uses the warning tokens with an icon and words. */
+
+.stackTight {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.muted {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* Stat tiles: 2 by 2 under 640 px, one row of 4 from 640 px. */
+.tiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+@media (min-width: 640px) {
+  .tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+}
+
+.tiles > li {
+  display: flex;
+  min-width: 0;
+}
+
+.tile,
+.tileLink {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: var(--touch-target);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.tileLink:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-2);
+}
+
+.tileLabel {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Proportional figures: a standalone value, not a column of numbers. */
+.tileValue {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.tileMeta {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* Status: warning tokens, an icon and words; never color alone. */
+.warn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.warn svg {
+  flex: none;
+}

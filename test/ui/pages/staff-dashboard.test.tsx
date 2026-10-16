@@ -375,3 +375,84 @@ describe("Resolving and save errors (UX-09)", () => {
   });
 });
 
+
+describe("Work at a glance (VIZ-01)", () => {
+  const tile = (name: RegExp) => screen.getByRole("link", { name });
+
+  it("shows four tiles after the first load, from the same four GETs as before", async () => {
+    api.set("GET /api/staff/requests?status=in_progress", { requests: [{ ...suggested, id: "req_w", title: "Chair broken", status: "in_progress", ageMinutes: 3000, createdAt: "2026-10-06T13:00:00.000Z", updatedAt: "2026-10-08T12:00:00.000Z" }] });
+    renderAt("/staff");
+    const list = await screen.findByRole("list", { name: "Work at a glance" });
+    expect(within(list).getAllByRole("link").map((l) => l.getAttribute("aria-label"))).toEqual([
+      "Suggestions to review: 1 request, oldest 1 hour",
+      "To categorize by hand: 2 requests, oldest 1 hour",
+      "Assigned, not started: 0 requests",
+      // The server answered at 15:00 UTC (created 3,000 minutes earlier); work last changed at 12:00.
+      "In progress: 1 request, oldest 3 hours in this status",
+    ]);
+    expect(api.calls.filter((c) => c.method === "GET" && c.url.startsWith("/api/staff/")).map((c) => c.url)).toEqual([
+      "/api/staff/requests",
+      "/api/staff/requests?status=assigned",
+      "/api/staff/requests?status=in_progress",
+      "/api/staff/requests?status=resolved",
+    ]);
+  });
+
+  it("a tile opens its tab with replace and moves focus to that tab's panel", async () => {
+    const { router } = renderAt("/staff");
+    await screen.findByRole("list", { name: "Work at a glance" });
+    const user = userEvent.setup();
+    await user.click(tile(/^In progress/));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "In progress" }).getAttribute("aria-selected")).toBe("true"));
+    expect(router.state.location.search).toBe("?tab=working");
+    expect(router.state.historyAction).toBe("REPLACE");
+    await waitFor(() => expect(document.activeElement?.getAttribute("role")).toBe("tabpanel"));
+    expect((document.activeElement as HTMLElement).hidden).toBe(false);
+    expect(within(document.activeElement as HTMLElement).getByRole("table", { name: "Assigned and in progress" })).toBeTruthy();
+    await user.click(tile(/^Suggestions to review/));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Triage queue" }).getAttribute("aria-selected")).toBe("true"));
+    expect(router.state.location.search).toBe("");
+    await waitFor(() => expect(within(document.activeElement as HTMLElement).getByRole("table", { name: "Triage queue" })).toBeTruthy());
+  });
+
+  it("marks queue rows a day old or more with an Over 24 h pill, and not a row aged 22 h", async () => {
+    queue = [{ ...suggested, ageMinutes: 1440 }, { ...pending, ageMinutes: 22 * 60 }, { ...unavailable, ageMinutes: 1439 }];
+    renderAt("/staff");
+    await screen.findByRole("link", { name: "Projector dead" });
+    expect(within(rowOf("Projector dead")).getByText("Over 24 h")).toBeTruthy();
+    expect(within(rowOf("Odd smell")).queryByText("Over 24 h")).toBeNull();
+    expect(within(rowOf("Wobbly table")).queryByText("Over 24 h")).toBeNull();
+    expect(tile(/^Suggestions to review/).getAttribute("aria-label")).toBe("Suggestions to review: 1 request, oldest 24 hours, 1 waiting over 24 hours");
+  });
+
+  it("hides the tiles while the load error shows, and Try again brings them back", async () => {
+    let failures = 1;
+    api.set("GET /api/staff/requests", () => (failures-- > 0 ? respond(500, { error: "internal", message: "x" }) : { requests: queue }));
+    renderAt("/staff");
+    const alert = await screen.findByText("The queue could not be loaded.");
+    expect(screen.queryByRole("list", { name: "Work at a glance" })).toBeNull();
+    await userEvent.setup().click(within(alert.closest("[role=alert]") as HTMLElement).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("list", { name: "Work at a glance" })).toBeTruthy();
+  });
+
+  it("a timed refetch that fails hides the tiles instead of showing stale numbers", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderAt("/staff");
+    await screen.findByRole("list", { name: "Work at a glance" });
+    api.set("GET /api/staff/requests", respond(500, { error: "internal", message: "x" }));
+    await act(async () => vi.advanceTimersByTimeAsync(60_000));
+    await screen.findByText("The queue could not be loaded.");
+    expect(screen.queryByRole("list", { name: "Work at a glance" })).toBeNull();
+  });
+
+  it("a staff event refetch updates the counts", async () => {
+    renderAt("/staff");
+    await screen.findByRole("list", { name: "Work at a glance" });
+    expect(tile(/^Suggestions to review/).getAttribute("aria-label")).toMatch(/^Suggestions to review: 1 request,/);
+    const ws = FakeWebSocket.last();
+    await act(async () => ws.open());
+    queue = [...queue, { ...suggested, id: "req_new", title: "Lights out in Alder" }];
+    await act(async () => ws.receive({ type: "staff_event", event: "triage_ready", requestId: "req_new", category: "electrical_av" }));
+    await waitFor(() => expect(tile(/^Suggestions to review/).getAttribute("aria-label")).toMatch(/^Suggestions to review: 2 requests,/));
+  });
+});
