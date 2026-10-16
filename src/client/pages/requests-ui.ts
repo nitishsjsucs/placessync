@@ -57,3 +57,19 @@ export function formatWhen(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 }
+
+/**
+ * A duration for the request progress and the staff views: "42 min", "13 h 4 min" (or
+ * "13 h") under 48 hours, else "4 d 16 h" (or "4 d"). Negative input (a clock behind the
+ * server's) reads as "0 min".
+ */
+export function elapsed(minutes: number): string {
+  const total = Math.max(0, Math.floor(minutes));
+  if (total < 60) return `${total} min`;
+  if (total < 48 * 60) {
+    const m = total % 60;
+    return m === 0 ? `${Math.floor(total / 60)} h` : `${Math.floor(total / 60)} h ${m} min`;
+  }
+  const h = Math.floor((total % 1440) / 60);
+  return h === 0 ? `${Math.floor(total / 1440)} d` : `${Math.floor(total / 1440)} d ${h} h`;
+}

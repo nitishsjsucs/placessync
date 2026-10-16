@@ -2,7 +2,9 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HEALTH, installFakeApi, me, respond } from "../fake-api.ts";
+import { expectNoAxeViolations } from "../axe.ts";
 import { renderAt } from "../render-app.tsx";
+import { setMediaMatches } from "../setup.ts";
 
 const base = {
   siteId: "hq",
@@ -40,9 +42,9 @@ describe("My requests and request detail (SPEC 14.1)", () => {
       .slice(1)
       .map((r) => within(r).getAllByRole("cell").slice(0, 4).map((c) => c.textContent));
     expect(rows).toEqual([
-      ["Projector dead", "Awaiting staff review", "Electrical and AV (Keyword stub (keyword-v1)), awaiting staff review", "Not reviewed yet"],
-      ["Chair broken", "Assigned", "Cleaning and safety (Local Qwen3-1.7B (llama.cpp))", "Furniture and fixtures"],
-      ["Trash full", "Submitted", "Classification pending", "Not reviewed yet"],
+      ["Projector dead", "Awaiting staff review, step 3 of 5", "Electrical and AV (Keyword stub (keyword-v1)), awaiting staff review", "Not reviewed yet"],
+      ["Chair broken", "Assigned, step 4 of 5", "Cleaning and safety (Local Qwen3-1.7B (llama.cpp))", "Furniture and fixtures"],
+      ["Trash full", "Submitted, step 2 of 5", "Classification pending", "Not reviewed yet"],
     ]);
     await userEvent.setup().click(screen.getByRole("tab", { name: "Closed" }));
     const closed = screen.getByRole("table", { name: "Closed requests" });
@@ -143,5 +145,44 @@ describe("My requests and request detail (SPEC 14.1)", () => {
     await userEvent.setup().click(within(alert).getByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("heading", { level: 1, name: "Trash full" })).toBeTruthy();
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+});
+
+describe("My requests step text (VIZ-03)", () => {
+  const ALL = [
+    { ...REQUESTS[2]!, id: "r1", title: "Still submitted" },
+    { ...REQUESTS[0]!, id: "r2", title: "Waiting for review" },
+    { ...REQUESTS[1]!, id: "r3", title: "Assigned one" },
+    { ...REQUESTS[1]!, id: "r4", title: "Being worked on", status: "in_progress" },
+    { ...REQUESTS[3]!, id: "r5", title: "Done and dusted" },
+    { ...REQUESTS[2]!, id: "r6", title: "Withdrawn", status: "cancelled" },
+  ];
+  const statusCells = (table: HTMLElement) =>
+    within(table)
+      .getAllByRole("row")
+      .slice(1)
+      .map((r) => within(r).getAllByRole("cell")[1]?.textContent);
+
+  it("says which of the five steps each open request is on, with no extra column, and plain words once closed", async () => {
+    installFakeApi({ "GET /api/health": HEALTH, "GET /api/me": me("emp_001", "employee"), "GET /api/requests": { requests: ALL } });
+    renderAt("/requests");
+    await screen.findByRole("link", { name: "Still submitted" });
+    const open = screen.getByRole("table", { name: "Open requests" });
+    expect(within(open).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Request", "Status", "Suggested category", "Final category", "Submitted"]);
+    expect(statusCells(open)).toEqual(["Submitted, step 2 of 5", "Awaiting staff review, step 3 of 5", "Assigned, step 4 of 5", "In progress, step 5 of 5"]);
+    // The meter is drawn beside the words and hidden from assistive technology.
+    expect(within(open).getAllByRole("row")[1]?.querySelector("[aria-hidden=true]")?.children).toHaveLength(5);
+    await expectNoAxeViolations();
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Closed" }));
+    expect(statusCells(screen.getByRole("table", { name: "Closed requests" }))).toEqual(["Resolved", "Cancelled"]);
+  });
+
+  it("keeps the step text in the stacked phone card", async () => {
+    setMediaMatches("(max-width: 639px)", true);
+    installFakeApi({ "GET /api/health": HEALTH, "GET /api/me": me("emp_001", "employee"), "GET /api/requests": { requests: ALL.slice(2, 3) } });
+    renderAt("/requests");
+    await screen.findByRole("link", { name: "Assigned one" });
+    const cell = screen.getByRole("table", { name: "Open requests" }).querySelector('td[data-label="Status"]');
+    expect(cell?.textContent).toBe("Assigned, step 4 of 5");
   });
 });

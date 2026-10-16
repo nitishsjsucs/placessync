@@ -1,14 +1,18 @@
 // My requests (SPEC 14.1): monitoring request status, the suggested category with its
-// provider label, and the final category.
+// provider label, and the final category. The status cell also says which of the five
+// steps an open request is on ("Assigned, step 4 of 5"), with a small meter beside it.
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 import { MyRequestsResponse, type RequestWithSuggestion } from "../../shared/api.ts";
 import { api } from "../api/client.ts";
+import { StepMeter } from "../charts/RequestProgress.tsx";
+import progressStyles from "../charts/progress.module.css";
+import { stepNumber, statusStepText } from "../charts/request-progress.ts";
 import { LoadError } from "../shell/LoadError.tsx";
 import { DataTable } from "../ui/DataTable.tsx";
 import { Tabs } from "../ui/Tabs.tsx";
 import styles from "./pages.module.css";
-import { categoryLabel, formatWhen, statusLabel, suggestionText } from "./requests-ui.ts";
+import { categoryLabel, formatWhen, suggestionText } from "./requests-ui.ts";
 import { usePageTitle } from "./usePageTitle.ts";
 
 const TABS = [
@@ -41,7 +45,19 @@ export function MyRequestsPage() {
 
   const columns = [
     { key: "title", header: "Request", render: (r: RequestWithSuggestion) => <Link to={`/requests/${r.id}`}>{r.title}</Link> },
-    { key: "status", header: "Status", render: (r: RequestWithSuggestion) => statusLabel(r.status) },
+    {
+      key: "status",
+      header: "Status",
+      render: (r: RequestWithSuggestion) => {
+        const step = stepNumber(r.status);
+        return (
+          <span className={progressStyles.stepStatus}>
+            <span>{statusStepText(r.status)}</span>
+            {step !== null ? <StepMeter done={step - 1} current={step} /> : r.status === "resolved" ? <StepMeter done={5} current={null} /> : null}
+          </span>
+        );
+      },
+    },
     { key: "suggested", header: "Suggested category", render: (r: RequestWithSuggestion) => suggestionText(r) },
     { key: "final", header: "Final category", render: (r: RequestWithSuggestion) => (r.finalCategory ? categoryLabel(r.finalCategory) : "Not reviewed yet") },
     { key: "submitted", header: "Submitted", render: (r: RequestWithSuggestion) => formatWhen(r.createdAt) },

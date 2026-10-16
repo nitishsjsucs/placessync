@@ -6,10 +6,14 @@
 // which matters on the Workers Free plan's shared request allowance), and offers Check
 // again. Cancelling asks first, and a refused cancel is shown under the button with the
 // server's reason, never instead of the request.
+// Above the details, a progress tracker (charts/request-progress.ts) shows the five steps
+// from the same response: what is done and when, and who acts next. The timeline below
+// stays as the detailed log.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { RequestDetailResponse } from "../../shared/api.ts";
 import { ApiClientError, api } from "../api/client.ts";
+import { RequestProgress } from "../charts/RequestProgress.tsx";
 import { useReadySession } from "../session/SessionProvider.tsx";
 import { useAnnounce } from "../shell/Announcer.tsx";
 import { LoadError } from "../shell/LoadError.tsx";
@@ -163,6 +167,7 @@ export function RequestDetailPage() {
             : "Your request was submitted. It is being categorized automatically, then facilities staff will review it."}
         </p>
       ) : null}
+      <RequestProgress request={r} suggestion={suggestion} events={events} />
       <dl className={styles.dl}>
         <dt>Status</dt>
         <dd ref={statusRef} tabIndex={-1}>

@@ -24,6 +24,8 @@ const submitted = { ...base, id: "req_p", title: "Projector dead", status: "subm
 const awaiting = { ...submitted, status: "awaiting_review", triageState: "suggested" };
 const suggestion = { category: "electrical_av", confidence: 0.8, rationale: "Projector is AV.", provider: "stub", model: "keyword-v1", attempts: 1, latencyMs: 5, createdAt: "x" };
 const events = [{ id: 1, type: "submitted", actorId: "emp_001", data: {}, at: "2026-10-08T15:00:00.000Z" }];
+/** The Status value in the details list (the progress tracker also says "Cancelled"). */
+const statusValue = () => screen.getByText("Status", { selector: "dt" }).nextElementSibling?.textContent;
 const detailGets = (api: { calls: { method: string; url: string }[] }) => api.calls.filter((c) => c.method === "GET" && c.url === "/api/requests/req_p");
 
 afterEach(() => {
@@ -62,7 +64,7 @@ describe("Request detail cancel (UX-07)", () => {
     expect(banner.textContent).toContain("Request cancelled.");
     expect(document.activeElement).toBe(banner);
     await waitFor(() => expect(screen.queryByRole("button", { name: "Cancel this request" })).toBeNull());
-    expect(screen.getByText("Cancelled")).toBeTruthy();
+    expect(statusValue()).toBe("Cancelled");
   });
 
   it("drops the submitted notice once the new request is cancelled", async () => {
@@ -81,7 +83,7 @@ describe("Request detail cancel (UX-07)", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Cancel this request" }));
     await user.click(within(screen.getByRole("dialog", { name: "Cancel this request?" })).getByRole("button", { name: "Cancel request" }));
-    await waitFor(() => expect(screen.getByText("Cancelled")).toBeTruthy());
+    await waitFor(() => expect(statusValue()).toBe("Cancelled"));
     expect(screen.queryByText(/Your request was submitted/)).toBeNull();
     expect((await screen.findByTestId("status-banner")).textContent).toContain("Request cancelled.");
   });
@@ -230,3 +232,48 @@ describe("Request detail timeline (UX-09)", () => {
   });
 });
 
+
+describe("Request progress on the request page (VIZ-03)", () => {
+  it("shows the tracker above the details for a request in progress, with the provider label", async () => {
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/requests/req_p": {
+        request: { ...awaiting, status: "in_progress", finalCategory: "electrical_av", reviewDecision: "accepted" },
+        suggestion,
+        events: [
+          ...events,
+          { id: 2, type: "triaged", actorId: null, data: { category: "electrical_av", provider: "stub" }, at: "2026-10-08T15:01:00.000Z" },
+          { id: 3, type: "reviewed", actorId: "emp_093", data: { decision: "accept" }, at: "2026-10-08T16:00:00.000Z" },
+          { id: 4, type: "status_changed", actorId: "emp_093", data: { from: "assigned", to: "in_progress", note: null }, at: "2026-10-08T16:30:00.000Z" },
+        ],
+      },
+    });
+    renderAt("/requests/req_p");
+    const progress = await screen.findByRole("list", { name: "Progress" });
+    const details = screen.getByText("Status", { selector: "dt" }).closest("dl") as HTMLElement;
+    expect(progress.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const items = within(progress).getAllByRole("listitem");
+    expect(items.map((li) => li.getAttribute("aria-current"))).toEqual([null, null, null, null, "step"]);
+    expect(items[1]?.textContent).toContain("Suggested Electrical and AV (Keyword stub (keyword-v1))");
+    expect(items[4]?.textContent).toMatch(/^ResolvedNow: staff are working on it, .+ so far$/);
+    // The timeline stays as the detailed log.
+    expect(screen.getByRole("list", { name: "Request timeline" })).toBeTruthy();
+  });
+
+  it("adds no request while a submitted request is polled", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const api = installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/requests/req_p": { request: submitted, suggestion: null, events },
+    });
+    renderAt("/requests/req_p");
+    const progress = await screen.findByRole("list", { name: "Progress" });
+    expect(within(progress).getByText(/^Now: being categorized automatically, /)).toBeTruthy();
+    await act(async () => vi.advanceTimersByTimeAsync(60_000));
+    // The first load and one check every 10 s: the tracker's minute timer fetches nothing.
+    expect(detailGets(api)).toHaveLength(1 + 6);
+    expect(api.calls.filter((c) => c.method === "GET" && c.url !== "/api/requests/req_p").map((c) => c.url).sort()).toEqual(["/api/health", "/api/me"]);
+  });
+});
