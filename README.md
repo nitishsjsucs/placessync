@@ -236,7 +236,7 @@ Command: `npm run test:e2e`. Run 2026-10-16 (UTC) at commit `ec02402` on Apple M
 
 ### Production verification (deployed Worker, Cloudflare Workers Free plan)
 
-Command: `node scripts/prod-verify.ts`. Run 2026-10-15 (UTC) at commit `34f9fe2` on Apple M5 (Darwin 25.5.0 arm64, Node v25.9.0).
+Command: `node scripts/prod-verify.ts`. Run 2026-10-16 (UTC) at commit `d14e0ac` on Apple M5 (Darwin 25.5.0 arm64, Node v25.9.0).
 
 | Check | Result |
 |---|---|
@@ -248,10 +248,10 @@ Command: `node scripts/prod-verify.ts`. Run 2026-10-15 (UTC) at commit `34f9fe2`
 | Booking reached the D1 report view | not checked (needs an admin sign-in) |
 | Triage through the Workflow: requests, suggested by workers-ai, category in the enum, equal to the category the request was written for | 3, 3, 3, 3 |
 | Triage model | @cf/meta/llama-3.3-70b-instruct-fp8-fast |
-| Triage: submit to suggestion (upper bound) max / provider latency max | 7782 ms / 2156 ms |
-| CPU per invocation against the Free plan's 10 ms | exceeds (analytics CPU p99 40.97 ms is over 10 ms) |
+| Triage: submit to suggestion (upper bound) max / provider latency max | 7089 ms / 2208 ms |
+| CPU per invocation against the Free plan's 10 ms | exceeds (analytics CPU p99 36.89 ms is over 10 ms) |
 | CPU from wrangler tail: invocations with CPU time, p50 / p99 / max | not recorded |
-| CPU from GraphQL analytics: requests, highest p50 / p99 | 218, 15.72 ms / 40.97 ms |
+| CPU from GraphQL analytics: requests, highest p50 / p99 | 221, 6.63 ms / 36.89 ms |
 
 The triage requests are a handful written for this check, to show Workers AI answering through the Workflow; they are not an accuracy measurement.
 
