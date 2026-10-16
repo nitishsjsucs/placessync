@@ -85,6 +85,27 @@
   padding: var(--space-4);
 }
 
+/* The result of the last action (StatusBanner.tsx). */
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: 2px solid var(--color-success);
+  border-left-width: 6px;
+  border-radius: var(--radius-md);
+}
+
+.bannerText {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .footer {
   max-width: 80rem;
   margin: 0 auto;

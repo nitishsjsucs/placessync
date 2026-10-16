@@ -80,6 +80,11 @@ describe("Find a space (SPEC 14.1)", () => {
     expect(post?.body).toMatchObject({ resourceId: "res_sequoia", date: DATE, startMin: 540, attendees: 3 });
     expect(post?.headers["idempotency-key"]).toMatch(/^web-/);
     await waitFor(() => expect(screen.getByTestId("announcer").textContent).toMatch(/^Booked Sequoia on Monday, October 12, 2026, 09:00 to/));
+    // A visible result with a next step takes focus, since the Book button is now disabled.
+    const banner = screen.getByTestId("status-banner");
+    expect(banner.textContent).toContain("Booked Sequoia on Monday, October 12, 2026, 09:00 to 10:00.");
+    expect(within(banner).getByRole("link", { name: "See My bookings" }).getAttribute("href")).toBe("/bookings");
+    expect(document.activeElement).toBe(banner);
   });
 
   it("shows the conflict on a 409 and refreshes availability", async () => {

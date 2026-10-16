@@ -9,6 +9,7 @@ import { providerLabel } from "../../shared/triage/provider-labels.ts";
 import { ApiClientError, api } from "../api/client.ts";
 import { useStaffEvents } from "../live/useStaffEvents.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
+import { useStatusBanner } from "../shell/StatusBanner.tsx";
 import { Button } from "../ui/Button.tsx";
 import { Combobox } from "../ui/Combobox.tsx";
 import { DataTable } from "../ui/DataTable.tsx";
@@ -41,6 +42,7 @@ export function StaffDashboardPage() {
   usePageTitle("Facilities staff");
   const site = useSite();
   const announce = useAnnounce();
+  const banner = useStatusBanner();
   const [tab, setTab] = useState("queue");
   const [queue, setQueue] = useState<QueueItem[] | null>(null);
   const [working, setWorking] = useState<QueueItem[]>([]);
@@ -106,6 +108,8 @@ export function StaffDashboardPage() {
     try {
       await api.postRaw(`/api/staff/requests/${review.item.id}/review`, body);
       announce(`Request "${review.item.title}" assigned.`);
+      // The row leaves the queue, so the result takes focus.
+      banner.show({ text: `Assigned "${review.item.title}". It is now under In progress.`, focus: true });
       setReview(null);
       setNotice(null);
     } catch (err) {
@@ -125,6 +129,7 @@ export function StaffDashboardPage() {
     try {
       await api.postRaw(`/api/staff/requests/${item.id}/status`, { status });
       announce(`"${item.title}" is now ${statusLabel(status).toLowerCase()}.`);
+      banner.show({ text: `"${item.title}" is now ${statusLabel(status)}.`, focus: true });
     } catch {
       setNotice(`"${item.title}" changed meanwhile. The list has been refreshed.`);
     }

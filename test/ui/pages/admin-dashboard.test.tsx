@@ -109,5 +109,6 @@ describe("Admin dashboard (SPEC 14.1)", () => {
     await user.click(within(table).getByRole("button", { name: "Deactivate Desk 2A-01" }));
     expect(api.calls.find((c) => c.method === "PATCH")).toMatchObject({ url: "/api/admin/resources/res_2a01", body: { active: false } });
     expect(within(table).getByRole("button", { name: "Activate Desk 2A-02" })).toBeTruthy();
+    expect((await screen.findByTestId("status-banner")).textContent).toContain("Desk 2A-01 is now inactive.");
   });
 });

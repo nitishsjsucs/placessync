@@ -7,6 +7,7 @@ import { hasStarted } from "../../shared/rules.ts";
 import { addDays } from "../../shared/time.ts";
 import { ApiClientError, api, qs } from "../api/client.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
+import { useStatusBanner } from "../shell/StatusBanner.tsx";
 import { Button } from "../ui/Button.tsx";
 import { DataTable } from "../ui/DataTable.tsx";
 import { longDate } from "../ui/DateGrid.tsx";
@@ -27,6 +28,7 @@ export function MyBookingsPage() {
   usePageTitle("My bookings");
   const site = useSite();
   const announce = useAnnounce();
+  const banner = useStatusBanner();
   const [tab, setTab] = useState("upcoming");
   const [list, setList] = useState<Reservation[] | null>(null);
   const [names, setNames] = useState<Map<string, string>>(new Map());
@@ -75,7 +77,10 @@ export function MyBookingsPage() {
     setCancelError(null);
     try {
       await api.post(`/api/reservations/${cancelling.id}/cancel`, { reason: reason.trim() || undefined }, ReserveResponse);
-      announce(`Cancelled ${names.get(cancelling.resourceId) ?? "the booking"} on ${longDate(cancelling.date)}.`);
+      const text = `Cancelled ${names.get(cancelling.resourceId) ?? "the booking"} on ${longDate(cancelling.date)}.`;
+      announce(text);
+      // The cancelled row leaves the Upcoming list, so the result takes focus.
+      banner.show({ text, link: { to: "/find", label: "Find a space" }, focus: true });
       setCancelling(null);
       await load();
     } catch (err) {

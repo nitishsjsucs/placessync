@@ -6,12 +6,13 @@ import { useReadySession, useSession } from "../session/SessionProvider.tsx";
 import { Button } from "../ui/Button.tsx";
 import styles from "./AppShell.module.css";
 import { Nav } from "./Nav.tsx";
+import { StatusBanner, StatusBannerProvider } from "./StatusBanner.tsx";
 
 export function AppShell() {
   const { employee, health } = useReadySession();
   const { signOut } = useSession();
   return (
-    <>
+    <StatusBannerProvider>
       <a href="#main" className={styles.skip}>
         Skip to main content
       </a>
@@ -32,11 +33,12 @@ export function AppShell() {
       </header>
       <Nav role={employee.role} />
       <main id="main" className={styles.main} tabIndex={-1}>
+        <StatusBanner />
         <Outlet />
       </main>
       <footer className={styles.footer}>
         <Link to="/ui">UI kit gallery</Link>
       </footer>
-    </>
+    </StatusBannerProvider>
   );
 }

@@ -8,6 +8,7 @@ import { formatMinutes } from "../../shared/time.ts";
 import { api, qs } from "../api/client.ts";
 import { useLiveAvailability } from "../live/useLiveAvailability.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
+import { useStatusBanner } from "../shell/StatusBanner.tsx";
 import { Button } from "../ui/Button.tsx";
 import { DateGrid, longDate } from "../ui/DateGrid.tsx";
 import { SlotGrid, type SlotRow, type SlotSelection } from "../ui/SlotGrid.tsx";
@@ -28,6 +29,7 @@ export function FindSpacePage() {
   usePageTitle("Find a space");
   const site = useSite();
   const announce = useAnnounce();
+  const banner = useStatusBanner();
   const [kind, setKind] = useState("all");
   const [floor, setFloor] = useState("");
   const [amenities, setAmenities] = useState<string[]>([]);
@@ -97,7 +99,10 @@ export function FindSpacePage() {
     const name = booking?.resource.name ?? r.resourceId;
     setBooking(null);
     setSelection(null);
-    announce(`Booked ${name} on ${longDate(r.date)}, ${timeRange(r.startMin, r.endMin)}.`);
+    const text = `Booked ${name} on ${longDate(r.date)}, ${timeRange(r.startMin, r.endMin)}.`;
+    announce(text);
+    // The Book button is disabled once the selection clears, so the result takes focus.
+    banner.show({ text, link: { to: "/bookings", label: "See My bookings" }, focus: true });
     refresh();
   };
 

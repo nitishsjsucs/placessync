@@ -92,6 +92,9 @@ describe("Staff dashboard (SPEC 14.1)", () => {
     await user.click(within(screen.getByRole("dialog", { name: "Accept the suggestion?" })).getByRole("button", { name: "Accept" }));
     await waitFor(() => expect(api.calls.some((c) => c.url === "/api/staff/requests/req_s/review")).toBe(true));
     expect(api.calls.find((c) => c.url === "/api/staff/requests/req_s/review")?.body).toEqual({ decision: "accept" });
+    const banner = await screen.findByTestId("status-banner");
+    expect(banner.textContent).toContain('Assigned "Projector dead". It is now under In progress.');
+    expect(document.activeElement).toBe(banner);
 
     await user.click(within(rowOf("Projector dead")).getByRole("button", { name: /^Reassign/ }));
     const dialog = screen.getByRole("dialog", { name: "Reassign the category" });

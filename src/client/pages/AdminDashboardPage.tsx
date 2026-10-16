@@ -8,6 +8,7 @@ import { PROVIDER_LABELS, type SuggestionProvider } from "../../shared/triage/pr
 import { api, qs } from "../api/client.ts";
 import { ApiClientError } from "../api/client.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
+import { useStatusBanner } from "../shell/StatusBanner.tsx";
 import { Button } from "../ui/Button.tsx";
 import { Dialog } from "../ui/Dialog.tsx";
 import { DataTable } from "../ui/DataTable.tsx";
@@ -65,6 +66,7 @@ export function AdminDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
   const announce = useAnnounce();
+  const banner = useStatusBanner();
   const [resources, setResources] = useState<Resource[] | null>(null);
   const [editing, setEditing] = useState<Resource | null>(null);
   const [capacity, setCapacity] = useState("");
@@ -90,6 +92,7 @@ export function AdminDashboardPage() {
     try {
       await api.patch(`/api/admin/resources/${r.id}`, body, ResourcePatchResponse);
       announce(done);
+      banner.show({ text: done });
       setEditing(null);
       await loadResources();
     } catch (err) {

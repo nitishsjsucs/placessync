@@ -63,6 +63,10 @@ describe("My bookings (SPEC 14.1)", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() => expect(screen.getByText("No upcoming bookings. Find a space to book one.")).toBeTruthy());
     await waitFor(() => expect(screen.getByTestId("announcer").textContent).toBe("Cancelled Desk 2A-01 on Monday, October 12, 2026."));
+    const banner = screen.getByTestId("status-banner");
+    expect(banner.textContent).toContain("Cancelled Desk 2A-01 on Monday, October 12, 2026.");
+    expect(within(banner).getByRole("link", { name: "Find a space" }).getAttribute("href")).toBe("/find");
+    expect(document.activeElement).toBe(banner);
     await user.click(screen.getByRole("tab", { name: "Cancelled" }));
     expect(rowsOf("Cancelled bookings")).toEqual(["Desk 2A-01", "Desk 3A-01"]);
     expect(screen.getByText("Working from home")).toBeTruthy();

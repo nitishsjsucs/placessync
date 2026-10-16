@@ -8,6 +8,7 @@ import { addDays, isWeekday, weekStartOf } from "../../shared/time.ts";
 import { ApiClientError, api, qs } from "../api/client.ts";
 import { useLiveAvailability } from "../live/useLiveAvailability.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
+import { useStatusBanner } from "../shell/StatusBanner.tsx";
 import { Button } from "../ui/Button.tsx";
 import { DateGrid, longDate } from "../ui/DateGrid.tsx";
 import { SlotGrid, type SlotRow, type SlotSelection } from "../ui/SlotGrid.tsx";
@@ -23,6 +24,7 @@ export function ResourcePage() {
   const { id = "" } = useParams();
   const site = useSite();
   const announce = useAnnounce();
+  const banner = useStatusBanner();
   const [weekStart, setWeekStart] = useState(() => weekStartOf(site.today));
   const [data, setData] = useState<CalendarResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +72,9 @@ export function ResourcePage() {
   const onBooked = (r: Reservation) => {
     setBooking(null);
     setSelection(null);
-    announce(`Booked ${data?.resource.name ?? ""} on ${longDate(r.date)}, ${timeRange(r.startMin, r.endMin)}.`);
+    const text = `Booked ${data?.resource.name ?? ""} on ${longDate(r.date)}, ${timeRange(r.startMin, r.endMin)}.`;
+    announce(text);
+    banner.show({ text, link: { to: "/bookings", label: "See My bookings" }, focus: true });
     refresh();
   };
 
