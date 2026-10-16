@@ -658,3 +658,87 @@ describe("Find a space below 1024 px puts availability first (UX-12)", () => {
   });
 });
 
+
+describe("Free counts on Find a space (VIZ-04)", () => {
+  const header = (name: string) => screen.findByRole("columnheader", { name });
+
+  it("counts every space a booking can start in, following the kind tab and the filters", async () => {
+    const api = installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/sites/hq/availability": (c: { url: string }) => {
+        const body = availability(c.url);
+        const floor = new URL(c.url, "http://x").searchParams.get("floor");
+        return floor ? { ...body, resources: body.resources.filter((r) => String(r.resource.floor) === floor) } : body;
+      },
+    });
+    renderAt(`/find?date=${DATE}`);
+    expect(await header("09:00, 20 of 20 spaces can be booked from this time")).toBeTruthy();
+    // A desk needs an hour, so the last half hour counts only rooms.
+    expect(await header("18:30, 6 of 20 spaces can be booked from this time")).toBeTruthy();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Desks" }));
+    expect(await header("09:00, 14 of 14 spaces can be booked from this time")).toBeTruthy();
+    expect(await header("18:30, 0 of 14 spaces can be booked from this time")).toBeTruthy();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Floor" }), "3");
+    await waitFor(() => expect(availabilityCalls(api).at(-1)?.url).toContain("floor=3"));
+    const floor3 = RESOURCES.filter((r) => r.kind === "desk" && r.floor === 3).length;
+    expect(await header(`09:00, ${floor3} of ${floor3} spaces can be booked from this time`)).toBeTruthy();
+    expect(screen.getByText("Number under each time: spaces you can book starting then.")).toBeTruthy();
+  });
+
+  it("changes a count when a live delta books a desk", async () => {
+    await openPage(respond(500, {}));
+    const ws = FakeWebSocket.instances.at(-1) as FakeWebSocket;
+    await act(async () => ws.open());
+    const busy = Object.fromEntries(RESOURCES.map((r) => [r.id, [] as unknown[]]));
+    await act(async () => ws.receive({ type: "snapshot", date: DATE, dateVersion: 1, ledgerVersion: 1, busy }));
+    expect(await header("10:00, 20 of 20 spaces can be booked from this time")).toBeTruthy();
+    await act(async () =>
+      ws.receive({ type: "delta", date: DATE, dateVersion: 2, ledgerVersion: 2, op: "booked", resourceId: "res_2a02", startMin: 600, endMin: 660, mine: false }),
+    );
+    expect(await header("10:00, 19 of 20 spaces can be booked from this time")).toBeTruthy();
+    // 09:30 needs 09:30 and 10:00 for a desk, so it drops too; 11:00 does not.
+    expect(await header("09:30, 19 of 20 spaces can be booked from this time")).toBeTruthy();
+    expect(await header("11:00, 20 of 20 spaces can be booked from this time")).toBeTruthy();
+  });
+
+  it("on a phone, By time picks a time, then a desk, and leaves Book ready for its shortest booking", async () => {
+    setMediaMatches("(max-width: 639px)", true);
+    setMediaMatches("(max-width: 1023px)", true);
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/sites/hq/availability": (c: { url: string }) => availability(c.url, { res_2a01: [{ startMin: 600, endMin: 720, mine: false }] }),
+    });
+    renderAt(`/find?date=${DATE}&kind=desk`);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "By time" }));
+    await user.click(screen.getByRole("button", { name: "14:30, 14 of 14 spaces can be booked from this time" }));
+    await user.click(screen.getByRole("button", { name: "Desk 2A-01, free 14:30 to 19:00, select" }));
+    const book = await screen.findByRole("button", { name: "Book Desk 2A-01, 14:30 to 15:30" });
+    expect((book as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole("button", { name: "By space" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("shows no counts while availability loads or after it failed", async () => {
+    let release: (v: unknown) => void = () => {};
+    let calls = 0;
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/sites/hq/availability": () => {
+        calls += 1;
+        return new Promise((r) => (release = r)).then(() => respond(500, { error: "internal", message: "x" }));
+      },
+    });
+    renderAt(`/find?date=${DATE}`);
+    expect(await screen.findByText("Loading availability…")).toBeTruthy();
+    expect(screen.queryByText(/ free$/)).toBeNull();
+    await act(async () => release(null));
+    expect(await screen.findByText("Availability could not be loaded.")).toBeTruthy();
+    expect(screen.queryByText(/ free$/)).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: /can be booked from this time$/ })).toBeNull();
+    expect(calls).toBe(1);
+  });
+});

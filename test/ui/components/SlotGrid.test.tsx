@@ -19,7 +19,9 @@ function Harness({
   minStartFor,
   rowUnavailable,
   minSlotsFor,
+  showFreeCounts,
 }: {
+  showFreeCounts?: boolean;
   rows?: SlotRow[];
   onCommit?: (s: SlotSelection | null) => void;
   label?: string;
@@ -44,6 +46,7 @@ function Harness({
         minStartFor={minStartFor}
         rowUnavailable={rowUnavailable}
         minSlotsFor={minSlotsFor}
+        showFreeCounts={showFreeCounts}
       />
       <output data-testid="sel">{selection ? `${selection.rowId} ${selection.startMin}-${selection.endMin}` : "none"}</output>
     </div>
@@ -345,5 +348,138 @@ describe("SlotGrid recovery handles (UX-06)", () => {
     const updated: SlotRow[] = [{ ...ROWS[0]!, busy: [...ROWS[0]!.busy, { startMin: 480, endMin: 540 }] }, ROWS[1]!];
     await act(async () => rerender(<HandleHarness rows={updated} onLiveClear={(m) => messages.push(m)} />));
     expect(messages).toEqual(["08:00 to 08:30 on Desk 2A-01 was just booked by someone else. Pick another time."]);
+  });
+});
+
+describe("SlotGrid free counts (VIZ-04)", () => {
+  // 07:00 to 12:00: ten half-hour columns, 420 to 690.
+  const COUNT_ROWS: SlotRow[] = [
+    // A desk free 07:00 to 10:00 and 11:00 to 12:00.
+    { id: "desk_a", label: "Desk A", busy: [{ startMin: 600, endMin: 660 }] },
+    // A desk whose only free time is the half hour at 09:00: too short for a desk.
+    { id: "desk_c", label: "Desk C", busy: [{ startMin: 420, endMin: 540 }, { startMin: 570, endMin: 720 }] },
+    // A room free except 08:00 to 08:30.
+    { id: "room_b", label: "Room B", busy: [{ startMin: 480, endMin: 510 }] },
+  ];
+  const minSlotsFor = (id: string) => (id.startsWith("desk") ? 2 : 1);
+  const header = (name: string) => screen.getByRole("columnheader", { name });
+
+  it("counts the rows where a shortest booking can start, so a lone free half hour on a desk does not count", () => {
+    render(<Harness rows={COUNT_ROWS} minSlotsFor={minSlotsFor} showFreeCounts />);
+    // 09:00: Desk A (09:00 and 09:30 free) and Room B; Desk C has only 09:00 free.
+    expect(header("09:00, 2 of 3 spaces can be booked from this time").textContent).toContain("2 free");
+    // 09:30: Desk A would run into its 10:00 booking; only Room B.
+    expect(header("09:30, 1 of 3 spaces can be booked from this time")).toBeTruthy();
+    // 08:00: Room B is booked; Desk A can start.
+    expect(header("08:00, 1 of 3 spaces can be booked from this time")).toBeTruthy();
+    // 11:30: a desk would run past closing; the room can still start.
+    expect(header("11:30, 1 of 3 spaces can be booked from this time")).toBeTruthy();
+    // 10:00: nothing for a desk, and Room B is free: never says Full.
+    expect(header("10:00, 1 of 3 spaces can be booked from this time")).toBeTruthy();
+    expect(screen.queryByText(/Full/)).toBeNull();
+    // Headers are not tab stops, and the mini column is hidden from assistive technology.
+    const h = header("09:00, 2 of 3 spaces can be booked from this time");
+    expect(h.tabIndex).toBe(-1);
+    expect((h.querySelector("[aria-hidden=true] > span") as HTMLElement | null)?.style.height).toBe(`${(2 / 3) * 100}%`);
+    expect(screen.getByText("Number under each time: spaces you can book starting then.")).toBeTruthy();
+  });
+
+  it("says 0 free, not Full, and Past for elapsed columns; unavailable rows never count", () => {
+    render(<Harness rows={COUNT_ROWS} minSlotsFor={minSlotsFor} minStartFor={() => 520} rowUnavailable={(id) => (id === "room_b" ? "closed" : null)} showFreeCounts />);
+    expect(header("08:30, past").textContent).toContain("Past");
+    expect(header("07:00, past")).toBeTruthy();
+    // 08:30 is past for every row (520 > 510); 09:00 is not.
+    expect(header("09:00, 1 of 3 spaces can be booked from this time")).toBeTruthy();
+    const ten = header("10:00, 0 of 3 spaces can be booked from this time");
+    expect(ten.textContent).toContain("0 free");
+  });
+
+  it("updates a header when the rows change (a live delta)", () => {
+    const { rerender } = render(<Harness rows={COUNT_ROWS} minSlotsFor={minSlotsFor} showFreeCounts />);
+    expect(header("09:00, 2 of 3 spaces can be booked from this time")).toBeTruthy();
+    const booked = COUNT_ROWS.map((r) => (r.id === "room_b" ? { ...r, busy: [...r.busy, { startMin: 540, endMin: 600 }] } : r));
+    rerender(<Harness rows={booked} minSlotsFor={minSlotsFor} showFreeCounts />);
+    expect(header("09:00, 1 of 3 spaces can be booked from this time")).toBeTruthy();
+  });
+
+  it("shows no counts without the prop, and keeps the grid's single tab stop", async () => {
+    render(<Harness rows={COUNT_ROWS} minSlotsFor={minSlotsFor} />);
+    expect(screen.queryByText(/ free$/)).toBeNull();
+    expect(screen.queryByText("Number under each time: spaces you can book starting then.")).toBeNull();
+    expect(screen.getAllByRole("columnheader").map((c) => c.textContent).slice(1, 3)).toEqual(["07:00", "07:30"]);
+  });
+
+  it("has no axe violations with counts", async () => {
+    render(<Harness rows={COUNT_ROWS} minSlotsFor={minSlotsFor} showFreeCounts />);
+    await expectNoAxeViolations();
+  });
+
+  describe("compact By time view", () => {
+    afterEach(() => setMediaMatches("(max-width: 639px)", false));
+
+    it("lists a chip per half hour with its count; chosen time lists the free spaces; choosing selects the shortest booking", async () => {
+      setMediaMatches("(max-width: 639px)", true);
+      const onCommit = vi.fn();
+      render(<Harness rows={COUNT_ROWS} minSlotsFor={minSlotsFor} minStartFor={() => 450} onCommit={onCommit} showFreeCounts />);
+      const user = userEvent.setup();
+      const bySpace = screen.getByRole("button", { name: "By space" });
+      expect(bySpace.getAttribute("aria-pressed")).toBe("true");
+      await user.click(screen.getByRole("button", { name: "By time" }));
+      expect(screen.getByRole("button", { name: "By time" }).getAttribute("aria-pressed")).toBe("true");
+      const chips = within(screen.getByRole("list", { name: "Availability: times" })).getAllByRole("button");
+      expect(chips).toHaveLength(10);
+      expect(chips[0]?.textContent).toBe("07:00 · Past");
+      expect(chips[0]?.getAttribute("aria-label")).toBe("07:00, past");
+      expect((chips[0] as HTMLButtonElement).disabled).toBe(true);
+      expect(chips[4]?.textContent).toBe("09:00 · 2 free");
+      expect(screen.getByRole("button", { name: "10:00, 1 of 3 spaces can be booked from this time" })).toBeTruthy();
+      // Room B is booked at 08:00, Desk A is not: the chip stays enabled.
+      const eight = screen.getByRole("button", { name: "08:00, 1 of 3 spaces can be booked from this time" });
+      expect((eight as HTMLButtonElement).disabled).toBe(false);
+
+      await user.click(screen.getByRole("button", { name: "09:00, 2 of 3 spaces can be booked from this time" }));
+      const spaces = within(screen.getByRole("list", { name: "Spaces free from 09:00" })).getAllByRole("button");
+      expect(spaces.map((b) => b.getAttribute("aria-label"))).toEqual(["Desk A, free 09:00 to 10:00, select", "Room B, free 09:00 to 12:00, select"]);
+      expect(document.activeElement).toBe(spaces[0]);
+      await user.click(spaces[0] as HTMLElement);
+      expect(sel()).toBe("desk_a 540-600");
+      expect(screen.getByRole("button", { name: "By space" }).getAttribute("aria-pressed")).toBe("true");
+      expect((screen.getByRole("combobox", { name: "Resource" }) as HTMLSelectElement).value).toBe("desk_a");
+      const pressed = within(screen.getByRole("list", { name: "Availability: Desk A" })).getAllByRole("button", { pressed: true });
+      expect(pressed.map((b) => b.textContent)).toEqual(["09:00", "09:30"]);
+      expect(document.activeElement).toBe(pressed[0]);
+    });
+
+    it("disables a time no space can start at, with the reason in its name; Back to times and Escape return to the chips", async () => {
+      setMediaMatches("(max-width: 639px)", true);
+      const rows = COUNT_ROWS.map((r) => (r.id === "room_b" ? { ...r, busy: [{ startMin: 420, endMin: 720 }] } : r));
+      render(<Harness rows={rows} minSlotsFor={minSlotsFor} showFreeCounts />);
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "By time" }));
+      const none = screen.getByRole("button", { name: "11:30, no space can be booked from this time" }) as HTMLButtonElement;
+      expect(none.disabled).toBe(true);
+      expect(none.textContent).toBe("11:30 · 0 free");
+      await user.click(screen.getByRole("button", { name: "08:00, 1 of 3 spaces can be booked from this time" }));
+      await user.click(screen.getByRole("button", { name: "Back to times" }));
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "08:00, 1 of 3 spaces can be booked from this time" }));
+      await user.click(screen.getByRole("button", { name: "08:00, 1 of 3 spaces can be booked from this time" }));
+      expect(screen.getByRole("list", { name: "Spaces free from 08:00" })).toBeTruthy();
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("list", { name: "Spaces free from 08:00" })).toBeNull();
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "08:00, 1 of 3 spaces can be booked from this time" }));
+    });
+
+    it("has no switch without the prop, and no axe violations with it", async () => {
+      setMediaMatches("(max-width: 639px)", true);
+      const { unmount } = render(<Harness rows={COUNT_ROWS} minSlotsFor={minSlotsFor} />);
+      expect(screen.queryByRole("button", { name: "By time" })).toBeNull();
+      unmount();
+      render(<Harness rows={COUNT_ROWS} minSlotsFor={minSlotsFor} showFreeCounts />);
+      await expectNoAxeViolations();
+      await userEvent.setup().click(screen.getByRole("button", { name: "By time" }));
+      await expectNoAxeViolations();
+      await userEvent.setup().click(screen.getByRole("button", { name: "09:00, 2 of 3 spaces can be booked from this time" }));
+      await expectNoAxeViolations();
+    });
   });
 });

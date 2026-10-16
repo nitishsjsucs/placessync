@@ -57,6 +57,10 @@ describe("resource week calendar (SPEC 14.1)", () => {
       "Sunday 10/11",
     ]);
     expect(within(grid).getByRole("gridcell", { name: "Tuesday 10/06, 09:00 to 09:30, your booking" })).toBeTruthy();
+    // The week grid's rows are days: no free counts under its times (VIZ-04).
+    expect(within(grid).queryByText(/ free$|^Past$/)).toBeNull();
+    expect(within(grid).queryByRole("columnheader", { name: /can be booked/ })).toBeNull();
+    expect(screen.queryByText("Number under each time: spaces you can book starting then.")).toBeNull();
     expect(within(grid).getByRole("gridcell", { name: "Tuesday 10/06, 11:00 to 11:30, booked" })).toBeTruthy();
 
     const user = userEvent.setup();

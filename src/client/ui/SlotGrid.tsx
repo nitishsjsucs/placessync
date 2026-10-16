@@ -10,11 +10,16 @@
 // A plain click, a tap, or Enter without a Shift-extended range selects the shortest
 // valid booking for that row (minSlotsFor, such as two cells for a 60-minute desk
 // minimum) when those cells are free, else the one cell. An explicit range is never padded.
+// With showFreeCounts (Find a space), each time header also says how many rows a booking
+// of the shortest valid length can start in ("3 free", or "Past"), with a small column
+// whose height is that share, and the compact mode gains a "By time" view: one chip per
+// half hour with its count, then the spaces free from that time (slot-counts.ts).
 import { type KeyboardEvent, type Ref, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { COMPACT_QUERY, useMediaQuery } from "../hooks/useMediaQuery.ts";
 import { formatMinutes } from "../../shared/time.ts";
 import { Button } from "./Button.tsx";
 import styles from "./SlotGrid.module.css";
+import { type CountRules, cellOpen, countSentence, countWords, freeUntil, startableAt, startableCounts } from "./slot-counts.ts";
 
 export interface SlotBusy {
   startMin: number;
@@ -52,6 +57,8 @@ export interface SlotGridProps {
   minSlotsFor?: (rowId: string) => number;
   /** Called with the announcement when a live update clears the selection (someone else booked it). */
   onLiveClear?: (message: string) => void;
+  /** Count, under each time, the rows a shortest booking can start in; adds the compact "By time" view. */
+  showFreeCounts?: boolean;
   ref?: Ref<SlotGridHandle>;
 }
 
@@ -122,7 +129,7 @@ export function SlotGrid({ ref, ...props }: SlotGridProps) {
   );
 }
 
-function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection, onSelect, rowHeader = "Resource", minStartFor, rowUnavailable, minSlotsFor, handle }: ModeProps) {
+function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection, onSelect, rowHeader = "Resource", minStartFor, rowUnavailable, minSlotsFor, showFreeCounts = false, handle }: ModeProps) {
   const base = useId();
   const slots = useMemo(() => {
     const out: number[] = [];
@@ -270,6 +277,9 @@ function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection
     }
   };
 
+  // Recomputed from rows on every render, so a live delta changes the counts at once.
+  const counts = showFreeCounts ? startableCounts(rows, slots, { slotMinutes, minStartFor, minSlotsFor, rowUnavailable }) : null;
+
   const range = extendedRange();
   const inPending = (r: number, c: number) =>
     !!anchor && !!range && anchor.r === r && rows[r]?.id === range.rowId && startOf(c) >= range.startMin && startOf(c) < range.endMin;
@@ -295,7 +305,22 @@ function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection
                   else headRefs.current.delete(c);
                 }}
               >
-                {m % 60 === 0 ? formatMinutes(m) : <span className="visually-hidden">{formatMinutes(m)}</span>}
+                {counts?.[c] ? (
+                  <>
+                    <span aria-hidden="true">{m % 60 === 0 ? formatMinutes(m) : "\u00a0"}</span>
+                    <span aria-hidden="true" className={styles.freeCount}>
+                      {countWords(counts[c])}
+                    </span>
+                    <span aria-hidden="true" className={styles.mini}>
+                      {!counts[c].past && counts[c].total > 0 ? <span style={{ height: `${(counts[c].startable / counts[c].total) * 100}%` }} /> : null}
+                    </span>
+                    <span className="visually-hidden">{countSentence(formatMinutes(m), counts[c])}</span>
+                  </>
+                ) : m % 60 === 0 ? (
+                  formatMinutes(m)
+                ) : (
+                  <span className="visually-hidden">{formatMinutes(m)}</span>
+                )}
               </th>
             ))}
           </tr>
@@ -375,17 +400,24 @@ function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection
           <span className={`${styles.swatch} ${styles.unavailable}`} aria-hidden="true" />
           Past or closed
         </span>
+        {showFreeCounts ? <span>Number under each time: spaces you can book starting then.</span> : null}
       </p>
     </div>
   );
 }
 
-function CompactSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection, onSelect, rowHeader = "Resource", minStartFor, rowUnavailable, minSlotsFor, handle }: ModeProps) {
+function CompactSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection, onSelect, rowHeader = "Resource", minStartFor, rowUnavailable, minSlotsFor, showFreeCounts = false, handle }: ModeProps) {
   const base = useId();
   const [rowId, setRowId] = useState<string>(selection?.rowId ?? rows[0]?.id ?? "");
   const row = rows.find((r) => r.id === rowId) ?? rows[0];
   const listRef = useRef<HTMLUListElement>(null);
   const [focusTick, setFocusTick] = useState(0);
+  // "By space" (one row's chips) or, with free counts, "By time" (a chip per half hour,
+  // then the rows free from the chosen one).
+  const [view, setView] = useState<"space" | "time">("space");
+  const [pickedTime, setPickedTime] = useState<number | null>(null);
+  const timesRef = useRef<HTMLDivElement>(null);
+  const [timeFocus, setTimeFocus] = useState<{ tick: number; target: "first-space" | number } | null>(null);
   // Follow a selection made elsewhere, but let the viewer browse other rows freely.
   const selectedRow = selection?.rowId;
   useEffect(() => {
@@ -395,6 +427,7 @@ function CompactSlots({ label, rows, openMin, closeMin, slotMinutes = 30, select
     handle,
     () => ({
       focusRow: (id) => {
+        setView("space");
         setRowId(id);
         setFocusTick((t) => t + 1);
       },
@@ -404,11 +437,26 @@ function CompactSlots({ label, rows, openMin, closeMin, slotMinutes = 30, select
   useEffect(() => {
     if (focusTick > 0) listRef.current?.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
   }, [focusTick]);
+  // After a choice in the By time view: the selected chip of that space takes focus.
+  const [selectedFocus, setSelectedFocus] = useState(0);
+  useEffect(() => {
+    if (selectedFocus > 0) listRef.current?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]')?.focus();
+  }, [selectedFocus]);
+  useEffect(() => {
+    if (!timeFocus) return;
+    const root = timesRef.current;
+    const target =
+      timeFocus.target === "first-space"
+        ? root?.querySelector<HTMLButtonElement>("[data-space] button")
+        : root?.querySelector<HTMLButtonElement>(`button[data-time="${timeFocus.target}"]`);
+    target?.focus();
+  }, [timeFocus]);
   if (!row) return <p>No {rowHeader.toLowerCase()}s match.</p>;
   const slots: number[] = [];
   for (let m = openMin; m < closeMin; m += slotMinutes) slots.push(m);
   const minStart = minStartFor?.(row.id) ?? -1;
   const closed = rowUnavailable?.(row.id) ?? null;
+  const rules: CountRules = { slotMinutes, minStartFor, minSlotsFor, rowUnavailable };
 
   const blockedAt = (c: number) => {
     const m = slots[c] as number;
@@ -428,8 +476,119 @@ function CompactSlots({ label, rows, openMin, closeMin, slotMinutes = 30, select
     }
   };
 
+  const backToTimes = () => {
+    const from = pickedTime;
+    setPickedTime(null);
+    if (from !== null) setTimeFocus({ tick: Date.now(), target: from });
+  };
+
+  /** By time: the chosen row's shortest booking from that time, then back to By space on that row. */
+  const chooseFrom = (target: SlotRow, c: number) => {
+    const blocked = (k: number) => !cellOpen(target, k, slots, rules);
+    onSelect(paddedFrom(target.id, c, minSlotsFor?.(target.id) ?? 1, slots, slotMinutes, blocked));
+    setRowId(target.id);
+    setView("space");
+    setPickedTime(null);
+    setSelectedFocus((n) => n + 1);
+  };
+
+  const counts = showFreeCounts ? startableCounts(rows, slots, rules) : null;
+  const switcher = showFreeCounts ? (
+    <div className={styles.switcher} role="group" aria-label="Show times">
+      <Button variant="secondary" aria-pressed={view === "space"} onClick={() => setView("space")}>
+        By space
+      </Button>
+      <Button
+        variant="secondary"
+        aria-pressed={view === "time"}
+        onClick={() => {
+          setView("time");
+          setPickedTime(null);
+        }}
+      >
+        By time
+      </Button>
+    </div>
+  ) : null;
+
+  if (view === "time" && counts) {
+    const c = pickedTime === null ? -1 : slots.indexOf(pickedTime);
+    const free = c >= 0 ? rows.filter((r) => startableAt(r, c, slots, rules)) : [];
+    return (
+      <div
+        className={styles.compact}
+        data-testid="slotgrid-compact"
+        ref={timesRef}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && pickedTime !== null) {
+            e.preventDefault();
+            backToTimes();
+          }
+        }}
+      >
+        {switcher}
+        {pickedTime === null ? (
+          <>
+            <ul className={styles.timeChips} aria-label={`${label}: times`} aria-describedby={`${base}-timehelp`}>
+              {slots.map((m, k) => {
+                const count = counts[k] as (typeof counts)[number];
+                const none = !count.past && count.startable === 0;
+                return (
+                  <li key={m}>
+                    <button
+                      type="button"
+                      className={`${styles.chip} ${count.past || none ? styles.chipUnavailable : ""}`}
+                      data-time={m}
+                      disabled={count.past || none}
+                      aria-label={count.past ? `${formatMinutes(m)}, past` : none ? `${formatMinutes(m)}, no space can be booked from this time` : countSentence(formatMinutes(m), count)}
+                      onClick={() => {
+                        setPickedTime(m);
+                        setTimeFocus({ tick: Date.now(), target: "first-space" });
+                      }}
+                    >
+                      {formatMinutes(m)} · {countWords(count)}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <p id={`${base}-timehelp`} className={styles.legend}>
+              Each time shows how many spaces you can book starting then.
+            </p>
+          </>
+        ) : (
+          <div className={styles.compact}>
+            <p className={styles.timeHeading}>Spaces you can book from {formatMinutes(pickedTime)}</p>
+            {free.length === 0 ? <p className={styles.legend}>No space can be booked from {formatMinutes(pickedTime)} any more.</p> : null}
+            <ul className={styles.spaceList} aria-label={`Spaces free from ${formatMinutes(pickedTime)}`}>
+              {free.map((r) => {
+                const until = freeUntil(r, c, slots, rules);
+                return (
+                  <li key={r.id} data-space={r.id}>
+                    <Button variant="secondary" className={styles.spaceButton} aria-label={`${r.label}, free ${formatMinutes(pickedTime)} to ${formatMinutes(until)}, select`} onClick={() => chooseFrom(r, c)}>
+                      <span>{r.label}</span>
+                      <span className={styles.spaceFree}>
+                        free {formatMinutes(pickedTime)} to {formatMinutes(until)}
+                      </span>
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+            <div>
+              <Button variant="secondary" onClick={backToTimes}>
+                Back to times
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={styles.compact} data-testid="slotgrid-compact">
+      {switcher}
       <label className={styles.compactLabel} htmlFor={`${base}-row`}>
         {rowHeader}
         <select id={`${base}-row`} className={styles.select} value={row.id} onChange={(e) => setRowId(e.target.value)}>

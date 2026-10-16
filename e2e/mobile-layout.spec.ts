@@ -67,7 +67,8 @@ test.describe("Find a space and admin on small screens", () => {
 
     test("the first time chip is on the first screen above the bottom nav, and Book stays above the nav once a time is picked", async ({ page }, testInfo) => {
       await page.goto("/find");
-      const chip = page.getByTestId("slotgrid-compact").locator("button:not([disabled])").first();
+      // A time chip, not the By space / By time switch above the chips.
+      const chip = page.getByTestId("slotgrid-compact").locator("li button:not([disabled])").first();
       await expect(chip).toBeVisible();
       await page.waitForLoadState("networkidle");
       // The first screen is the viewport above the fixed bottom nav, before any scrolling.

@@ -9,6 +9,8 @@
 // it followed the clock, an open page would move to the next working day at 18:30 and
 // keep the selection made on the day before. Anything that changes the date clears the
 // selection, and the booking dialog books the date it was opened for.
+// The grid counts, under each time, the spaces a booking can start in (showFreeCounts),
+// from the same live rows, so the counts follow the tab, the filters and live deltas.
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { type AvailabilityResponse, AvailabilityResponse as AvailabilitySchema, type Reservation, type Resource } from "../../shared/api.ts";
@@ -332,6 +334,7 @@ export function FindSpacePage() {
                         onSelect={onSelect}
                         minStartFor={() => minStartOn(date, site)}
                         minSlotsFor={minSlotsFor}
+                        showFreeCounts
                       />
                     ) : (
                       <div className={styles.row}>
