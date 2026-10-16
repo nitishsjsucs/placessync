@@ -31,9 +31,11 @@ export interface BookingDialogProps {
   onPickAnother?: () => void;
   /** Focus target when the dialog closes and its opener is disabled (passed to Dialog). */
   returnFocus?: RefObject<HTMLElement | null>;
+  /** History state for the week calendar link (Find a space passes its search). */
+  calendarState?: unknown;
 }
 
-export function BookingDialog({ open, onClose, resource, date, startMin, endMin, site, onBooked, onConflict, onPickAnother, returnFocus }: BookingDialogProps) {
+export function BookingDialog({ open, onClose, resource, date, startMin, endMin, site, onBooked, onConflict, onPickAnother, returnFocus, calendarState }: BookingDialogProps) {
   const [attendees, setAttendees] = useState("1");
   const [title, setTitle] = useState("");
   const [pending, setPending] = useState(false);
@@ -199,7 +201,9 @@ export function BookingDialog({ open, onClose, resource, date, startMin, endMin,
           ) : null}
         </p>
       ) : null}
-      <Link to={`/resources/${resource.id}?date=${date}`}>See the week calendar for {resource.name}</Link>
+      <Link to={`/resources/${resource.id}?date=${date}`} state={calendarState}>
+        See the week calendar for {resource.name}
+      </Link>
     </Dialog>
   );
 }

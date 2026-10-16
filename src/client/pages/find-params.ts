@@ -88,6 +88,30 @@ export function writeFindParams(f: FindFilters, defaultDate: string): URLSearchP
   return out;
 }
 
+/**
+ * The state a link to a week calendar carries, so its "Back to Find a space" link can
+ * return to the same search: the Find a space search string as it was.
+ */
+export interface FromFind {
+  find: string;
+}
+
+/** The Find a space search a week calendar was opened from, or null (opened some other way). */
+export function fromFindState(state: unknown): string | null {
+  const find = (state as Partial<FromFind> | null)?.find;
+  return typeof find === "string" ? find : null;
+}
+
+/**
+ * A link back to Find a space with the search it came from (every value checked again
+ * by parseFindParams), on the given date, or with no date when none is given.
+ */
+export function findLink(search: string | null, date: string | null | undefined, site: SiteContext): string {
+  const filters = parseFindParams(new URLSearchParams(search ?? ""), site, "");
+  const out = writeFindParams({ ...filters, date: date ?? "" }, "").toString();
+  return out ? `/find?${out}` : "/find";
+}
+
 /** How many filters in the form are set (the kind tab and the date are not filters). */
 export function activeFilterCount(f: FindFilters): number {
   return (f.q.trim() ? 1 : 0) + (f.floor ? 1 : 0) + (f.minCapacity ? 1 : 0) + f.amenities.length + (f.from || f.to ? 1 : 0);

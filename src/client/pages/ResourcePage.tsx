@@ -4,8 +4,10 @@
 // kept in ?week, written with replace. Without either, the week is the one with the first
 // bookable date when the page opened (fixed, so it never flips at 18:30 on a Friday), and
 // changing the week clears the selection, which belongs to a day of the old week.
+// A link from Find a space carries its search in the history state, so "Back to Find a
+// space" returns to the same tab and filters, on a date in the week in view.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useParams, useSearchParams } from "react-router";
 import { type CalendarResponse, CalendarResponse as CalendarSchema, type Reservation } from "../../shared/api.ts";
 import { AMENITIES } from "../../shared/synthetic/resources.ts";
 import { DATE_RE, addDays, isValidDate, isWeekday, weekStartOf } from "../../shared/time.ts";
@@ -19,7 +21,7 @@ import { DateGrid, longDate } from "../ui/DateGrid.tsx";
 import { SlotGrid, type SlotGridHandle, type SlotRow, type SlotSelection } from "../ui/SlotGrid.tsx";
 import { BookingDialog } from "./BookingDialog.tsx";
 import styles from "./pages.module.css";
-import { bookableDateParam } from "./find-params.ts";
+import { bookableDateParam, findLink, fromFindState } from "./find-params.ts";
 import { dateDisabledReason, dateUnavailableWord, firstBookableDate, minSlots, minStartOn, shortSelectionHint, timeRange, useSite } from "./site.ts";
 import { usePageTitle } from "./usePageTitle.ts";
 
@@ -32,6 +34,8 @@ export function ResourcePage() {
   const announce = useAnnounce();
   const banner = useStatusBanner();
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const findSearch = fromFindState(location.state);
   const dateParam = bookableDateParam(params.get("date"), site);
   const weekParam = params.get("week");
   const [fallbackDate] = useState(() => firstBookableDate(site));
@@ -41,7 +45,7 @@ export function ResourcePage() {
   const [selection, setSelection] = useState<SlotSelection | null>(null);
   const setWeekStart = (week: string) => {
     setSelection(null);
-    setParams(new URLSearchParams({ week }), { replace: true });
+    setParams(new URLSearchParams({ week }), { replace: true, state: location.state });
   };
   const [booking, setBooking] = useState<SlotSelection | null>(null);
   const [tick, setTick] = useState(0);
@@ -151,7 +155,7 @@ export function ResourcePage() {
   return (
     <section className={styles.stack}>
       <p>
-        <Link to={backDate ? `/find?date=${backDate}` : "/find"}>Back to Find a space</Link>
+        <Link to={findLink(findSearch, backDate, site)}>Back to Find a space</Link>
       </p>
       <h1>{r.name}</h1>
       <dl className={styles.dl}>
@@ -224,6 +228,7 @@ export function ResourcePage() {
         onBooked={onBooked}
         onConflict={refresh}
         returnFocus={slotsRef}
+        calendarState={location.state}
         onPickAnother={() => {
           setFocusTarget(booking);
           setBooking(null);

@@ -24,7 +24,7 @@ import { SlotGrid, type SlotGridHandle, type SlotRow, type SlotSelection } from 
 import { Tabs } from "../ui/Tabs.tsx";
 import { TextField } from "../ui/TextField.tsx";
 import { BookingDialog } from "./BookingDialog.tsx";
-import { CAPACITIES, FLOORS, type FindFilters, type Kind, NO_FILTERS, Q_MAX, activeFilterCount, fromTimes, parseFindParams, toTimes, writeFindParams } from "./find-params.ts";
+import { CAPACITIES, FLOORS, type FindFilters, type FromFind, type Kind, NO_FILTERS, Q_MAX, activeFilterCount, fromTimes, parseFindParams, toTimes, writeFindParams } from "./find-params.ts";
 import styles from "./pages.module.css";
 import { dateDisabledReason, firstBookableDate, minSlots, minStartOn, shortSelectionHint, timeRange, todayHasClosed, useSite } from "./site.ts";
 import { usePageTitle } from "./usePageTitle.ts";
@@ -47,6 +47,8 @@ export function FindSpacePage() {
   const update = (patch: Partial<FindFilters>) => {
     setParams((prev) => writeFindParams({ ...parseFindParams(prev, site, defaultDate), ...patch }, defaultDate), { replace: true });
   };
+  // Week calendar links carry this search, for their "Back to Find a space" link.
+  const fromFind: FromFind = { find: params.toString() };
   const narrow = useMediaQuery(NARROW_QUERY);
   const compact = useMediaQuery(COMPACT_QUERY);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -331,7 +333,9 @@ export function FindSpacePage() {
                     <ul className={styles.inlineList}>
                       {data.resources.map((r) => (
                         <li key={r.resource.id}>
-                          <Link to={`/resources/${r.resource.id}?date=${date}`}>{r.resource.name}</Link>
+                          <Link to={`/resources/${r.resource.id}?date=${date}`} state={fromFind}>
+                            {r.resource.name}
+                          </Link>
                         </li>
                       ))}
                     </ul>
@@ -353,6 +357,7 @@ export function FindSpacePage() {
         onBooked={onBooked}
         onConflict={refresh}
         returnFocus={slotsRef}
+        calendarState={fromFind}
         onPickAnother={() => {
           if (booking) setFocusTarget({ rowId: booking.resource.id, startMin: booking.startMin });
           setBooking(null);

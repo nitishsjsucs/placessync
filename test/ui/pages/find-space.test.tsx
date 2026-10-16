@@ -430,6 +430,59 @@ describe("Find a space search length", () => {
   });
 });
 
+describe("Back to Find a space from a week calendar keeps the search", () => {
+  it("returns to the same tab and filters, on a date in the week in view", async () => {
+    const api = installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/sites/hq/availability": (c: { url: string }) => availability(c.url),
+      "GET /api/resources/res_sequoia/calendar": (c: { url: string }) => {
+        const weekStart = new URL(c.url, "http://x").searchParams.get("weekStart") ?? "";
+        const day = (n: number) => new Date(Date.parse(`${weekStart}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+        return { resource: RESOURCES.find((r) => r.id === "res_sequoia"), days: Array.from({ length: 7 }, (_, i) => ({ date: day(i), busy: [] })) };
+      },
+    });
+    const { router } = renderAt("/find?date=2026-10-14&kind=room&floor=2&amenity=whiteboard");
+    const user = userEvent.setup();
+    await screen.findByRole("gridcell", { name: "Sequoia (8), 09:00 to 09:30, available" });
+    await user.click(screen.getByText("Week calendars"));
+    await user.click(screen.getByRole("link", { name: "Sequoia" }));
+    await screen.findByRole("grid", { name: /Sequoia, week of Monday, October 12, 2026/ });
+    const back = () => within(screen.getByRole("main")).getByRole("link", { name: "Back to Find a space" });
+    expect(back().getAttribute("href")).toBe("/find?date=2026-10-14&kind=room&floor=2&amenity=whiteboard");
+    // The week changes with replace and keeps what the link carried.
+    await user.click(screen.getByRole("button", { name: "Next week" }));
+    await screen.findByRole("grid", { name: /Sequoia, week of Monday, October 19, 2026/ });
+    expect(back().getAttribute("href")).toBe("/find?date=2026-10-19&kind=room&floor=2&amenity=whiteboard");
+    await user.click(back());
+    await screen.findByRole("heading", { level: 1, name: "Find a space" });
+    expect(router.state.location.search).toBe("?date=2026-10-19&kind=room&floor=2&amenity=whiteboard");
+    expect(screen.getByRole("tab", { name: "Rooms" }).getAttribute("aria-selected")).toBe("true");
+    expect((screen.getByRole("combobox", { name: "Floor" }) as HTMLSelectElement).value).toBe("2");
+    await waitFor(() => expect(availabilityCalls(api).at(-1)?.url).toContain("date=2026-10-19"));
+  });
+
+  it("the booking dialog's week calendar link carries the search too", async () => {
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/sites/hq/availability": (c: { url: string }) => availability(c.url),
+      "GET /api/resources/res_2a01/calendar": (c: { url: string }) => {
+        const weekStart = new URL(c.url, "http://x").searchParams.get("weekStart") ?? "";
+        const day = (n: number) => new Date(Date.parse(`${weekStart}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+        return { resource: RESOURCES.find((r) => r.id === "res_2a01"), days: Array.from({ length: 7 }, (_, i) => ({ date: day(i), busy: [] })) };
+      },
+    });
+    renderAt("/find?date=2026-10-12&kind=desk&from=540&to=720");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("gridcell", { name: "Desk 2A-01, 10:00 to 10:30, available" }));
+    await user.click(screen.getByRole("button", { name: /^Book Desk 2A-01/ }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("link", { name: "See the week calendar for Desk 2A-01" }));
+    await screen.findByRole("heading", { level: 1, name: "Desk 2A-01" });
+    expect(within(screen.getByRole("main")).getByRole("link", { name: "Back to Find a space" }).getAttribute("href")).toBe("/find?date=2026-10-12&kind=desk&from=540&to=720");
+  });
+});
+
 describe("Find a space opens on a date that can still be booked (UX-01)", () => {
   // Site-local Thursday 2026-10-08 (UTC-7) at the given time.
   const at = (hh: number, mm: number) => Date.parse("2026-10-08T00:00:00Z") + ((hh + 7) * 60 + mm) * 60_000;
