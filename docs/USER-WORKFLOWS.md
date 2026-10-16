@@ -1,6 +1,6 @@
 # User workflows
 
-How each kind of person moves through PlacesSync, step by step, as the code at this commit behaves. It covers the local build. Production was deployed on 2026-10-15 before the changes listed at the end and has not been redeployed since, so the deployed app still behaves as [`DEMO.md`](DEMO.md) describes. Labels in quotes are the exact text on screen.
+How each kind of person moves through PlacesSync, step by step, as the code at this commit behaves. It covers the local build. Production was deployed on 2026-10-15 before the changes listed at the end (the usability round, its second pass and the visual pass of 2026-10-16) and has not been redeployed since, so the deployed app still behaves as [`DEMO.md`](DEMO.md) describes. Labels in quotes are the exact text on screen.
 
 The people are the synthetic ones the seed creates: 92 employees, 6 facilities staff and 2 facilities admins (`CONTEXT.md`). Staff and admins can do everything an employee can.
 
@@ -23,7 +23,7 @@ The people are the synthetic ones the seed creates: 92 employees, 6 facilities s
 
 1. Open "Find a space". It opens on the first date that can still be booked: after the day's last slot it shows the next working day and says "Bookings for today have closed; showing <date>." It keeps that date while the page stays open; a time that starts meanwhile is refused in the booking dialog ("That start time has already passed.").
 2. Optionally choose the "Desks" tab, a floor, seats, amenities, a time window or a search (up to 80 characters). Every choice is kept in the address, so a reload or Back from a week calendar shows the same search. Changing the date clears a selected time.
-3. Click a start time in a desk's row. One click selects an hour (desks book for at least 60 minutes; rooms for at least 15, so one click on a room selects 30 minutes). Shift+click a later time to make it longer.
+3. Under each time the grid says how many of the spaces shown can still be booked starting then ("7 free", or "Past" for times that have gone), with a small column whose height is that share. A desk counts only where a whole hour is free, so a counted time always books. Click a start time in a desk's row. One click selects an hour (desks book for at least 60 minutes; rooms for at least 15, so one click on a room selects 30 minutes). Shift+click a later time to make it longer.
 4. Press "Book <desk>, <start> to <end>". The dialog "Book <desk>" opens with "Confirm booking" focused.
 5. Press "Confirm booking". The dialog closes and a result appears at the top of the page, with focus on it: "Booked <desk> on <date>, <start> to <end>." with a "See My bookings" link.
 
@@ -51,15 +51,15 @@ The people are the synthetic ones the seed creates: 92 employees, 6 facilities s
 **Report an issue and follow it.**
 
 1. Open "Report issue", give a title and a description, and optionally a space or a location note. Press "Submit request".
-2. The request page opens and says it was submitted. While it shows "Classification pending", the page checks again every 10 seconds for up to 3 minutes while it is visible, and "Check again" checks at once.
-3. When a suggestion arrives, the page shows the suggested category with the provider that made it, then the final category once staff review it. The timeline lists every step, including a note staff leave when they resolve it.
+2. The request page opens and says it was submitted. "Progress" above the details lists five steps: Submitted, Categorized, Reviewed by staff, Work started and Resolved. Done steps show their time and how long after the previous one; the current step says who acts next and for how long so far, for example "Now: being categorized automatically, 2 min so far". While it shows "Classification pending", the page checks again every 10 seconds for up to 3 minutes while it is visible, and "Check again" checks at once.
+3. When a suggestion arrives, Categorized shows it with the provider that made it ("Suggested Electrical and AV (Keyword stub (keyword-v1))"), and the current step becomes "Now: waiting for facilities staff to review". After the review, the step shows the final category, and the details show it too. If the review waits past the 24-hour timer, the current step adds "Review overdue; staff were reminded". The timeline below lists every event, including a note staff leave when they resolve it.
 4. To cancel before anyone picks it up, press "Cancel this request", then "Cancel request" in the dialog ("Keep request" closes it). If staff picked it up a moment earlier, the reason ("Only a request that nobody has picked up can be cancelled.") appears under the button and the request stays on screen.
-5. "My requests" lists open and closed requests.
+5. "My requests" lists open and closed requests. The status of an open one also says its step, for example "Assigned, step 4 of 5", with a small five-part meter beside it.
 
 **On a phone (under 640 px wide).**
 
 1. Find a space shows "Booking date: <date>" with a "Change date" button (the month grid opens under it and folds away again once you pick a day), then a "Filters" button (with "Filters (2 active)" when filters are set, and "Clear filters" inside), then the time chips for one space at a time. The first chips are on the first screen, above the bottom navigation.
-2. Choose a space in "Resource" and tap a start time; tap a later time to extend, or a time inside the selection to shorten it. "Clear selection" removes it.
+2. Choose a space in "Resource" and tap a start time; tap a later time to extend, or a time inside the selection to shorten it. "Clear selection" removes it. Or press "By time" (above "Resource"): each half hour shows how many spaces can be booked from then ("14:30 · 3 free"); tap one to list those spaces ("Desk 3B-02, free 14:30 to 15:30"), and tap a space to select its shortest booking. The view returns to "By space" on that space with the time selected, ready to book. "Back to times" or Escape goes back to the times.
 3. The Book button stays visible above the bottom navigation while you scroll the chips.
 4. Between 640 and 1023 px the month grid stays open, the filters fold the same way and the full grid shows. At 1024 px and wider the filters sit beside the grid.
 
@@ -77,7 +77,7 @@ The people are the synthetic ones the seed creates: 92 employees, 6 facilities s
 
 **Review the triage queue.**
 
-1. Open "Staff". The "Triage queue" tab lists requests waiting for review with the suggested category, its confidence and the provider label ("Keyword stub (keyword-v1)" locally, "Workers AI" in production). Requests still being classified show "Classification pending", and requests with no suggestion show "Automatic classification unavailable"; both offer only "Categorize".
+1. Open "Staff". Above the tabs, "Work at a glance" has four tiles: "Suggestions to review", "To categorize by hand", "Assigned, not started" and "In progress", each with its count and its oldest wait; the queue tiles add, for example, "10 waiting over 24 h". A tile opens the tab that lists those requests, with focus on it. The "Triage queue" tab lists requests waiting for review with the suggested category, its confidence and the provider label ("Keyword stub (keyword-v1)" locally, "Workers AI" in production). Requests still being classified show "Classification pending", and requests with no suggestion show "Automatic classification unavailable"; both offer only "Categorize". A request a day old or more has an "Over 24 h" mark in the Age column.
 2. Press "Accept" (the dialog "Accept the suggestion?"), "Reassign" (choose a "Category") or "Categorize" and confirm. The result "Assigned "<title>". It is now under In progress." appears with a "Go to In progress" link.
 3. If someone else handled it first, the page says "Already reviewed" and refreshes the queue, with focus on that notice. Any other failure says "Could not save. Check your connection and try again." inside the dialog, which stays open, with focus on the message.
 
@@ -86,7 +86,9 @@ The people are the synthetic ones the seed creates: 92 employees, 6 facilities s
 1. On "In progress", press "Start work" (one click).
 2. Press "Resolve". The dialog "Resolve this request?" takes an optional "Note for the reporter" of up to 500 characters; press "Resolve". The reporter sees the note in their timeline.
 3. If the request changed meanwhile (a 409), the dialog closes and focus goes to the notice ""<title>" changed meanwhile. The list has been refreshed."
-4. "Resolved" lists finished requests, and "Today's bookings" lists today's bookings with names.
+4. "Resolved" lists finished requests.
+
+**See today's bookings.** "Today's bookings" draws one row per space, rooms first, with a bar per booking across the open hours and a "Now" line. A sentence above says how many rooms and desks are in use now. Each row says what the space is doing ("in use until 10:30 (Fatima Bhatt); next free 10:30 to 12:30"); bookings that already ended are grey and say "ended". A space with an open request shows a wrench and "1 open request". Tab to the chart and use the arrow keys to read each booking. A booking made elsewhere appears without a reload. "Show as table" lists the bookings with names. On a phone each space is a card with the same words.
 
 **Staying current.** New suggestions arrive live ("Live updates on", or "Connecting to live updates" while connecting). The queue also refreshes every 60 seconds while the page is visible, when you come back to the tab, and when the live connection returns, so a request that becomes eligible after 2 minutes without any event still appears. "Updated hh:mm" says when it last loaded. The open tab is kept in the address (`/staff?tab=working`), and a request opened from it links "Back to the staff queue" to that tab.
 
@@ -95,14 +97,15 @@ The people are the synthetic ones the seed creates: 92 employees, 6 facilities s
 **Read utilization.**
 
 1. Open "Admin". The range defaults to 28 days back through the 14-day booking horizon. Change "From" and "To" and press "Apply range", or press "Last 7 days", "Last 4 weeks" or "Next 2 weeks". A wrong range says which field is wrong, for example "To must be on or after From."
-2. "Utilization" shows one row per space: bookings, booked hours, days booked, and utilization (booked hours over every bookable hour of the weekdays in the range). "Show daily rows" switches to one row per space and day.
-3. Below are "Hourly occupancy" and "Bookings per day".
+2. "Utilization" opens on whether the reports include every booking change ("Reports include every booking change (last copied 16:05).", or how many changes had not reached them yet, with "Refresh"). Four tiles follow: desk and room time booked on past days, bookings already made from today on, and the cancelled share.
+3. "Bookings per day" draws desks and rooms on one weekday axis, with the days from today on in grey under "Today, booked so far". Tab to a chart and use Left and Right to read each day; "Show table" gives the numbers.
+4. "Utilization by space" has a table per kind listing every space, booked or not: "Held" (past days) and "Booked ahead" as bars on a fixed 0 to 100% scale with the percentage, then bookings and days booked, sorted by Held. "Show daily rows" switches to one row per space and day. "Bookings by hour" keeps its table behind "Show table".
 
-**Read the request report.** The "Requests" tab shows suggestion agreement per provider, each with its own label, the median time to review (for example "13 h 4 min"), and requests by category and status.
+**Read the request report.** The "Requests" tab shows suggestion agreement per provider, each with its own label. "Staff decisions on suggestions" then shows, per provider, which suggested categories staff kept and which they changed into what, with a line such as "Most changed: Furniture and fixtures suggestions became Electrical and AV 3 times." "Time from submission to staff review" gives the median (for example "13 h 4 min") and four columns from "Under 1 hour" to "Over 24 hours". Requests by category and status come last.
 
 **Manage spaces.**
 
-1. On "Resources", "Deactivate" opens "Deactivate <space>?": "Existing bookings are kept. Nobody can book it until it is activated again." Press "Deactivate" or "Keep active". "Activate" is one click.
+1. On "Resources", "Deactivate" opens "Deactivate <space>?": "Existing bookings are kept. Nobody can book it until it is activated again." It then says what the reports show for that space from today on, for example "Reports show 3 bookings for Desk 2A-04 from today on, the next on Tuesday, October 20. They stay booked, and My bookings marks the space (not bookable now).", or that it could not check. Press "Deactivate" or "Keep active". "Activate" is one click.
 2. "Edit" changes a room's capacity (a whole number from 1 to 50, checked before sending) and any space's description.
 3. If a change fails, the page says why.
 
@@ -138,3 +141,45 @@ A review of the round above walked the same workflows in Chromium and found the 
 19. **Back to Find a space** from a week calendar now keeps the tab and filters, not only the date.
 20. **A cancelled request** no longer also says "Your request was submitted."
 21. **An expired sign-in** says so on the sign-in page, and signing in returns with focus on the page heading.
+
+## Third pass (visual), 2026-10-16
+
+Charts and status views that answer a question a persona has, on the screens they already use. Local and not deployed. Each item is a commit on `main` after `06cd47e`, with tests; the screenshots are of the local preview with the synthetic data (bookings for today added through the API), in light and dark (`prefers-color-scheme`). The staff and Find a space screenshots were taken with the browser clock set to 11:40 site time, so some of today's bookings have ended and the Now line shows.
+
+22. **Staff: what needs me first.** The staff page opened on a table. It now opens on "Work at a glance": four tiles, in workflow order, with the count and the oldest wait for suggestions to review, requests to categorize by hand, assigned work not started and work in progress. The queue tiles say how many have waited 24 hours or more (the Workflow's review timer), with an icon and words, and queue rows that old carry an "Over 24 h" mark. Ages come from the server's clock, never the browser's. A list cut at the server's 200-row limit shows "200+". Each tile links to its tab and moves focus there. The tiles come from the four lists the page already loads, so the page makes no new request; they hide while a load error shows.
+
+    ![Staff page: four tiles above the triage queue, the first reading 13 suggestions to review, oldest 11 d, 10 waiting over 24 h](screenshots/staff-glance-1280-light.png)
+
+23. **Employee: where is my request.** The request page said only "Status: In progress" above a flat event list. "Progress" now shows the five steps with their times and how long each took, and the current step says who acts next and for how long so far; a review past the 24-hour timer says so. Suggestions keep their provider label, so the keyword stub never reads as AI. A cancelled request ends on one "Cancelled" step, and one resolved straight from Assigned shows "Work started" as "Skipped". The time moves once a minute without a request. My requests says the step in the status column ("Assigned, step 4 of 5") with a small meter, and keeps its columns.
+
+    ![Request page at 1280 px: Submitted, Categorized, Reviewed by staff and Work started done with times, Resolved current with "Now: staff are working on it"](screenshots/request-progress-1280-light.png)
+
+    Phone, dark: [request progress](screenshots/request-progress-375-dark.png), [My requests with steps](screenshots/my-requests-375-light.png) (light).
+
+24. **Staff: which spaces are in use now.** "Today's bookings" was a list sorted by start time, so one room's bookings were spread down the page. It is now a day timeline: a row per space (rooms first, then desks, in a fixed order), a bar per booking, a Now line that moves every minute, grey bars for bookings that ended, a sentence per space ("in use until 12:00 (Grace Torres); free from 12:00 for the rest of the day") and a wrench on spaces with an open request. The chart is one Tab stop: the arrow keys move between spaces and bookings, and the focused booking's details show beside it and are announced. Its own live connection, open only while the tab shows, adds a booking made elsewhere at once (named "Booked" until a refetch, at most one every 30 seconds, brings the name) and removes a cancelled one. "Show as table" gives the list with names; on a phone each space is a card.
+
+    ![Today's bookings at 1280 px: a row per space with bars, grey ended bookings, a Now 11:40 line and open-request links](screenshots/staff-timeline-1280-light.png)
+
+    [Dark, with a booking focused from the keyboard](screenshots/staff-timeline-1280-dark.png), [phone cards, dark](screenshots/staff-timeline-375-dark.png).
+
+25. **Employee: when can I still get a desk.** Find a space showed cells with no totals, and on a phone one space at a time. Every time header now says how many of the spaces shown can be booked starting then ("7 free", "Past"), with a small column for the share, counting a desk only where its minimum hour fits, so a counted time always books. The numbers follow the tab, the filters and live updates without any server work. On a phone, "By time" lists the half hours with their counts; choosing one lists the free spaces with how long each stays free, and choosing a space selects its shortest booking and leaves Book ready.
+
+    ![Find a space at 1280 px, Desks: each time header shows Past or a count such as 7 free above a small column](screenshots/find-counts-1280-light.png)
+
+    Phone: [By time](screenshots/find-by-time-375-light.png), [spaces free from 14:30, dark](screenshots/find-by-time-spaces-375-dark.png).
+
+26. **Admin: how full is the office, and are the reports current.** The Utilization tab opened on one sentence that mixed past and future days, above a 56-row table. It now opens on whether the reports include every booking change (from the ledger's outbox; "Refresh" when some have not arrived yet, a warning when copying fails), four tiles (desk and room time booked on past days, bookings ahead, the cancelled share), and "Bookings per day": desks and rooms on one weekday axis and one scale, the days from today on in grey under "Today, booked so far". Each chart is one Tab stop with Left and Right between days; "Show table" gives the numbers. The hourly table folds behind its own "Show table", and its caption now says what it counts: bookings overlapping each hour, not spaces in use.
+
+    ![Admin Utilization at 1280 px: freshness line, four tiles, two column charts with a Today rule, and the start of the desks table](screenshots/admin-utilization-1280-light.png)
+
+    [Phone, dark](screenshots/admin-utilization-375-dark.png).
+
+27. **Admin: which spaces are underused, and whom a deactivation affects.** The per-space bars were scaled to the busiest space, so 38% could draw full width, and a space with no bookings was missing. Each kind now has its own table listing every space, booked or not ("Not booked"), with "Held" (past days) and "Booked ahead" as separate bars on a fixed 0 to 100% scale, sorted by Held; the caption's average equals the tile. "Deactivate <space>?" now says how many bookings the reports show for that space from today on and when the next one is, or that it could not check.
+
+    ![Deactivate Desk 2A-04 dialog naming the bookings reports show from today on](screenshots/admin-deactivate-1280-light.png)
+
+28. **Admin: what staff do with suggestions.** Under the agreement table, "Staff decisions on suggestions" shows, for each provider separately, which suggested categories staff kept and which they changed into what: a table whose cells print their counts and are shaded by share of the row (a 5-step blue ramp checked for contrast in both themes), "kept n of m" per row, and the most changed pair in words. "Time from submission to staff review" puts the median beside four columns, the last marked "Over 24 hours" with an icon. It is not an accuracy measure: locally the reviews are the seed's, made against the keyword stub.
+
+    ![Admin Requests tab in dark: the Keyword stub matrix with kept counts on the diagonal and the time-to-review columns](screenshots/admin-requests-1280-dark.png)
+
+Server changes in this pass, none of which weakens a rule: `GET /api/staff/bookings` (staff and admin only) also lists the day's spaces from the catalog read it already made, and `GET /api/admin/reports/requests` (admin only) adds the kept-or-changed counts (one more grouped query) and the review-time buckets (counted from rows it already read). Both fields are optional. Requests the pages make: the staff page makes none more on open; the Today tab opens one live connection while it shows and refetches today's bookings at most once every 30 seconds while a live booking has no name; the admin page fetches the existing projection status with each report load, and the Deactivate dialog makes one report request when it opens.

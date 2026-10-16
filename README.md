@@ -6,7 +6,9 @@ A workplace application for reserving desks and meeting rooms, reporting facilit
 
 **Live demo.** [`docs/DEMO.md`](docs/DEMO.md) is the walkthrough of the deployed app: two personas race for one desk, then one facilities request goes through Workers AI triage to staff review.
 
-**User workflows.** [`docs/USER-WORKFLOWS.md`](docs/USER-WORKFLOWS.md) walks each persona through the local build step by step, including the usability changes of 2026-10-15, which production does not have yet.
+**User workflows.** [`docs/USER-WORKFLOWS.md`](docs/USER-WORKFLOWS.md) walks each persona through the local build step by step, including the usability changes of 2026-10-15 and the charts and status views of 2026-10-16, which production does not have yet. Screenshots of the local build with synthetic data: the [staff page's work at a glance](docs/screenshots/staff-glance-1280-light.png), [today's bookings as a timeline](docs/screenshots/staff-timeline-1280-light.png), a [request's progress](docs/screenshots/request-progress-1280-light.png), [free counts on Find a space](docs/screenshots/find-counts-1280-light.png) and [by time on a phone](docs/screenshots/find-by-time-375-light.png), and the admin [Utilization](docs/screenshots/admin-utilization-1280-light.png) and [Requests](docs/screenshots/admin-requests-1280-dark.png) tabs.
+
+![Today's bookings on the local build: a row per space, bars per booking, a Now line, ended bookings in grey and open-request links](docs/screenshots/staff-timeline-1280-light.png)
 
 ## Why
 
