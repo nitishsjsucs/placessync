@@ -107,11 +107,14 @@ describe("DayTimeline (VIZ-02)", () => {
     expect(screen.getByText("Opens at 07:00. 3 bookings today.")).toBeTruthy();
   });
 
-  it("flags a space with an open request with an icon and a link to it", () => {
-    renderTimeline();
-    const link = within(rowNamed("Alder")).getByRole("link", { name: "1 open request" });
+  it("flags a space with an open request with an icon and a link to it named for the space", () => {
+    renderTimeline({ openRequests: [...REQUESTS, { id: "req_seed_011", status: "assigned", resourceId: "res_2a01" }] });
+    const link = within(rowNamed("Alder")).getByRole("link", { name: "1 open request for Alder" });
     expect(link.getAttribute("href")).toBe("/requests/req_seed_007");
     expect(link.querySelector("svg[aria-hidden=true]")).toBeTruthy();
+    // The words on screen start the name; the space is added so a list of links tells them apart.
+    expect(link.textContent).toBe("1 open request");
+    expect(within(chart()).getAllByRole("link").map((a) => a.getAttribute("aria-label"))).toEqual(["1 open request for Alder", "1 open request for Desk 2A-01"]);
   });
 
   it("is one tab stop: arrows move between spaces and bookings, and the tooltip matches the row's words", () => {

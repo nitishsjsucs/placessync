@@ -170,7 +170,7 @@ export function DayTimeline({ site, data, refreshing = false, openRequests, onRe
                   : {summary}
                 </span>
                 <span className={styles.muted}>{row.bars.length ? plural(row.bars.length, "booking") + " today" : "No bookings today"}</span>
-                <RequestFlag requests={reqs} />
+                <RequestFlag requests={reqs} space={row.space.name} />
               </li>
             );
           })}
@@ -182,13 +182,18 @@ export function DayTimeline({ site, data, refreshing = false, openRequests, onRe
   );
 }
 
-function RequestFlag({ requests }: { requests: readonly OpenRequestRef[] }) {
+/**
+ * Shows "1 open request" and is named "1 open request for Alder", so a list of links tells
+ * them apart; the name starts with the words on screen.
+ */
+function RequestFlag({ requests, space }: { requests: readonly OpenRequestRef[]; space: string }) {
   const to = openRequestLink(requests);
   if (!to) return null;
+  const words = plural(requests.length, "open request");
   return (
-    <Link to={to} state={requests.length === 1 ? { from: "/staff?tab=today" } : undefined} className={styles.flag}>
+    <Link to={to} state={requests.length === 1 ? { from: "/staff?tab=today" } : undefined} className={styles.flag} aria-label={`${words} for ${space}`}>
       <WrenchIcon />
-      {plural(requests.length, "open request")}
+      {words}
     </Link>
   );
 }
@@ -371,7 +376,7 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
                       {row.space.name}
                       {row.space.active ? "" : " (inactive)"}
                     </span>
-                    <RequestFlag requests={reqs} />
+                    <RequestFlag requests={reqs} space={row.space.name} />
                   </span>
                   <span className={styles.track} aria-hidden="true" data-testid={`track-${row.space.id}`}>
                     {row.bars.map((bar, b) => {

@@ -482,7 +482,7 @@ describe("Today's bookings timeline on the staff page (VIZ-02)", () => {
     queue = [{ ...suggested, resourceId: "res_alder", resourceName: "Alder" }];
     renderAt("/staff?tab=today");
     const chart = await screen.findByRole("group", { name: /^Bookings by space/ });
-    const link = within(chart).getByRole("link", { name: "1 open request" });
+    const link = within(chart).getByRole("link", { name: "1 open request for Alder" });
     expect(link.getAttribute("href")).toBe("/requests/req_s");
   });
 
