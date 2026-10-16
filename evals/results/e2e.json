@@ -1,8 +1,8 @@
 {
   "meta": {
-    "gitSha": "55a35b6645b2adfc2b4b6034eb213168c7921b6c",
+    "gitSha": "84b9de28533b8f1c4405c75b361e508e346ea1da",
     "dirty": false,
-    "timestamp": "2026-10-16T04:54:41.190Z",
+    "timestamp": "2026-10-16T05:55:51.338Z",
     "node": "v25.9.0",
     "wrangler": "4.149.0",
     "os": "Darwin 25.5.0 arm64",
@@ -15,8 +15,8 @@
   },
   "summary": {
     "status": "passed",
-    "tests": 68,
-    "passed": 68,
+    "tests": 69,
+    "passed": 69,
     "failed": 0,
     "axeScans": 38,
     "axeViolations": 0,
@@ -30,8 +30,8 @@
     ],
     "realtimeLatencyMs": {
       "bookings": 20,
-      "p50": 22,
-      "p95": 34.55000000000001
+      "p50": 6,
+      "p95": 10.050000000000015
     }
   },
   "attachments": {
@@ -687,29 +687,29 @@
         "data": {
           "bookings": 20,
           "samplesMs": [
-            45,
-            22,
-            24,
-            22,
-            22,
-            20,
-            22,
-            21,
-            22,
-            23,
-            22,
-            27,
-            22,
-            22,
-            34,
-            22,
-            21,
-            22,
-            22,
-            24
+            30,
+            7,
+            7,
+            6,
+            6,
+            6,
+            6,
+            6,
+            6,
+            5,
+            8,
+            5,
+            9,
+            7,
+            6,
+            5,
+            6,
+            5,
+            6,
+            7
           ],
-          "p50": 22,
-          "p95": 34.55000000000001,
+          "p50": 6,
+          "p95": 10.050000000000015,
           "note": "request start in one context to busy cell visible in another, local Chromium"
         }
       }
@@ -861,6 +861,10 @@
       "status": "passed"
     },
     {
+      "title": "chromium > dialog-focus.spec.ts > a booking that could not be saved keeps focus in the dialog, on the message",
+      "status": "passed"
+    },
+    {
       "title": "chromium > keyboard-booking.spec.ts > book a desk and cancel it using only the keyboard",
       "status": "passed"
     },
@@ -957,7 +961,7 @@
       "status": "passed"
     },
     {
-      "title": "chromium > mobile-layout.spec.ts > Find a space and admin on small screens > at 375x812 > the first time chip starts within 900 px, and Book stays above the bottom nav once a time is picked",
+      "title": "chromium > mobile-layout.spec.ts > Find a space and admin on small screens > at 375x812 > the first time chip is on the first screen above the bottom nav, and Book stays above the nav once a time is picked",
       "status": "passed"
     },
     {
