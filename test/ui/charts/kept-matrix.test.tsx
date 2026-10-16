@@ -76,9 +76,14 @@ describe("kept matrices (VIZ-09)", () => {
     expect(screen.getByRole("table", { name: "Workers AI: suggested category by final category" })).toBeTruthy();
   });
 
-  it("keys the shades in words", async () => {
+  it("keys the shades and the kept outline in words", async () => {
     render(<ShareLegend />);
-    expect(screen.getByText("Shade: share of the row.").parentElement?.textContent).toBe("Shade: share of the row.up to 20%up to 40%up to 60%up to 80%up to 100%");
+    const legend = screen.getByText("Shade: share of the row.").parentElement as HTMLElement;
+    expect(legend.textContent).toBe("Shade: share of the row.up to 20%up to 40%up to 60%up to 80%up to 100%Outlined: staff kept the suggestion");
+    // The outline swatch uses the same class as the diagonal cells it explains.
+    const swatches = [...legend.querySelectorAll("[aria-hidden=true]")];
+    expect(swatches).toHaveLength(6);
+    expect(swatches[5]?.className).toMatch(/diagonal/);
     await expectNoAxeViolations();
   });
 });

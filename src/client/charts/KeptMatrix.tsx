@@ -77,7 +77,7 @@ export function KeptMatrix({ matrix }: { matrix: Matrix }) {
   );
 }
 
-/** The ramp's key: what each shade means. */
+/** The key: what each shade means, and the outline that marks a kept suggestion. */
 export function ShareLegend() {
   const steps = ["up to 20%", "up to 40%", "up to 60%", "up to 80%", "up to 100%"];
   return (
@@ -89,6 +89,10 @@ export function ShareLegend() {
           {label}
         </span>
       ))}
+      <span className={styles.legendItem}>
+        <span className={`${styles.swatch} ${styles.bin0} ${styles.diagonal}`} aria-hidden="true" />
+        Outlined: staff kept the suggestion
+      </span>
     </p>
   );
 }
