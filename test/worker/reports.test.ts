@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { beforeAll, describe, expect, it } from "vitest";
 import { ADMIN } from "../helpers/tokens.ts";
+import { reviewBuckets } from "../../src/worker/repo/reports.ts";
 import { as, json, seed } from "../helpers/world.ts";
 
 const DATE = "2026-10-12";
@@ -107,6 +108,77 @@ describe("D1 reporting views (SPEC 6.1)", () => {
     ]);
     expect(body.reviewedCount).toBe(5);
     expect(body.medianMinutesToReview).toBe(30);
+  });
+
+  it("kept: suggested by final category per provider, with the agreement query's totals and diagonal (VIZ-09)", async () => {
+    await env.DB.exec("DELETE FROM request_events");
+    await env.DB.exec("DELETE FROM triage_suggestions");
+    await env.DB.exec("DELETE FROM facilities_requests");
+    const at = "2026-10-12T17:00:00.000Z";
+    const rows: [string, string, string, string | null, string, string][] = [
+      // id, suggested, final, decision, provider, created_at
+      ["k1", "electrical_av", "electrical_av", "accepted", "stub", at],
+      ["k2", "electrical_av", "electrical_av", "accepted", "stub", at],
+      ["k3", "furniture_fixtures", "building_systems", "reassigned", "stub", at],
+      ["k4", "furniture_fixtures", "building_systems", "reassigned", "stub", at],
+      ["k5", "furniture_fixtures", "furniture_fixtures", "accepted", "stub", at],
+      // A manual categorization never showed a suggestion: left out.
+      ["k6", "cleaning_safety", "building_systems", "manual", "stub", at],
+      // Another provider is kept apart, never merged.
+      ["k7", "furniture_fixtures", "building_systems", "reassigned", "workers-ai", at],
+      ["k8", "building_systems", "building_systems", "accepted", "workers-ai", at],
+      // Not reviewed yet, and reviewed but outside the range: left out.
+      ["k9", "building_systems", "building_systems", null, "stub", at],
+      ["k10", "electrical_av", "cleaning_safety", "reassigned", "stub", "2026-10-20T17:00:00.000Z"],
+    ];
+    await env.DB.batch(
+      rows.flatMap(([id, suggested, final, decision, provider, created]) => [
+        env.DB.prepare(
+          `INSERT INTO facilities_requests (id, site_id, reporter_id, title, description, status, triage_state, final_category, review_decision, reviewed_by, reviewed_at, created_at, updated_at)
+           VALUES (?, 'hq', 'emp_001', 'Something broke', 'Something broke near my desk today.', ?, 'suggested', ?, ?, ?, ?, ?, ?)`,
+        ).bind(id, decision ? "assigned" : "awaiting_review", decision ? final : null, decision, decision ? "emp_093" : null, decision ? "2026-10-12T18:00:00.000Z" : null, created, created),
+        env.DB.prepare(
+          "INSERT INTO triage_suggestions (request_id, category, confidence, rationale, provider, model, attempts, latency_ms, created_at) VALUES (?, ?, 0.7, 'r', ?, 'm', 1, 0, ?)",
+        ).bind(id, suggested, provider, created),
+      ]),
+    );
+    const admin = await as(ADMIN);
+    const body = await json<{
+      agreement: { provider: string; reviewed: number; agreed: number }[];
+      kept: { provider: string; suggested: string; final: string; n: number }[];
+      reviewBuckets: { bucket: string; n: number }[];
+      reviewedCount: number;
+    }>(await admin.get("/api/admin/reports/requests?from=2026-10-12&to=2026-10-12"));
+    expect(body.kept).toEqual([
+      { provider: "stub", suggested: "electrical_av", final: "electrical_av", n: 2 },
+      { provider: "stub", suggested: "furniture_fixtures", final: "building_systems", n: 2 },
+      { provider: "stub", suggested: "furniture_fixtures", final: "furniture_fixtures", n: 1 },
+      { provider: "workers-ai", suggested: "building_systems", final: "building_systems", n: 1 },
+      { provider: "workers-ai", suggested: "furniture_fixtures", final: "building_systems", n: 1 },
+    ]);
+    for (const a of body.agreement) {
+      const cells = body.kept.filter((k) => k.provider === a.provider);
+      expect(cells.reduce((n, k) => n + k.n, 0)).toBe(a.reviewed);
+      expect(cells.filter((k) => k.suggested === k.final).reduce((n, k) => n + k.n, 0)).toBe(a.agreed);
+    }
+    // Every review in range, manual ones included, an hour after submission.
+    expect(body.reviewBuckets).toEqual([
+      { bucket: "under_1h", n: 0 },
+      { bucket: "1h_to_4h", n: 8 },
+      { bucket: "4h_to_24h", n: 0 },
+      { bucket: "over_24h", n: 0 },
+    ]);
+    expect(body.reviewBuckets.reduce((n, b) => n + b.n, 0)).toBe(body.reviewedCount);
+  });
+
+  it("reviewBuckets puts each review in one of four buckets at 1, 4 and 24 hours", () => {
+    expect(reviewBuckets([0, 59, 59.9, 60, 239, 240, 1439, 1440, 5000])).toEqual([
+      { bucket: "under_1h", n: 3 },
+      { bucket: "1h_to_4h", n: 2 },
+      { bucket: "4h_to_24h", n: 2 },
+      { bucket: "over_24h", n: 2 },
+    ]);
+    expect(reviewBuckets([]).map((b) => b.n)).toEqual([0, 0, 0, 0]);
   });
 
   it("selects requests by site-local date, not by UTC date", async () => {

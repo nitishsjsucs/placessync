@@ -114,12 +114,33 @@ export async function requestsReport(db: D1Database, siteId: string, from: strin
     )
     .bind(...range)
     .all<{ provider: string; reviewed: number; agreed: number; agreementRate: number }>();
+  // Which suggested categories staff kept and which they changed, and into what, per
+  // provider. The same filter and range as the agreement query, so its per-provider totals
+  // and diagonal equal that query's reviewed and agreed. At most 4 x 4 x 4 = 64 rows.
+  const { results: kept } = await db
+    .prepare(
+      `SELECT s.provider, s.category AS suggested, r.final_category AS final, COUNT(*) AS n
+       FROM facilities_requests r JOIN triage_suggestions s ON s.request_id = r.id
+       WHERE r.review_decision IN ('accepted','reassigned') AND r.site_id = ? AND r.created_at >= ? AND r.created_at < ?
+       GROUP BY s.provider, s.category, r.final_category ORDER BY s.provider, s.category, r.final_category`,
+    )
+    .bind(...range)
+    .all<{ provider: string; suggested: string; final: string; n: number }>();
   const { results: reviewed } = await db
     .prepare("SELECT created_at AS createdAt, reviewed_at AS reviewedAt FROM facilities_requests WHERE site_id = ? AND created_at >= ? AND created_at < ? AND reviewed_at IS NOT NULL")
     .bind(...range)
     .all<{ createdAt: string; reviewedAt: string }>();
   const minutes = reviewed.map((r) => (Date.parse(r.reviewedAt) - Date.parse(r.createdAt)) / 60_000).sort((a, b) => a - b);
-  return { from, to, categories, agreement, medianMinutesToReview: median(minutes), reviewedCount: minutes.length };
+  return { from, to, categories, agreement, medianMinutesToReview: median(minutes), reviewedCount: minutes.length, kept, reviewBuckets: reviewBuckets(minutes) };
+}
+
+export const REVIEW_BUCKETS = ["under_1h", "1h_to_4h", "4h_to_24h", "over_24h"] as const;
+
+/** Time from submission to review in four buckets, from the minutes the median uses: always all four. */
+export function reviewBuckets(minutes: readonly number[]): { bucket: (typeof REVIEW_BUCKETS)[number]; n: number }[] {
+  const counts = [0, 0, 0, 0];
+  for (const m of minutes) counts[m < 60 ? 0 : m < 240 ? 1 : m < 1440 ? 2 : 3]! += 1;
+  return REVIEW_BUCKETS.map((bucket, i) => ({ bucket, n: counts[i] as number }));
 }
 
 export function median(sorted: readonly number[]): number | null {

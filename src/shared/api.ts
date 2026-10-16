@@ -334,6 +334,11 @@ export const RequestsReport = z.object({
   agreement: z.array(z.object({ provider: z.string(), reviewed: z.number(), agreed: z.number(), agreementRate: z.number() })),
   medianMinutesToReview: z.number().nullable(),
   reviewedCount: z.number(),
+  // Suggested category by final category per provider, for accepted and reassigned
+  // reviews (the agreement query's rows, not aggregated across providers).
+  kept: z.array(z.object({ provider: z.string(), suggested: z.string(), final: z.string(), n: z.number() })).optional(),
+  // Time from submission to review, counted from the same reviews as the median.
+  reviewBuckets: z.array(z.object({ bucket: z.enum(["under_1h", "1h_to_4h", "4h_to_24h", "over_24h"]), n: z.number() })).optional(),
 });
 export type RequestsReport = z.infer<typeof RequestsReport>;
 
