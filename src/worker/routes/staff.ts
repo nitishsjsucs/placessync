@@ -15,7 +15,8 @@ import { REVIEW_EVENT } from "../triage/triage-workflow.ts";
 
 export const staffRoutes = new Hono<AppEnv>()
   .use("/api/staff/*", requireRole("facilities_staff", "facilities_admin"))
-  // Today's bookings (Tier 2): an operational view with employee names, staff only.
+  // Today's bookings (Tier 2): an operational view with employee names, staff only. It
+  // also lists the spaces (active, or inactive and booked that day) for the day timeline.
   .get("/api/staff/bookings", queryParams(DateQuery), async (c) => {
     const { date } = c.req.valid("query");
     const config = c.get("config");
@@ -38,6 +39,11 @@ export const staffRoutes = new Hono<AppEnv>()
           title: r.title,
         }))
         .sort((a, b) => a.startMin - b.startMin || a.resourceName.localeCompare(b.resourceName)),
+      // The day timeline's rows: active spaces, and an inactive one only if it is booked
+      // that day. No extra D1 read; nothing about employees beyond the bookings above.
+      resources: resources
+        .filter((r) => r.active || rows.some((b) => b.resourceId === r.id))
+        .map((r) => ({ id: r.id, name: r.name, kind: r.kind, active: r.active })),
     };
     return c.json(body);
   })

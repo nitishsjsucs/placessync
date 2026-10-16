@@ -361,6 +361,10 @@ export const StaffBookingsResponse = z.object({
       title: z.string().nullable(),
     }),
   ),
+  // Every active space plus any inactive one booked that day, so the staff timeline can
+  // draw a row for each free space too. Built from the catalog read the route already
+  // makes. Optional, so clients written before it keep parsing.
+  resources: z.array(z.object({ id: z.string(), name: z.string(), kind: ResourceKindSchema, active: z.boolean() })).optional(),
 });
 export type StaffBookingsResponse = z.infer<typeof StaffBookingsResponse>;
 
