@@ -2,7 +2,7 @@
 // and primary controls (buttons, form fields, nav links) are at least 44x44 px. Every
 // signed-in page is checked as an admin (who can see all), and the dev login page signed out.
 import { type Page, type TestInfo, expect, test } from "@playwright/test";
-import { ADMIN, PAGES, VIEWPORTS, login } from "./helpers.ts";
+import { ADMIN, PAGES, VIEWPORTS, bookCypressToday, login } from "./helpers.ts";
 
 async function checkLayout(page: Page, testInfo: TestInfo, name: string, viewport: string): Promise<void> {
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
@@ -42,6 +42,20 @@ for (const vp of VIEWPORTS) {
         await checkLayout(page, testInfo, p.name, vp.name);
       });
     }
+
+    test("staff Today's bookings tab: no horizontal scroll and 44 px targets", async ({ page }, testInfo) => {
+      await bookCypressToday();
+      await page.goto("/staff?tab=today");
+      await expect(page.getByText(/^(Now: |Opens at |Closed now\. )|^No bookings today; every space is free\.$|^The site is closed today\.$/).first()).toBeVisible();
+      await checkLayout(page, testInfo, "staff-today", vp.name);
+    });
+
+    test("admin Requests tab: no horizontal scroll and 44 px targets", async ({ page }, testInfo) => {
+      await page.goto("/admin");
+      await page.getByRole("tab", { name: "Requests" }).click();
+      await expect(page.getByRole("heading", { name: "Time from submission to staff review" })).toBeVisible();
+      await checkLayout(page, testInfo, "admin-requests", vp.name);
+    });
   });
 
   test.describe(`layout at ${vp.name} ${vp.width}x${vp.height}, signed out`, () => {

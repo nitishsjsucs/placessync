@@ -3,7 +3,7 @@
 // violation of any impact fails. No rule is excluded.
 import AxeBuilder from "@axe-core/playwright";
 import { type Page, type TestInfo, expect, request, test } from "@playwright/test";
-import { ADMIN, PAGES, VIEWPORTS, addBusinessDays, login, longDate, siteToday } from "./helpers.ts";
+import { ADMIN, PAGES, VIEWPORTS, addBusinessDays, bookCypressToday, login, longDate, siteToday } from "./helpers.ts";
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 
@@ -61,10 +61,23 @@ for (const vp of VIEWPORTS) {
       await expect(page.getByRole("table", { name: "Resources" })).toBeVisible();
       await expect(page.getByRole("button", { name: /^Deactivate/ }).first()).toBeVisible();
       await scan(page, testInfo, `admin-resources@${vp.name}`);
+      // The day timeline (VIZ-02): its chart, its phone cards, or its empty or closed sentence.
+      await testInfo.attach("timeline-booking", { body: await bookCypressToday(), contentType: "text/plain" });
       await page.goto("/staff");
       await page.getByRole("tab", { name: "Today's bookings" }).click();
-      await expect(page.getByRole("table", { name: /^Bookings today/ })).toBeVisible();
+      await expect(page.getByText(/^(Now: |Opens at |Closed now\. )|^No bookings today; every space is free\.$|^The site is closed today\.$/).first()).toBeVisible();
+      await page.waitForLoadState("networkidle");
       await scan(page, testInfo, `staff-today@${vp.name}`);
+    });
+
+    test("admin Requests tab has no axe violations", async ({ page }, testInfo) => {
+      // The kept-or-changed matrices and the time-to-review chart (VIZ-09).
+      await page.goto("/admin");
+      await page.getByRole("tab", { name: "Requests" }).click();
+      await expect(page.getByRole("table", { name: "Suggestion agreement by provider" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Time from submission to staff review" })).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      await scan(page, testInfo, `admin-requests@${vp.name}`);
     });
 
     test("find with the filter disclosure open has no axe violations", async ({ page }, testInfo) => {

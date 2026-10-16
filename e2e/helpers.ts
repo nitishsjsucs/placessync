@@ -1,4 +1,4 @@
-import type { APIRequestContext, Page } from "@playwright/test";
+import { type APIRequestContext, type Page, request as playwrightRequest } from "@playwright/test";
 
 export const ADMIN = "emp_100";
 export const STAFF = "emp_093";
@@ -67,3 +67,36 @@ export const PAGES = [
   { name: "ui-gallery", path: "/ui", ready: "UI kit gallery" },
   { name: "not-found", path: "/no-such-page", ready: "Page not found" },
 ] as const;
+
+/** The site's wall clock now: { date, minutes }. */
+export function siteNow(timeZone = "America/Los_Angeles"): { date: string; minutes: number } {
+  const fmt = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const p = Object.fromEntries(fmt.formatToParts(new Date()).map((x) => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, minutes: (Number(p.hour) % 24) * 60 + Number(p.minute) };
+}
+
+/**
+ * Best effort: books Cypress for the next half hour today as emp_077, so the staff
+ * timeline has a bar to draw. Does nothing on a weekend or after the last slot (the
+ * timeline then shows its closed or empty state, which the scans cover too). No other
+ * spec books today or uses this space and person.
+ */
+export async function bookCypressToday(): Promise<string> {
+  // Its own request context: signing in as emp_077 must not replace the page's session.
+  const ctx = await playwrightRequest.newContext({ baseURL: "http://localhost:8783" });
+  try {
+    const health = (await (await ctx.get("/api/health")).json()) as { siteToday: string; siteRules: { timezone: string; closeMin: number } };
+    const now = siteNow(health.siteRules.timezone);
+    const start = Math.max(7 * 60, Math.ceil((now.minutes + 1) / 30) * 30);
+    if (now.date !== health.siteToday || !isWeekdayDate(health.siteToday) || start + 30 > health.siteRules.closeMin) return "not bookable now";
+    const login = await ctx.post("/api/dev/login", { data: { employeeId: "emp_077" } });
+    if (!login.ok()) return `login ${login.status()}`;
+    const res = await ctx.post("/api/reservations", {
+      headers: { "Idempotency-Key": `e2e-timeline-${health.siteToday}-${start}` },
+      data: { resourceId: "res_cypress", date: health.siteToday, startMin: start, endMin: start + 30, attendees: 2, title: "e2e timeline" },
+    });
+    return `booked ${res.status()}`;
+  } finally {
+    await ctx.dispose();
+  }
+}
