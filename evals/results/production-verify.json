@@ -1,8 +1,8 @@
 {
   "meta": {
-    "gitSha": "34f9fe21de2e48b6a838865279f998c287903129",
+    "gitSha": "d14e0ac4518eaa51588f82433e45169ac5bb4055",
     "dirty": false,
-    "timestamp": "2026-10-15T21:10:23.389Z",
+    "timestamp": "2026-10-16T20:36:00.119Z",
     "node": "v25.9.0",
     "wrangler": "4.149.0",
     "os": "Darwin 25.5.0 arm64",
@@ -33,7 +33,7 @@
     "via": "service token"
   },
   "contention": {
-    "date": "2026-10-19",
+    "date": "2026-10-20",
     "window": {
       "startMin": 420,
       "endMin": 480
@@ -48,8 +48,8 @@
     "transportErrors": 0,
     "confirmedInWindow": 1,
     "latencyMs": {
-      "p50": 1839.3,
-      "max": 1999.7
+      "p50": 909.2,
+      "max": 1658
     },
     "passed": true,
     "failures": []
@@ -84,9 +84,9 @@
         "expectedCategory": "building_systems",
         "confidence": 0.9,
         "categoryInEnum": true,
-        "providerLatencyMs": 1886,
+        "providerLatencyMs": 1460,
         "providerAttempts": 1,
-        "submitToSuggestionMsUpperBound": 7782
+        "submitToSuggestionMsUpperBound": 6090
       },
       {
         "started": "started",
@@ -97,9 +97,9 @@
         "expectedCategory": "electrical_av",
         "confidence": 0.9,
         "categoryInEnum": true,
-        "providerLatencyMs": 1788,
+        "providerLatencyMs": 1731,
         "providerAttempts": 1,
-        "submitToSuggestionMsUpperBound": 6522
+        "submitToSuggestionMsUpperBound": 7089
       },
       {
         "started": "started",
@@ -110,29 +110,29 @@
         "expectedCategory": "cleaning_safety",
         "confidence": 0.9,
         "categoryInEnum": true,
-        "providerLatencyMs": 2156,
+        "providerLatencyMs": 2208,
         "providerAttempts": 1,
-        "submitToSuggestionMsUpperBound": 5449
+        "submitToSuggestionMsUpperBound": 6241
       }
     ]
   },
   "window": {
-    "start": "2026-10-15T21:10:43.486Z",
-    "end": "2026-10-15T21:11:04.209Z"
+    "start": "2026-10-16T20:36:20.259Z",
+    "end": "2026-10-16T20:36:38.345Z"
   },
   "cpu": {
     "limitMs": 10,
     "tail": null,
     "graphql": {
       "source": "GraphQL workersInvocationsAdaptive",
-      "requests": 218,
+      "requests": 221,
       "errors": 0,
-      "subrequests": 408,
+      "subrequests": 391,
       "statuses": {
-        "success": 218
+        "success": 221
       },
-      "p50Ms": 15.72,
-      "p99Ms": 40.97,
+      "p50Ms": 6.63,
+      "p99Ms": 36.89,
       "limitOutcomes": 0
     },
     "graphqlCpuUnit": {
@@ -143,7 +143,7 @@
     "graphqlError": null,
     "verdict": "exceeds",
     "reasons": [
-      "analytics CPU p99 40.97 ms is over 10 ms"
+      "analytics CPU p99 36.89 ms is over 10 ms"
     ]
   },
   "gates": {
