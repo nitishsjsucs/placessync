@@ -48,7 +48,11 @@ beforeEach(() => {
     "POST /api/staff/requests/req_p/review": { request: {} },
   });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 const rowOf = (title: string) => screen.getByRole("link", { name: title }).closest("tr") as HTMLElement;
 
@@ -94,6 +98,7 @@ describe("Staff dashboard (SPEC 14.1)", () => {
     expect(api.calls.find((c) => c.url === "/api/staff/requests/req_s/review")?.body).toEqual({ decision: "accept" });
     const banner = await screen.findByTestId("status-banner");
     expect(banner.textContent).toContain('Assigned "Projector dead". It is now under In progress.');
+    expect(within(banner).getByRole("link", { name: "Go to In progress" }).getAttribute("href")).toBe("/staff?tab=working");
     expect(document.activeElement).toBe(banner);
 
     await user.click(within(rowOf("Projector dead")).getByRole("button", { name: /^Reassign/ }));
@@ -170,5 +175,77 @@ describe("Staff dashboard (SPEC 14.1)", () => {
     await waitFor(() => expect(screen.queryByText("The queue could not be loaded.")).toBeNull());
     await user.click(screen.getByRole("tab", { name: "Triage queue" }));
     expect(await screen.findByRole("link", { name: "Projector dead" })).toBeTruthy();
+  });
+});
+
+describe("Staff dashboard stays current and keeps its tab (UX-08)", () => {
+  const queueGets = () => api.calls.filter((c) => c.method === "GET" && c.url === "/api/staff/requests");
+
+  it("opens the tab named in ?tab= and writes tab changes with replace; row links remember the tab", async () => {
+    api.set("GET /api/staff/requests?status=assigned", { requests: [{ ...suggested, id: "req_w", title: "Chair broken", status: "assigned", finalCategory: "furniture_fixtures" }] });
+    const { router } = renderAt("/staff?tab=working");
+    expect(await screen.findByRole("table", { name: "Assigned and in progress" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "In progress" }).getAttribute("aria-selected")).toBe("true");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("link", { name: "Chair broken" }));
+    await screen.findByRole("heading", { level: 1 });
+    expect(router.state.location.state).toEqual({ from: "/staff?tab=working" });
+    await router.navigate(-1);
+    await screen.findByRole("table", { name: "Assigned and in progress" });
+    await user.click(screen.getByRole("tab", { name: "Resolved" }));
+    await waitFor(() => expect(router.state.location.search).toBe("?tab=resolved"));
+    expect(router.state.historyAction).toBe("REPLACE");
+  });
+
+  it("refetches the queue every 60 s while visible, so a request eligible after 2 minutes appears without an event", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    queue = [suggested];
+    renderAt("/staff");
+    await screen.findByRole("link", { name: "Projector dead" });
+    const before = queueGets().length;
+    queue = [suggested, pending];
+    await act(async () => vi.advanceTimersByTimeAsync(60_000));
+    expect(queueGets().length).toBe(before + 1);
+    const row = (await screen.findByRole("link", { name: "Odd smell" })).closest("tr") as HTMLElement;
+    expect(within(row).getByText("Classification pending")).toBeTruthy();
+    expect(within(row).getByRole("button", { name: /^Categorize/ })).toBeTruthy();
+    // Only the queue is fetched again, not the other tabs' lists.
+    expect(api.calls.filter((c) => c.url.startsWith("/api/staff/requests?status=")).length).toBe(3);
+    expect(screen.getByText(/^Updated \d\d:\d\d$/)).toBeTruthy();
+  });
+
+  it("makes no timed request while hidden, and refetches when the page becomes visible", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderAt("/staff");
+    await screen.findByRole("link", { name: "Projector dead" });
+    const before = queueGets().length;
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    await act(async () => vi.advanceTimersByTimeAsync(180_000));
+    expect(queueGets().length).toBe(before);
+    visibility.mockReturnValue("visible");
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await waitFor(() => expect(queueGets().length).toBe(before + 1));
+  });
+
+  it("says Connecting at first, Live once the socket opens, and refetches the queue after a reconnect", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderAt("/staff");
+    await screen.findByRole("link", { name: "Projector dead" });
+    expect(screen.getByText("Connecting to live updates")).toBeTruthy();
+    const first = FakeWebSocket.last();
+    await act(async () => first.open());
+    expect(screen.getByText("Live updates on")).toBeTruthy();
+    const before = queueGets().length;
+    await act(async () => first.serverClose(1006));
+    expect(screen.getByText("Live updates offline, retrying")).toBeTruthy();
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    const second = FakeWebSocket.last();
+    expect(second).not.toBe(first);
+    queue = [...queue, { ...suggested, id: "req_missed", title: "Sent while offline" }];
+    await act(async () => second.open());
+    expect(await screen.findByRole("link", { name: "Sent while offline" })).toBeTruthy();
+    expect(queueGets().length).toBe(before + 1);
   });
 });

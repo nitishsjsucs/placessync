@@ -1,5 +1,5 @@
 import { render } from "@testing-library/react";
-import { createMemoryRouter } from "react-router";
+import { type InitialEntry, createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { Providers, appRoutes } from "../../src/client/App.tsx";
 
@@ -9,7 +9,7 @@ export function renderAt(path: string) {
 }
 
 /** Like renderAt, with earlier history entries; the last entry is the current one. */
-export function renderAtEntries(entries: string[]) {
+export function renderAtEntries(entries: InitialEntry[]) {
   const router = createMemoryRouter(appRoutes, { initialEntries: entries, initialIndex: entries.length - 1 });
   const utils = render(
     <Providers>

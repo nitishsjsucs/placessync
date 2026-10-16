@@ -1,8 +1,13 @@
 // Facilities staff dashboard (SPEC 14.1): the triage queue with suggestions and their
 // provider labels, accept, reassign or categorize in a Dialog, work in progress and
 // resolved requests, and live staff events.
-import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router";
+//
+// The tab is kept in ?tab= (replace), so Back from a request returns to it. The queue
+// also refreshes on its own: every 60 s while the page is visible, when the page becomes
+// visible again, and when the live socket reconnects. A request still in "submitted"
+// becomes eligible after 2 minutes without any staff event, so live events alone miss it.
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { StaffBookingsResponse, StaffQueueResponse } from "../../shared/api.ts";
 import { CATEGORIES } from "../../shared/triage/categories.ts";
 import { providerLabel } from "../../shared/triage/provider-labels.ts";
@@ -30,6 +35,11 @@ const TABS = [
   { id: "resolved", label: "Resolved" },
   { id: "today", label: "Today's bookings" },
 ];
+export const QUEUE_REFRESH_MS = 60_000;
+
+function hhmm(d: Date): string {
+  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+}
 type Booking = StaffBookingsResponse["bookings"][number];
 const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ value: c, label: categoryLabel(c) }));
 
@@ -44,7 +54,11 @@ export function StaffDashboardPage() {
   const site = useSite();
   const announce = useAnnounce();
   const banner = useStatusBanner();
-  const [tab, setTab] = useState("queue");
+  const [params, setParams] = useSearchParams();
+  const tabParam = params.get("tab");
+  const tab = TABS.some((t) => t.id === tabParam) ? (tabParam as string) : "queue";
+  const setTab = (id: string) => setParams(id === "queue" ? new URLSearchParams() : new URLSearchParams({ tab: id }), { replace: true });
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [queue, setQueue] = useState<QueueItem[] | null>(null);
   const [working, setWorking] = useState<QueueItem[]>([]);
   const [resolved, setResolved] = useState<QueueItem[]>([]);
@@ -88,6 +102,19 @@ export function StaffDashboardPage() {
       setQueue(q.requests);
       setWorking([...assigned.requests, ...inProgress.requests]);
       setResolved(done.requests);
+      setUpdatedAt(new Date());
+      setError(null);
+    } catch {
+      setError("The queue could not be loaded.");
+    }
+  }, []);
+
+  /** Only the triage queue: what the timed and reconnect refreshes need. */
+  const loadQueue = useCallback(async () => {
+    try {
+      const q = await api.get("/api/staff/requests", StaffQueueResponse);
+      setQueue(q.requests);
+      setUpdatedAt(new Date());
       setError(null);
     } catch {
       setError("The queue could not be loaded.");
@@ -98,12 +125,37 @@ export function StaffDashboardPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const visible = () => document.visibilityState === "visible";
+    const timer = setInterval(() => {
+      if (visible()) void loadQueue();
+    }, QUEUE_REFRESH_MS);
+    const onVisibility = () => {
+      if (visible()) void loadQueue();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [loadQueue]);
+
   const liveStatus = useStaffEvents(site.siteId, (e) => {
     if (e.event === "triage_ready") announce("A new request is ready for review.");
     if (e.event === "triage_unavailable") announce("A request needs manual categorization.");
     if (e.event === "triage_overdue") announce("A review is overdue.");
     void load();
   });
+
+  // Events sent while the socket was down are not replayed: refetch the queue when it
+  // comes back (not on the first connection, which follows the initial load).
+  const wasLive = useRef(false);
+  const lastStatus = useRef(liveStatus);
+  useEffect(() => {
+    if (liveStatus === "live" && lastStatus.current !== "live" && wasLive.current) void loadQueue();
+    if (liveStatus === "live") wasLive.current = true;
+    lastStatus.current = liveStatus;
+  }, [liveStatus, loadQueue]);
 
   function openReview(item: QueueItem, mode: ReviewMode) {
     setCategory(mode === "reassign" ? (item.suggestion?.category ?? null) : null);
@@ -123,7 +175,7 @@ export function StaffDashboardPage() {
       await api.postRaw(`/api/staff/requests/${review.item.id}/review`, body);
       announce(`Request "${review.item.title}" assigned.`);
       // The row leaves the queue, so the result takes focus.
-      banner.show({ text: `Assigned "${review.item.title}". It is now under In progress.`, focus: true });
+      banner.show({ text: `Assigned "${review.item.title}". It is now under In progress.`, link: { to: "/staff?tab=working", label: "Go to In progress" }, focus: true });
       setReview(null);
       setNotice(null);
     } catch (err) {
@@ -151,7 +203,15 @@ export function StaffDashboardPage() {
   }
 
   const base = [
-    { key: "title", header: "Request", render: (r: QueueItem) => <Link to={`/requests/${r.id}`}>{r.title}</Link> },
+    {
+      key: "title",
+      header: "Request",
+      render: (r: QueueItem) => (
+        <Link to={`/requests/${r.id}`} state={{ from: tab === "queue" ? "/staff" : `/staff?tab=${tab}` }}>
+          {r.title}
+        </Link>
+      ),
+    },
     { key: "where", header: "Where", render: (r: QueueItem) => r.resourceName ?? (r.locationNote || "Not given") },
     { key: "age", header: "Age", render: (r: QueueItem) => age(r.ageMinutes), sortValue: (r: QueueItem) => r.ageMinutes },
   ];
@@ -185,8 +245,9 @@ export function StaffDashboardPage() {
         <h1>Facilities staff</h1>
         <span className={styles.status} role="status">
           <span className={`${styles.dot} ${liveStatus === "live" ? styles.dotLive : ""}`} aria-hidden="true" />
-          {liveStatus === "live" ? "Live updates on" : "Live updates offline"}
+          {liveStatus === "live" ? "Live updates on" : liveStatus === "connecting" ? "Connecting to live updates" : "Live updates offline, retrying"}
         </span>
+        {updatedAt ? <span className={`${styles.muted} ${styles.status}`}>Updated {hhmm(updatedAt)}</span> : null}
       </div>
       {error ? (
         <LoadError
