@@ -224,6 +224,98 @@ describe("DayTimeline (VIZ-02)", () => {
     expect(screen.queryByRole("group", { name: /^Bookings by space/ })).toBeNull();
   });
 
+  describe("where the chart scrolls inside its frame (a tablet)", () => {
+    // A model of Chromium's layout at 768 px: the frame shows 734 px, the space names take
+    // 152 px, and the track is 720 px at 1 px per minute, so 17:30 is past the right edge.
+    const FRAME_LEFT = 16;
+    const FRAME_WIDTH = 734;
+    const NAMES = 152;
+    const TIP_WIDTH = 300;
+    const LATE: StaffBookingsResponse = {
+      ...DATA,
+      bookings: [...DATA.bookings, { id: "rsv_4", resourceId: "res_2a02", resourceName: "Desk 2A-02", kind: "desk", employeeId: "emp_004", employeeName: "Leo Gupta", startMin: 1050, endMin: 1140, attendees: 1, title: null }],
+    };
+    let scrollIntoView: ReturnType<typeof vi.fn>;
+
+    function layOut() {
+      const frame = screen.getByTestId("timeline-frame");
+      let scrollLeft = 0;
+      Object.defineProperty(frame, "scrollLeft", { configurable: true, get: () => scrollLeft, set: (v: number) => (scrollLeft = Math.max(0, Math.min(NAMES + 720 - FRAME_WIDTH, v))) });
+      Object.defineProperty(frame, "clientWidth", { configurable: true, value: FRAME_WIDTH });
+      const names = frame.querySelector<HTMLElement>("[aria-hidden=true] > span");
+      Object.defineProperty(names, "offsetWidth", { configurable: true, value: NAMES });
+      const trackLeft = () => FRAME_LEFT + NAMES - scrollLeft;
+      const box = (left: number, width: number) => ({ left, right: left + width, width, top: 0, bottom: 20, height: 20, x: left, y: 0, toJSON: () => ({}) }) as DOMRect;
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        if (this === frame) return box(FRAME_LEFT, FRAME_WIDTH);
+        if (this.dataset.start) return box(trackLeft() + Number(this.dataset.start) - 420, Number(this.dataset.end) - Number(this.dataset.start));
+        if (this.dataset.testid === "timeline-tooltip") {
+          const shift = Number(/translateX\((-?[\d.]+)px\)/.exec(this.style.transform)?.[1] ?? 0);
+          const left = this.style.left ? (parseFloat(this.style.left) / 100) * 720 : 720 - (parseFloat(this.style.right) / 100) * 720 - TIP_WIDTH;
+          return box(trackLeft() + left + shift, TIP_WIDTH);
+        }
+        return box(0, 0);
+      });
+      return frame;
+    }
+
+    beforeEach(() => {
+      scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView as unknown as Element["scrollIntoView"];
+    });
+    afterEach(() => {
+      vi.restoreAllMocks();
+      delete (Element.prototype as Partial<Element>).scrollIntoView;
+    });
+
+    it("scrolls a booking past the frame's edge into view when the keyboard focuses it", () => {
+      renderTimeline({ data: LATE });
+      const frame = layOut();
+      act(() => chart().focus());
+      expect(frame.scrollLeft).toBe(0);
+      fireEvent.keyDown(chart(), { key: "ArrowDown" });
+      fireEvent.keyDown(chart(), { key: "ArrowDown" });
+      fireEvent.keyDown(chart(), { key: "End" });
+      expect(screen.getByTestId("timeline-tooltip").textContent).toBe("Desk 2A-02, 17:30 to 19:00, Leo Gupta");
+      // The bar ran from 798 to 888 px with the frame's visible part ending at 750 px.
+      const bar = bars("res_2a02")[0] as HTMLElement;
+      expect(bar.dataset.focused).toBe("bar");
+      const r = bar.getBoundingClientRect();
+      expect(frame.scrollLeft).toBeGreaterThan(0);
+      expect(r.left).toBeGreaterThanOrEqual(FRAME_LEFT + NAMES);
+      expect(r.right).toBeLessThanOrEqual(FRAME_LEFT + FRAME_WIDTH);
+      // Its text beside it is inside the visible part too.
+      const t = screen.getByTestId("timeline-tooltip").getBoundingClientRect();
+      expect(t.left).toBeGreaterThanOrEqual(FRAME_LEFT + NAMES);
+      expect(t.right).toBeLessThanOrEqual(FRAME_LEFT + FRAME_WIDTH);
+      // Each move also brings the focused row into the page's view.
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+      expect((scrollIntoView.mock.contexts.at(-1) as HTMLElement).getAttribute("aria-label")).toMatch(/^Desk 2A-02: /);
+      // Back to the first booking of the day: the frame scrolls back to show its start.
+      fireEvent.keyDown(chart(), { key: "ArrowUp" });
+      fireEvent.keyDown(chart(), { key: "Home" });
+      expect(bars("res_2a01")[0]?.getBoundingClientRect().left).toBeGreaterThanOrEqual(FRAME_LEFT + NAMES);
+    });
+
+    it("keeps a hovered booking's text inside the frame's visible part without scrolling", () => {
+      renderTimeline({ data: LATE });
+      const frame = layOut();
+      fireEvent.pointerEnter(bars("res_2a02")[0] as HTMLElement);
+      const tip = screen.getByTestId("timeline-tooltip");
+      expect(frame.scrollLeft).toBe(0);
+      // Anchored to the bar's end at 888 px, it is moved left to end inside the frame.
+      expect(tip.style.transform).toMatch(/^translateX\(-\d+(\.\d+)?px\)$/);
+      expect(tip.getBoundingClientRect().right).toBeLessThanOrEqual(FRAME_LEFT + FRAME_WIDTH);
+      expect(tip.style.maxWidth).toBe(`min(22rem, ${FRAME_WIDTH - NAMES - 8}px)`);
+      const before = tip.style.transform;
+      // Scrolled by hand to the end, the bar's end meets the frame's: only the edge gap is left.
+      frame.scrollLeft = 1000;
+      fireEvent.scroll(frame);
+      expect(before).not.toBe("translateX(-4px)");
+      expect(tip.style.transform).toBe("translateX(-4px)");
+    });
+  });
+
   it("has no axe violations as a chart, as cards and as a table", async () => {
     vi.useRealTimers();
     const { unmount } = renderTimeline();

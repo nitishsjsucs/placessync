@@ -12,7 +12,9 @@
 // holds). Up and Down move between spaces, Left and Right between a space's bookings,
 // Home and End to its first and last. The focused booking's text appears beside it and
 // in a polite live region; every value is also in the row's accessible name and the table.
-import { type CSSProperties, type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+// Where the chart scrolls inside its frame (tablets), each move scrolls the focused booking
+// into view, and the text beside it is kept inside the frame's visible part.
+import { type CSSProperties, type KeyboardEvent, type Ref, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { StaffBookingsResponse } from "../../shared/api.ts";
 import { formatMinutes, isWeekday, siteClock } from "../../shared/time.ts";
@@ -43,6 +45,8 @@ import {
 export const REFETCH_THROTTLE_MS = 30_000;
 /** The track is at least one pixel per minute wide; wider screens only make bars wider. */
 const PX_PER_MINUTE = 1;
+/** Room kept between the text beside a booking and the frame's visible edges. */
+const EDGE_PX = 4;
 
 export interface DayTimelineProps {
   site: SiteContext;
@@ -202,6 +206,11 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
   const [focused, setFocused] = useState(false);
   const [hover, setHover] = useState<{ r: number; b: number } | null>(null);
   const [said, setSaid] = useState("");
+  const frameRef = useRef<HTMLDivElement>(null);
+  const nameRef = useRef<HTMLSpanElement>(null);
+  const tipRef = useRef<HTMLSpanElement>(null);
+  // Set by a keyboard move: the next layout scrolls the focused booking into view.
+  const reveal = useRef(false);
 
   // Keep the roving position inside the rows when they change.
   const clamp = (p: { r: number; b: number } | null) => {
@@ -219,7 +228,10 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
   const go = (p: { r: number; b: number } | null) => {
     const next = clamp(p);
     setFocus(next);
-    if (next) setSaid(textAt(next));
+    if (next) {
+      setSaid(textAt(next));
+      reveal.current = true;
+    }
   };
   /** The booking in another row nearest in time to the one focused now. */
   const nearest = (r: number, from: { r: number; b: number } | null) => {
@@ -249,6 +261,21 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
     go(move());
   };
 
+  // After every render: a keyboard move scrolls its booking into view, then the text
+  // beside the focused or hovered booking is kept inside the frame's visible part.
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const inset = nameRef.current?.offsetWidth ?? 0;
+    if (reveal.current) {
+      reveal.current = false;
+      const el = frame.querySelector<HTMLElement>("[data-focused]");
+      el?.closest("li")?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+      if (el?.dataset.focused === "bar") revealInFrame(frame, el, inset);
+    }
+    fitInFrame(frame, tipRef.current, inset);
+  });
+
   const tip = hover ?? (focused ? at : null);
   const style = { "--hours": hours, "--track-min": `${(closeMin - openMin) * PX_PER_MINUTE}px` } as CSSProperties;
   const nowLeft = place(clockMinutes, clockMinutes, openMin, closeMin).left;
@@ -270,7 +297,7 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
           Ended before now
         </span>
       </p>
-      <div className={styles.scroll}>
+      <div className={styles.scroll} ref={frameRef} data-testid="timeline-frame" onScroll={() => fitInFrame(frameRef.current, tipRef.current, nameRef.current?.offsetWidth ?? 0)}>
         <div
           role="group"
           tabIndex={0}
@@ -282,11 +309,14 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
           onFocus={() => {
             setFocused(true);
             if (!at) go({ r: 0, b: nearest(0, null) });
+            else reveal.current = true;
           }}
           onBlur={() => setFocused(false)}
         >
           <div className={styles.axis} aria-hidden="true">
-            <span className={styles.nameCell}>Space</span>
+            <span className={styles.nameCell} ref={nameRef}>
+              Space
+            </span>
             <span className={styles.axisTrack}>
               {labels.map((m) => (
                 <span key={m} className={styles.tick} style={{ left: `${place(m, m, openMin, closeMin).left}%` }}>
@@ -307,7 +337,7 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
               const rowFocused = focused && at?.r === r && at.b === -1;
               return (
                 <li key={row.space.id} className={styles.row} aria-label={sentence}>
-                  <span className={`${styles.nameCell} ${rowFocused ? styles.rowFocus : ""}`}>
+                  <span className={`${styles.nameCell} ${rowFocused ? styles.rowFocus : ""}`} data-focused={rowFocused ? "row" : undefined}>
                     <span aria-hidden="true" className={styles.name}>
                       {row.space.name}
                       {row.space.active ? "" : " (inactive)"}
@@ -328,6 +358,7 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
                           data-start={bar.startMin}
                           data-end={bar.endMin}
                           data-ended={over || undefined}
+                          data-focused={isFocus ? "bar" : undefined}
                           onPointerEnter={() => setHover({ r, b })}
                           onPointerLeave={() => setHover(null)}
                         >
@@ -335,7 +366,9 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
                         </span>
                       );
                     })}
-                    {tip && tip.r === r && row.bars[tip.b] ? <Tooltip text={textAt(tip)} span={place((row.bars[tip.b] as Bar).startMin, (row.bars[tip.b] as Bar).endMin, openMin, closeMin)} below={r === 0} /> : null}
+                    {tip && tip.r === r && row.bars[tip.b] ? (
+                      <Tooltip ref={tipRef} text={textAt(tip)} span={place((row.bars[tip.b] as Bar).startMin, (row.bars[tip.b] as Bar).endMin, openMin, closeMin)} below={r === 0} />
+                    ) : null}
                   </span>
                 </li>
               );
@@ -354,11 +387,53 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
   );
 }
 
-function Tooltip({ text, span, below }: { text: string; span: { left: number; width: number }; below: boolean }) {
-  // Late in the day the text hangs left from the bar's end, so it stays inside the chart.
+/** The frame's visible part right of the sticky space names, in viewport px; null before layout. */
+function visibleBox(frame: HTMLElement, inset: number): { left: number; right: number } | null {
+  const box = frame.getBoundingClientRect();
+  if (box.width <= 0) return null;
+  const left = box.left + frame.clientLeft;
+  return { left: left + inset, right: left + frame.clientWidth };
+}
+
+/** Scrolls the frame sideways so a bar shows right of the space names: its end if it fits, its start always. */
+function revealInFrame(frame: HTMLElement, el: HTMLElement, inset: number): void {
+  const box = visibleBox(frame, inset);
+  if (!box) return;
+  const r = el.getBoundingClientRect();
+  let dx = 0;
+  if (r.right > box.right - EDGE_PX) dx = r.right - (box.right - EDGE_PX);
+  if (r.left - dx < box.left + EDGE_PX) dx = r.left - (box.left + EDGE_PX);
+  if (dx !== 0) frame.scrollLeft += dx;
+}
+
+/** Shifts the text beside a booking sideways so it stays inside the frame's visible part. */
+function fitInFrame(frame: HTMLElement | null, tip: HTMLElement | null, inset: number): void {
+  if (!frame || !tip) return;
+  tip.style.transform = "";
+  const box = visibleBox(frame, inset);
+  if (!box) return;
+  tip.style.maxWidth = `min(22rem, ${Math.max(0, box.right - box.left - 2 * EDGE_PX)}px)`;
+  const r = tip.getBoundingClientRect();
+  let dx = 0;
+  if (r.right > box.right - EDGE_PX) dx = box.right - EDGE_PX - r.right;
+  if (r.left + dx < box.left + EDGE_PX) dx = box.left + EDGE_PX - r.left;
+  if (dx !== 0) tip.style.transform = `translateX(${dx}px)`;
+}
+
+interface TooltipProps {
+  text: string;
+  span: { left: number; width: number };
+  below: boolean;
+  ref: Ref<HTMLSpanElement>;
+}
+
+function Tooltip({ text, span, below, ref }: TooltipProps) {
+  // Late in the day the text hangs left from the bar's end; fitInFrame then keeps it
+  // inside the part of the chart that shows.
   const anchorRight = span.left > 55;
   return (
     <span
+      ref={ref}
       className={`${styles.tooltip} ${below ? styles.tooltipBelow : ""}`}
       style={anchorRight ? { right: `${100 - span.left - span.width}%` } : { left: `${span.left}%` }}
       data-testid="timeline-tooltip"

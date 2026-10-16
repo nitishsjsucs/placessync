@@ -100,3 +100,29 @@ export async function bookCypressToday(): Promise<string> {
     await ctx.dispose();
   }
 }
+
+/**
+ * Books Sequoia for an hour from 17:30 today (or the next half hour, if later) as emp_078,
+ * so the staff timeline has a booking past the right edge of its frame at 768 px. Returns
+ * the booked start in minutes, or null on a weekend or after 18:00 site time, when no
+ * such hour is left. No other spec books Sequoia today or signs in as emp_078.
+ */
+export async function bookLateToday(): Promise<number | null> {
+  const ctx = await playwrightRequest.newContext({ baseURL: "http://localhost:8783" });
+  try {
+    const health = (await (await ctx.get("/api/health")).json()) as { siteToday: string; siteRules: { timezone: string; closeMin: number } };
+    const now = siteNow(health.siteRules.timezone);
+    const start = Math.max(17 * 60 + 30, Math.ceil((now.minutes + 1) / 30) * 30);
+    if (now.date !== health.siteToday || !isWeekdayDate(health.siteToday) || start + 60 > health.siteRules.closeMin) return null;
+    const login = await ctx.post("/api/dev/login", { data: { employeeId: "emp_078" } });
+    if (!login.ok()) throw new Error(`login ${login.status()}`);
+    const res = await ctx.post("/api/reservations", {
+      headers: { "Idempotency-Key": `e2e-late-${health.siteToday}-${start}` },
+      data: { resourceId: "res_sequoia", date: health.siteToday, startMin: start, endMin: start + 60, attendees: 6, title: "Quarterly planning review with the workplace team" },
+    });
+    if (res.status() !== 201 && res.status() !== 200) throw new Error(`late booking ${res.status()}: ${await res.text()}`);
+    return start;
+  } finally {
+    await ctx.dispose();
+  }
+}
