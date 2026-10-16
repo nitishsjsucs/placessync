@@ -16,7 +16,7 @@ interface BaseProps {
   rows?: number;
   id?: string;
   name?: string;
-  type?: "text" | "email" | "search" | "number";
+  type?: "text" | "email" | "search" | "number" | "date";
   placeholder?: string;
   autoComplete?: string;
   disabled?: boolean;

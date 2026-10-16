@@ -96,4 +96,18 @@ describe("DataTable sorting (Tier 2)", () => {
     expect(firstColumn()).toEqual(["Madrone", "Sequoia", "Cypress"]);
     await expectNoAxeViolations(container);
   });
+
+  it("stacked={false} keeps the table layout under 640 px: header sort buttons, no Sort by select", async () => {
+    setMediaMatches("(max-width: 639px)", true);
+    const sortable = [{ ...columns[0]!, sortValue: (r: Row) => r.resource }, columns[1]!];
+    const { container, unmount } = render(<DataTable caption="Per day" columns={sortable} rows={rows} rowKey={(r) => r.id} stacked={false} />);
+    expect(screen.queryByRole("combobox", { name: "Sort by" })).toBeNull();
+    expect(screen.getByRole("button", { name: /Resource/ })).toBeTruthy();
+    expect((container.firstElementChild as HTMLElement).className).not.toMatch(/stacks/);
+    unmount();
+    // The default still stacks, with the Sort by select.
+    const stacked = render(<DataTable caption="Per day" columns={sortable} rows={rows} rowKey={(r) => r.id} />);
+    expect(screen.getByRole("combobox", { name: "Sort by" })).toBeTruthy();
+    expect((stacked.container.firstElementChild as HTMLElement).className).toMatch(/stacks/);
+  });
 });

@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ADMIN, EMPLOYEE, EMPLOYEE_2 } from "../helpers/tokens.ts";
 import { as, bizDay, hqLedger, json, seed } from "../helpers/world.ts";
@@ -106,6 +107,36 @@ describe("GET /api/reservations and cancel", () => {
     const again = await a.post(`/api/reservations/${created.reservation.id}/cancel`, {});
     expect(again.status).toBe(409);
     expect((await json(again)).error).toBe("not_confirmed");
+  });
+
+  it("names the spaces in the list, a deactivated one included, and only those", async () => {
+    const a = await as(EMPLOYEE);
+    const admin = await as(ADMIN);
+    const date = bizDay(2);
+    await a.post("/api/reservations", { resourceId: "res_2a04", date, startMin: 540, endMin: 660 }, { "Idempotency-Key": key() }).then((r) => r.body?.cancel());
+    await a.post("/api/reservations", { resourceId: "res_sequoia", date, startMin: 720, endMin: 780 }, { "Idempotency-Key": key() }).then((r) => r.body?.cancel());
+    const off = await admin.patch("/api/admin/resources/res_2a04", { active: false });
+    expect(off.status).toBe(200);
+    await off.body?.cancel();
+    try {
+      // The resource list hides it from the employee...
+      const listed = await json<{ resources: { id: string }[] }>(await a.get("/api/sites/hq/resources"));
+      expect(listed.resources.some((r) => r.id === "res_2a04")).toBe(false);
+      // ...but their bookings still name it, and nothing else they did not book.
+      const body = await json<{ reservations: { resourceId: string }[]; resources: { id: string; name: string; active: boolean }[] }>(
+        await a.get(`/api/reservations?from=${date}&to=${date}`),
+      );
+      expect(body.reservations.map((r) => r.resourceId).sort()).toEqual(["res_2a04", "res_sequoia"]);
+      expect(body.resources).toEqual([
+        { id: "res_2a04", name: "Desk 2A-04", active: false },
+        { id: "res_sequoia", name: "Sequoia", active: true },
+      ]);
+      const none = await json<{ reservations: unknown[]; resources: unknown[] }>(await (await as(EMPLOYEE_2)).get(`/api/reservations?from=${date}&to=${date}`));
+      expect(none).toEqual({ reservations: [], resources: [] });
+    } finally {
+      await env.DB.prepare("UPDATE resources SET active = 1 WHERE id = 'res_2a04'").run();
+      await hqLedger().syncCatalog();
+    }
   });
 
   it("refuses a non-owner cancel with 403 and lets an admin cancel", async () => {

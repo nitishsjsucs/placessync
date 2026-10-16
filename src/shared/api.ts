@@ -188,7 +188,12 @@ export const ReservationsQuery = z.object({
   // emp_001..emp_100 locally; production sign-ins are emp_admin, emp_staff, emp_employee.
   employeeId: z.string().regex(/^emp_[a-z0-9_]{1,32}$/).optional(),
 });
-export const ReservationsResponse = z.object({ reservations: z.array(ReservationSchema) });
+export const ReservationsResponse = z.object({
+  reservations: z.array(ReservationSchema),
+  // The spaces those reservations are for, inactive ones included. Optional, so clients
+  // written before it (scripts/prod-verify.ts, scripts/eval-contention.ts) keep parsing.
+  resources: z.array(z.object({ id: z.string(), name: z.string(), active: z.boolean() })).optional(),
+});
 export type ReservationsResponse = z.infer<typeof ReservationsResponse>;
 
 export const CancelBody = z.object({ reason: z.string().trim().max(200).optional() });

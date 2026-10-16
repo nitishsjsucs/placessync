@@ -1,11 +1,11 @@
 // Reservation routes (SPEC 8). The Worker validates types and resolves the site from the
 // D1 resource row (404 before any Durable Object call); the ledger applies the rules.
 import { Hono } from "hono";
-import { CancelBody, ReservationsQuery, ReserveBody, type ReserveResponse } from "../../shared/api.ts";
+import { CancelBody, ReservationsQuery, type ReservationsResponse, ReserveBody, type ReserveResponse } from "../../shared/api.ts";
 import type { AppEnv } from "../app-env.ts";
 import { ApiError, errorResponse, jsonBody, queryParams } from "../http.ts";
 import { ledgerFor } from "../ledger/ledger-for.ts";
-import { findResource } from "../repo/catalog.ts";
+import { findResource, resourceNames } from "../repo/catalog.ts";
 
 const MESSAGES: Record<string, string> = {
   resource_conflict: "That time overlaps an existing booking.",
@@ -51,7 +51,12 @@ export const reservationRoutes = new Hono<AppEnv>()
     }
     const config = c.get("config");
     const reservations = await ledgerFor(c.env, config, config.siteId).reservationsFor(q.employeeId ?? principal.employeeId, q.from, q.to, q.status);
-    return c.json({ reservations });
+    // The names of exactly the spaces in this list, from the D1 catalog including inactive
+    // rows: the resource list hides inactive spaces from non-admins, so My bookings would
+    // otherwise show a raw id for a space deactivated after it was booked.
+    const resources = await resourceNames(c.env.DB, reservations.map((r) => r.resourceId));
+    const body: ReservationsResponse = { reservations, resources };
+    return c.json(body);
   })
   .post("/api/reservations/:id/cancel", jsonBody(CancelBody), async (c) => {
     const { reason } = c.req.valid("json");

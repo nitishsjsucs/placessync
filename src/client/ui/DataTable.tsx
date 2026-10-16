@@ -2,7 +2,9 @@
 // actions, and stacked rows with visible column labels under 640 px (each cell carries
 // its column label in data-label for the CSS). Columns with sortValue are sortable:
 // header buttons set aria-sort on wide screens, and a native "Sort by" select replaces
-// them in the stacked layout, where the header row is visually hidden.
+// them in the stacked layout, where the header row is visually hidden. A short numeric
+// table that fits a phone can pass stacked={false} to stay a table at every width (it
+// scrolls inside its own wrapper if it ever has to), instead of one card per row.
 import { type ReactNode, useId, useMemo, useState } from "react";
 import { COMPACT_QUERY, useMediaQuery } from "../hooks/useMediaQuery.ts";
 import styles from "./DataTable.module.css";
@@ -32,6 +34,8 @@ export interface DataTableProps<Row> {
   sort?: SortState | null;
   onSortChange?: (sort: SortState | null) => void;
   defaultSort?: SortState | null;
+  /** Under 640 px, one card per row (default true). False keeps the table layout. */
+  stacked?: boolean;
 }
 
 export function DataTable<Row>({
@@ -45,8 +49,9 @@ export function DataTable<Row>({
   sort: sortProp,
   onSortChange,
   defaultSort = null,
+  stacked = true,
 }: DataTableProps<Row>) {
-  const compact = useMediaQuery(COMPACT_QUERY);
+  const compact = useMediaQuery(COMPACT_QUERY) && stacked;
   const selectId = useId();
   const [own, setOwn] = useState<SortState | null>(defaultSort);
   const sort = sortProp !== undefined ? sortProp : own;
@@ -74,7 +79,7 @@ export function DataTable<Row>({
   };
 
   return (
-    <div className={styles.wrap}>
+    <div className={`${styles.wrap} ${stacked ? styles.stacks : ""}`}>
       {compact && sortable.length > 0 ? (
         <label className={styles.sortSelect} htmlFor={selectId}>
           Sort by

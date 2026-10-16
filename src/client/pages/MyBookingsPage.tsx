@@ -1,8 +1,10 @@
 // My bookings (SPEC 14.1): Upcoming, Past and Cancelled tabs; cancel with an optional
-// reason in a Dialog; a cancelled row moves to the Cancelled tab.
+// reason in a Dialog; a cancelled row moves to the Cancelled tab. Space names come with
+// the list itself, so a space deactivated after it was booked still shows its name,
+// marked "(not bookable now)" and without a calendar link.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
-import { type Reservation, ReservationsResponse, ReserveResponse, ResourcesResponse } from "../../shared/api.ts";
+import { type Reservation, ReservationsResponse, ReserveResponse } from "../../shared/api.ts";
 import { hasStarted } from "../../shared/rules.ts";
 import { addDays } from "../../shared/time.ts";
 import { ApiClientError, api, qs } from "../api/client.ts";
@@ -32,7 +34,7 @@ export function MyBookingsPage() {
   const banner = useStatusBanner();
   const [tab, setTab] = useState("upcoming");
   const [list, setList] = useState<Reservation[] | null>(null);
-  const [names, setNames] = useState<Map<string, string>>(new Map());
+  const [spaces, setSpaces] = useState<Map<string, { name: string; active: boolean }>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState<Reservation | null>(null);
   const [reason, setReason] = useState("");
@@ -44,17 +46,22 @@ export function MyBookingsPage() {
     try {
       const from = addDays(site.today, -60);
       const to = addDays(site.today, site.rules.horizonDays);
-      const [res, resources] = await Promise.all([
-        api.get(`/api/reservations${qs({ from, to })}`, ReservationsResponse),
-        api.get(`/api/sites/${site.siteId}/resources`, ResourcesResponse),
-      ]);
+      const res = await api.get(`/api/reservations${qs({ from, to })}`, ReservationsResponse);
       setList(res.reservations);
-      setNames(new Map(resources.resources.map((r) => [r.id, r.name])));
+      setSpaces(new Map((res.resources ?? []).map((r) => [r.id, { name: r.name, active: r.active }])));
       setError(null);
     } catch {
       setError("Your bookings could not be loaded.");
     }
-  }, [site.today, site.rules.horizonDays, site.siteId]);
+  }, [site.today, site.rules.horizonDays]);
+
+  /** The space's name, marked when it can no longer be booked. */
+  const spaceName = (id: string) => {
+    const s = spaces.get(id);
+    if (!s) return id;
+    return s.active ? s.name : `${s.name} (not bookable now)`;
+  };
+  const bookable = (id: string) => spaces.get(id)?.active !== false;
 
   useEffect(() => {
     void load();
@@ -78,7 +85,7 @@ export function MyBookingsPage() {
     setCancelError(null);
     try {
       await api.post(`/api/reservations/${cancelling.id}/cancel`, { reason: reason.trim() || undefined }, ReserveResponse);
-      const text = `Cancelled ${names.get(cancelling.resourceId) ?? "the booking"} on ${longDate(cancelling.date)}.`;
+      const text = `Cancelled ${spaces.get(cancelling.resourceId)?.name ?? "the booking"} on ${longDate(cancelling.date)}.`;
       announce(text);
       // The cancelled row leaves the Upcoming list, so the result takes focus.
       banner.show({ text, link: { to: "/find", label: "Find a space" }, focus: true });
@@ -95,8 +102,8 @@ export function MyBookingsPage() {
     {
       key: "space",
       header: "Space",
-      render: (r: Reservation) => <Link to={`/resources/${r.resourceId}`}>{names.get(r.resourceId) ?? r.resourceId}</Link>,
-      sortValue: (r: Reservation) => names.get(r.resourceId) ?? r.resourceId,
+      render: (r: Reservation) => (bookable(r.resourceId) ? <Link to={`/resources/${r.resourceId}`}>{spaceName(r.resourceId)}</Link> : spaceName(r.resourceId)),
+      sortValue: (r: Reservation) => spaceName(r.resourceId),
     },
     { key: "date", header: "Date", render: (r: Reservation) => longDate(r.date), sortValue: (r: Reservation) => `${r.date} ${String(r.startMin).padStart(4, "0")}` },
     { key: "time", header: "Time", render: (r: Reservation) => timeRange(r.startMin, r.endMin) },
@@ -148,7 +155,7 @@ export function MyBookingsPage() {
                     >
                       Cancel booking{" "}
                       <span className="visually-hidden">
-                        for {names.get(r.resourceId) ?? r.resourceId} on {longDate(r.date)}
+                        for {spaceName(r.resourceId)} on {longDate(r.date)}
                       </span>
                     </Button>
                   )
@@ -177,7 +184,7 @@ export function MyBookingsPage() {
       >
         {cancelling ? (
           <p>
-            {names.get(cancelling.resourceId) ?? cancelling.resourceId}, {longDate(cancelling.date)}, {timeRange(cancelling.startMin, cancelling.endMin)}.
+            {spaceName(cancelling.resourceId)}, {longDate(cancelling.date)}, {timeRange(cancelling.startMin, cancelling.endMin)}.
           </p>
         ) : null}
         <TextField label="Reason (optional)" value={reason} onChange={setReason} maxLength={200} multiline rows={3} />

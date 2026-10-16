@@ -53,6 +53,19 @@ export async function findResource(db: D1Database, resourceId: string): Promise<
   return row ? toResource(row) : null;
 }
 
+/**
+ * Names for the given resource ids, inactive ones included, so a booking on a space that
+ * was deactivated later still shows its name. One query, whatever the number of ids.
+ */
+export async function resourceNames(db: D1Database, ids: readonly string[]): Promise<{ id: string; name: string; active: boolean }[]> {
+  if (ids.length === 0) return [];
+  const { results } = await db
+    .prepare("SELECT id, name, active FROM resources WHERE id IN (SELECT value FROM json_each(?)) ORDER BY id")
+    .bind(JSON.stringify([...new Set(ids)]))
+    .all<{ id: string; name: string; active: number }>();
+  return results.map((r) => ({ id: r.id, name: r.name, active: Number(r.active) === 1 }));
+}
+
 export async function amenityLabels(db: D1Database): Promise<Map<string, string>> {
   const { results } = await db.prepare("SELECT id, label FROM amenities").all<{ id: string; label: string }>();
   return new Map(results.map((r) => [r.id, r.label]));

@@ -7,6 +7,10 @@ import { renderAt } from "../render-app.tsx";
 
 const base = { employeeId: "emp_001", kind: "desk", attendees: 1, title: null, createdAt: "x", cancelledAt: null, cancelledBy: null, cancelReason: null, version: 1 };
 let reservations: Record<string, unknown>[];
+const RESOURCES = generateResources();
+// What GET /api/reservations returns beside the list: the names of exactly those spaces.
+const namesFor = (list: Record<string, unknown>[], inactive: string[] = []) =>
+  RESOURCES.filter((r) => list.some((x) => x.resourceId === r.id)).map((r) => ({ id: r.id, name: r.name, active: !inactive.includes(r.id) }));
 
 beforeEach(() => {
   vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-10-08T15:00:00Z"));
@@ -18,8 +22,7 @@ beforeEach(() => {
   installFakeApi({
     "GET /api/health": HEALTH,
     "GET /api/me": me("emp_001", "employee"),
-    "GET /api/sites/hq/resources": { resources: generateResources() },
-    "GET /api/reservations": () => ({ reservations }),
+    "GET /api/reservations": () => ({ reservations, resources: namesFor(reservations) }),
     "POST /api/reservations/rsv_up/cancel": (c: { body: { reason?: string } }) => {
       const r = reservations[0] as Record<string, unknown>;
       Object.assign(r, { status: "cancelled", cancelReason: c.body.reason ?? null, cancelledBy: "emp_001", cancelledAt: "y", version: 2 });
@@ -83,8 +86,7 @@ describe("My bookings (SPEC 14.1)", () => {
     installFakeApi({
       "GET /api/health": HEALTH,
       "GET /api/me": me("emp_001", "employee"),
-      "GET /api/sites/hq/resources": { resources: generateResources() },
-      "GET /api/reservations": () => new Promise((r) => (release = r)).then(() => ({ reservations: [] })),
+      "GET /api/reservations": () => new Promise((r) => (release = r)).then(() => ({ reservations: [], resources: [] })),
     });
     renderAt("/bookings");
     expect(await screen.findByText("Loading your bookings…")).toBeTruthy();
@@ -100,8 +102,7 @@ describe("My bookings (SPEC 14.1)", () => {
     installFakeApi({
       "GET /api/health": HEALTH,
       "GET /api/me": me("emp_001", "employee"),
-      "GET /api/sites/hq/resources": { resources: generateResources() },
-      "GET /api/reservations": () => (failures-- > 0 ? respond(500, { error: "internal", message: "x" }) : { reservations }),
+      "GET /api/reservations": () => (failures-- > 0 ? respond(500, { error: "internal", message: "x" }) : { reservations, resources: namesFor(reservations) }),
     });
     renderAt("/bookings");
     const alert = await screen.findByRole("alert");
@@ -111,5 +112,23 @@ describe("My bookings (SPEC 14.1)", () => {
     await userEvent.setup().click(within(alert).getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(rowsOf("Upcoming bookings")).toEqual(["Desk 2A-01"]));
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("names a space deactivated after it was booked, without a calendar link, and asks for no resource list", async () => {
+    const api = installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/reservations": () => ({
+        reservations: [{ ...base, id: "rsv_off", resourceId: "res_2a04", date: "2026-10-12", startMin: 540, endMin: 660, status: "confirmed" }],
+        resources: [{ id: "res_2a04", name: "Desk 2A-04", active: false }],
+      }),
+    });
+    renderAt("/bookings");
+    const table = await screen.findByRole("table", { name: "Upcoming bookings" });
+    await waitFor(() => expect(rowsOf("Upcoming bookings")).toEqual(["Desk 2A-04 (not bookable now)"]));
+    expect(within(table).queryByRole("link", { name: /Desk 2A-04/ })).toBeNull();
+    expect(screen.queryByText("res_2a04")).toBeNull();
+    expect(within(table).getByRole("button", { name: "Cancel booking for Desk 2A-04 (not bookable now) on Monday, October 12, 2026" })).toBeTruthy();
+    expect(api.calls.some((c) => c.url.startsWith("/api/sites/hq/resources"))).toBe(false);
   });
 });
