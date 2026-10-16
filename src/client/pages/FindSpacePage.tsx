@@ -1,12 +1,15 @@
 // Find a space (SPEC 14.1): filters, a date, live availability for every matching
 // resource, select a range in the SlotGrid, confirm in a Dialog. The date, tab and
 // filters live in the URL (find-params.ts), written with replace so Back leaves the page.
+// Below 1024 px the filters fold into a disclosure, so availability comes first on phones
+// and tablets; under 640 px the Book button stays above the bottom nav while chips scroll.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { type AvailabilityResponse, AvailabilityResponse as AvailabilitySchema, type Reservation, type Resource } from "../../shared/api.ts";
 import { AMENITIES } from "../../shared/synthetic/resources.ts";
 import { formatMinutes } from "../../shared/time.ts";
 import { api, qs } from "../api/client.ts";
+import { COMPACT_QUERY, NARROW_QUERY, useMediaQuery } from "../hooks/useMediaQuery.ts";
 import { useLiveAvailability } from "../live/useLiveAvailability.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
 import { LoadError } from "../shell/LoadError.tsx";
@@ -17,7 +20,7 @@ import { SlotGrid, type SlotGridHandle, type SlotRow, type SlotSelection } from 
 import { Tabs } from "../ui/Tabs.tsx";
 import { TextField } from "../ui/TextField.tsx";
 import { BookingDialog } from "./BookingDialog.tsx";
-import { CAPACITIES, FLOORS, type FindFilters, type Kind, fromTimes, parseFindParams, toTimes, writeFindParams } from "./find-params.ts";
+import { CAPACITIES, FLOORS, type FindFilters, type Kind, NO_FILTERS, activeFilterCount, fromTimes, parseFindParams, toTimes, writeFindParams } from "./find-params.ts";
 import styles from "./pages.module.css";
 import { dateDisabledReason, firstBookableDate, minSlots, minStartOn, shortSelectionHint, timeRange, todayHasClosed, useSite } from "./site.ts";
 import { usePageTitle } from "./usePageTitle.ts";
@@ -40,6 +43,11 @@ export function FindSpacePage() {
   const update = (patch: Partial<FindFilters>) => {
     setParams((prev) => writeFindParams({ ...parseFindParams(prev, site, defaultDate), ...patch }, defaultDate), { replace: true });
   };
+  const narrow = useMediaQuery(NARROW_QUERY);
+  const compact = useMediaQuery(COMPACT_QUERY);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilters = activeFilterCount(filters);
+  const clearFilters = () => update({ ...NO_FILTERS });
   const [data, setData] = useState<AvailabilityResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selection, setSelection] = useState<SlotSelection | null>(null);
@@ -151,8 +159,13 @@ export function FindSpacePage() {
               setSelection(null);
             }} isDisabled={(d) => dateDisabledReason(d, site)} />
           </div>
-          <form className={styles.panel} role="search" aria-label="Filter spaces" onSubmit={(e) => e.preventDefault()}>
-            <fieldset className={styles.filters}>
+          <form className={`${styles.panel} ${narrow ? styles.panelTight : ""}`} role="search" aria-label="Filter spaces" onSubmit={(e) => e.preventDefault()}>
+            {narrow ? (
+              <Button variant="secondary" aria-expanded={filtersOpen} aria-controls="find-filters" onClick={() => setFiltersOpen((o) => !o)}>
+                {activeFilters > 0 ? `Filters (${activeFilters} active)` : "Filters"}
+              </Button>
+            ) : null}
+            <fieldset id="find-filters" className={`${styles.filters} ${narrow ? styles.filtersDisclosed : ""}`} hidden={narrow && !filtersOpen}>
               <legend className="visually-hidden">Filters</legend>
               <TextField label="Search" type="search" value={q} onChange={(v) => update({ q: v })} placeholder="Name, zone or amenity" maxLength={100} />
               <label className={styles.selectLabel}>
@@ -223,6 +236,13 @@ export function FindSpacePage() {
                   </select>
                 </label>
               </div>
+              {narrow && activeFilters > 0 ? (
+                <div>
+                  <Button variant="secondary" onClick={clearFilters}>
+                    Clear filters
+                  </Button>
+                </div>
+              ) : null}
             </fieldset>
           </form>
         </div>
@@ -258,12 +278,17 @@ export function FindSpacePage() {
                         minSlotsFor={minSlotsFor}
                       />
                     ) : (
-                      <p>No spaces match these filters.</p>
+                      <div className={styles.row}>
+                        <p>No spaces match these filters.</p>
+                        <Button variant="secondary" onClick={clearFilters}>
+                          Clear filters
+                        </Button>
+                      </div>
                     )}
                   </>
                 ) : null}
                 </div>
-                <div className={styles.row}>
+                <div className={`${styles.row} ${compact && selection ? styles.stickyBook : ""}`}>
                   <Button
                     disabled={!selection || !selectedResource}
                     onClick={() => selection && selectedResource && setBooking({ resource: selectedResource, startMin: selection.startMin, endMin: selection.endMin })}

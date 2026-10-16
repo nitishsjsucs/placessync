@@ -40,6 +40,19 @@ export function AppShell() {
     }
   }, [pathname, navigationType]);
 
+  // Under 640 px the nav is a fixed bottom bar whose height depends on how its labels
+  // wrap; sticky controls (Find a space's Book row) sit above it via this variable.
+  useEffect(() => {
+    const nav = document.querySelector<HTMLElement>('nav[aria-label="Main"]');
+    if (!nav) return;
+    const set = () => document.documentElement.style.setProperty("--bottom-nav-height", `${nav.offsetHeight}px`);
+    set();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(set);
+    observer.observe(nav);
+    return () => observer.disconnect();
+  }, []);
+
   const gridSkip = gridSkipLabel(pathname);
   return (
     <StatusBannerProvider>

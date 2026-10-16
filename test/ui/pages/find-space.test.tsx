@@ -5,6 +5,7 @@ import { generateResources } from "../../../src/shared/synthetic/resources.ts";
 import { HEALTH, installFakeApi, me, respond } from "../fake-api.ts";
 import { FakeWebSocket } from "../fake-ws.ts";
 import { renderAt, renderAtEntries } from "../render-app.tsx";
+import { setMediaMatches } from "../setup.ts";
 
 const RESOURCES = generateResources();
 const DATE = "2026-10-12";
@@ -410,6 +411,67 @@ describe("Find a space opens on a date that can still be booked (UX-01)", () => 
     const api = await openAt(hh, mm);
     expect(availabilityCalls(api).at(-1)?.url).toContain("date=2026-10-08");
     expect(screen.queryByText(/Bookings for today have closed/)).toBeNull();
+  });
+});
+
+describe("Find a space below 1024 px puts availability first (UX-12)", () => {
+  function fakes() {
+    return installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/sites/hq/availability": (c: { url: string }) =>
+        new URL(c.url, "http://x").searchParams.get("q") === "zzz" ? { ...availability(c.url), resources: [] } : availability(c.url),
+    });
+  }
+
+  it("starts with the filters collapsed behind a Filters button that counts active filters; Clear filters resets them", async () => {
+    setMediaMatches("(max-width: 1023px)", true);
+    const api = fakes();
+    const { router } = renderAt("/find");
+    await screen.findByRole("grid", { name: /^Availability on/ });
+    const toggle = screen.getByRole("button", { name: "Filters" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    const fieldset = document.getElementById(toggle.getAttribute("aria-controls") ?? "") as HTMLElement;
+    expect(fieldset.hidden).toBe(true);
+    expect(screen.queryByRole("combobox", { name: "Floor" })).toBeNull();
+    // Date picker, then filters, then results, in the DOM as on screen.
+    const dateGrid = screen.getByRole("grid", { name: /^Booking date/ });
+    const slots = screen.getByRole("grid", { name: /^Availability on/ });
+    expect(dateGrid.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(toggle.compareDocumentPosition(slots) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const user = userEvent.setup();
+    await user.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(fieldset.hidden).toBe(false);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Floor" }), "3");
+    await user.click(screen.getByRole("checkbox", { name: "Whiteboard" }));
+    expect(await screen.findByRole("button", { name: "Filters (2 active)" })).toBeTruthy();
+    await waitFor(() => expect(availabilityCalls(api).at(-1)?.url).toContain("floor=3"));
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(await screen.findByRole("button", { name: "Filters" })).toBeTruthy();
+    await waitFor(() => expect(router.state.location.search).toBe(""));
+    const last = availabilityCalls(api).at(-1)?.url ?? "";
+    expect(last).not.toContain("floor=");
+    expect(last).not.toContain("amenity=");
+  });
+
+  it("at 1024 px and wider shows the filters as before, with no toggle", async () => {
+    fakes();
+    renderAt("/find");
+    await screen.findByRole("grid", { name: /^Availability on/ });
+    expect(screen.queryByRole("button", { name: /^Filters/ })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Floor" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+  });
+
+  it("the no-match state offers Clear filters at every width", async () => {
+    const api = fakes();
+    renderAt("/find?q=zzz&floor=2");
+    expect(await screen.findByText("No spaces match these filters.")).toBeTruthy();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Clear filters" }));
+    await screen.findByRole("grid", { name: /^Availability on/ });
+    expect(availabilityCalls(api).at(-1)?.url).not.toContain("q=");
   });
 });
 

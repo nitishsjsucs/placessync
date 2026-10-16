@@ -20,3 +20,5 @@ export function useMediaQuery(query: string): boolean {
 }
 
 export const COMPACT_QUERY = "(max-width: 639px)";
+/** Below the two-column layout (pages.module.css): the filters fold into a disclosure. */
+export const NARROW_QUERY = "(max-width: 1023px)";

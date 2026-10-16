@@ -49,6 +49,29 @@
   min-width: 0;
 }
 
+/* The filter form below 1024 px: just the Filters toggle until it is opened. */
+.panelTight {
+  padding: var(--space-2) var(--space-3);
+}
+
+.filtersDisclosed {
+  margin-top: var(--space-3);
+}
+
+.filters[hidden] {
+  display: none;
+}
+
+/* Under 640 px with a selection: Book stays visible above the fixed bottom nav. */
+.stickyBook {
+  position: sticky;
+  bottom: calc(var(--bottom-nav-height, 3.25rem) + var(--space-2));
+  z-index: 2;
+  background: var(--color-bg);
+  padding: var(--space-2) 0;
+  box-shadow: 0 -1px 0 var(--color-border);
+}
+
 .filters {
   display: flex;
   flex-direction: column;
