@@ -178,6 +178,47 @@ export function place(startMin: number, endMin: number, openMin: number, closeMi
   return { left: ((s - openMin) / span) * 100, width: ((e - s) / span) * 100 };
 }
 
+/** Hour labels sit this far right of their hour line (the .tick transform). */
+export const TICK_OFFSET_PX = 4;
+/** The space kept clear between the Now label and an hour label. */
+const AXIS_GAP_PX = 4;
+
+export interface AxisSizes {
+  /** The axis track's width. */
+  track: number;
+  /** The "Now hh:mm" label's width. */
+  pill: number;
+  /** One hour label's width ("09:00"; every label is the same width). */
+  tick: number;
+}
+
+export interface AxisLayout {
+  /** The hour labels to draw, in minutes: every two hours, minus any that would touch the Now label. */
+  ticks: number[];
+  /** The Now label's left edge in px from the track's start, kept inside the track; null without one. */
+  pillLeft: number | null;
+}
+
+/**
+ * The time axis in pixels: the Now label is centred on the Now line but never runs past
+ * either end of the track, and an hour label whose box would meet the Now label's is left
+ * out. Pixels, not minutes, because the track is only one pixel per minute at its narrowest.
+ */
+export function axisLayout(openMin: number, closeMin: number, nowMin: number | null, size: AxisSizes): AxisLayout {
+  const span = closeMin - openMin;
+  const x = (m: number) => ((m - openMin) / span) * size.track;
+  const pillLeft = nowMin === null ? null : Math.max(0, Math.min(size.track - size.pill, x(nowMin) - size.pill / 2));
+  const ticks: number[] = [];
+  for (let m = openMin; m < closeMin; m += 120) {
+    const left = x(m) + TICK_OFFSET_PX;
+    const right = left + size.tick;
+    if (right > size.track) continue;
+    if (pillLeft !== null && right + AXIS_GAP_PX > pillLeft && left < pillLeft + size.pill + AXIS_GAP_PX) continue;
+    ticks.push(m);
+  }
+  return { ticks, pillLeft };
+}
+
 /** Whether a name fits inside a bar of this many minutes on the narrowest track (px per minute). */
 export function labelFits(text: string, minutes: number, pxPerMinute: number): boolean {
   return minutes * pxPerMinute - 2 >= text.length * 7 + 12;

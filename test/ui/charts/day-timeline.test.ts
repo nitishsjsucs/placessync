@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type Space,
   type StaffBooking,
+  axisLayout,
   barText,
   buildRows,
   headline,
@@ -149,5 +150,55 @@ describe("words, links and geometry (VIZ-02)", () => {
     expect(labelFits("Zara", 60, 1)).toBe(true);
     expect(labelFits("Fatima Bhatt", 60, 1)).toBe(false);
     expect(labelFits("Fatima Bhatt", 120, 1)).toBe(true);
+  });
+});
+
+describe("the time axis in pixels (VIZ-02)", () => {
+  const PILL = 74;
+  const TICK = 34;
+  // Measured in Chromium: the track is 1,094 px at 1280 px and 720 px (1 px per minute) at 768 px.
+  const at = (track: number, nowMin: number | null) => axisLayout(OPEN, CLOSE, nowMin, { track, pill: PILL, tick: TICK });
+  const x = (track: number, m: number) => ((m - OPEN) / (CLOSE - OPEN)) * track;
+  /** No kept hour label's box meets the Now label's box, and the Now label stays inside the track. */
+  function clear(track: number, nowMin: number) {
+    const { ticks, pillLeft } = at(track, nowMin);
+    expect(pillLeft).not.toBeNull();
+    const left = pillLeft as number;
+    expect(left).toBeGreaterThanOrEqual(0);
+    expect(left + PILL).toBeLessThanOrEqual(track);
+    for (const m of ticks) {
+      const tl = x(track, m) + 4;
+      expect(tl + TICK <= left || tl >= left + PILL, `label ${m} against Now at ${nowMin}`).toBe(true);
+    }
+    return ticks;
+  }
+
+  it("labels every two hours when there is no Now label", () => {
+    expect(at(1094, null)).toEqual({ ticks: [420, 540, 660, 780, 900, 1020], pillLeft: null });
+  });
+
+  it("leaves out an hour label the Now label would cover, by width in pixels, not minutes", () => {
+    // 11:45 at 1280 px: 45 minutes from 11:00, but its label runs under the Now label.
+    expect(clear(1094, 705)).toEqual([420, 540, 780, 900, 1020]);
+    // 15:46 at 1280 px: 46 minutes from 15:00.
+    expect(clear(1094, 946)).toEqual([420, 540, 660, 780, 1020]);
+    // 11:59 at 768 px (1 px per minute): 59 minutes away is still too close.
+    expect(clear(720, 719)).toEqual([420, 540, 780, 900, 1020]);
+    // 14:40, the screenshot time: 13:00 stays.
+    expect(clear(1094, 880)).toEqual([420, 540, 660, 780, 1020]);
+  });
+
+  it("keeps the Now label inside the track at both ends of the day", () => {
+    // 18:50: centred it would run past the chart's right edge, so it ends at the track's end.
+    expect(at(1094, 1130).pillLeft).toBe(1094 - PILL);
+    expect(clear(1094, 1130)).toEqual([420, 540, 660, 780, 900, 1020]);
+    // 07:05: it starts at the track's start, over the 07:00 label, which is left out.
+    expect(at(720, 425).pillLeft).toBe(0);
+    expect(clear(720, 425)).toEqual([540, 660, 780, 900, 1020]);
+  });
+
+  it("drops a label that would run past the end of a very narrow track", () => {
+    expect(at(1000, null).ticks).toContain(1020);
+    expect(axisLayout(OPEN, CLOSE, null, { track: 200, pill: PILL, tick: 40 }).ticks).not.toContain(1020);
   });
 });

@@ -86,6 +86,7 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 4px right of the hour line: TICK_OFFSET_PX in day-timeline.ts. */
 .tick {
   position: absolute;
   top: 50%;
@@ -93,11 +94,12 @@
   white-space: nowrap;
 }
 
+/* Centred on the Now line by its px left (axisLayout), which keeps it inside the axis. */
 .nowLabel {
   position: absolute;
   top: 50%;
   z-index: 2;
-  transform: translate(-50%, -50%);
+  transform: translateY(-50%);
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
   background: var(--color-text);

@@ -27,9 +27,11 @@ import { longDate } from "../ui/DateGrid.tsx";
 import styles from "./timeline.module.css";
 import { WrenchIcon } from "./icons.tsx";
 import {
+  type AxisSizes,
   type Bar,
   type OpenRequestRef,
   type TimelineRow,
+  axisLayout,
   barText,
   buildRows,
   ended,
@@ -45,6 +47,9 @@ import {
 export const REFETCH_THROTTLE_MS = 30_000;
 /** The track is at least one pixel per minute wide; wider screens only make bars wider. */
 const PX_PER_MINUTE = 1;
+/** Until the axis is measured: the "Now hh:mm" label's and an hour label's width in Chromium. */
+const PILL_PX = 74;
+const TICK_PX = 34;
 /** Room kept between the text beside a booking and the frame's visible edges. */
 const EDGE_PX = 4;
 
@@ -208,9 +213,12 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
   const [said, setSaid] = useState("");
   const frameRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLSpanElement>(null);
+  const axisRef = useRef<HTMLSpanElement>(null);
+  const pillRef = useRef<HTMLSpanElement>(null);
   const tipRef = useRef<HTMLSpanElement>(null);
   // Set by a keyboard move: the next layout scrolls the focused booking into view.
   const reveal = useRef(false);
+  const [sizes, setSizes] = useState<AxisSizes>(() => ({ track: (closeMin - openMin) * PX_PER_MINUTE, pill: PILL_PX, tick: TICK_PX }));
 
   // Keep the roving position inside the rows when they change.
   const clamp = (p: { r: number; b: number } | null) => {
@@ -261,6 +269,28 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
     go(move());
   };
 
+  // The axis in pixels: measured once laid out and again whenever its width changes.
+  useLayoutEffect(() => {
+    const axis = axisRef.current;
+    if (!axis) return;
+    const measure = () => {
+      const track = axis.getBoundingClientRect().width;
+      if (track <= 0) return; // not laid out (jsdom): keep the estimates
+      const pill = pillRef.current?.getBoundingClientRect().width || 0;
+      const tick = axis.querySelector<HTMLElement>("[data-tick]")?.getBoundingClientRect().width || 0;
+      setSizes((s) => {
+        const next = { track, pill: pill || s.pill, tick: tick || s.tick };
+        return next.track === s.track && next.pill === s.pill && next.tick === s.tick ? s : next;
+      });
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(axis);
+    if (pillRef.current) observer.observe(pillRef.current);
+    return () => observer.disconnect();
+  }, [showNow]);
+
   // After every render: a keyboard move scrolls its booking into view, then the text
   // beside the focused or hovered booking is kept inside the frame's visible part.
   useLayoutEffect(() => {
@@ -279,9 +309,8 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
   const tip = hover ?? (focused ? at : null);
   const style = { "--hours": hours, "--track-min": `${(closeMin - openMin) * PX_PER_MINUTE}px` } as CSSProperties;
   const nowLeft = place(clockMinutes, clockMinutes, openMin, closeMin).left;
-  // Hour labels every 2 hours; one the Now label would cover is left out.
-  const labels: number[] = [];
-  for (let m = openMin; m < closeMin; m += 120) if (!showNow || Math.abs(m - clockMinutes) >= 45) labels.push(m);
+  // Hour labels every 2 hours, minus any the Now label would touch; the label stays inside the axis.
+  const axis = axisLayout(openMin, closeMin, showNow ? clockMinutes : null, sizes);
 
   return (
     <>
@@ -317,14 +346,14 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
             <span className={styles.nameCell} ref={nameRef}>
               Space
             </span>
-            <span className={styles.axisTrack}>
-              {labels.map((m) => (
-                <span key={m} className={styles.tick} style={{ left: `${place(m, m, openMin, closeMin).left}%` }}>
+            <span className={styles.axisTrack} ref={axisRef}>
+              {axis.ticks.map((m) => (
+                <span key={m} className={styles.tick} style={{ left: `${place(m, m, openMin, closeMin).left}%` }} data-tick>
                   {formatMinutes(m)}
                 </span>
               ))}
-              {showNow ? (
-                <span className={styles.nowLabel} style={{ left: `${nowLeft}%` }}>
+              {showNow && axis.pillLeft !== null ? (
+                <span className={styles.nowLabel} style={{ left: `${axis.pillLeft}px` }} ref={pillRef} data-testid="now-label">
                   Now {formatMinutes(clockMinutes)}
                 </span>
               ) : null}

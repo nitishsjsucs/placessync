@@ -39,6 +39,7 @@ function renderTimeline(props: Partial<Parameters<typeof DayTimeline>[0]> = {}) 
 const chart = () => screen.getByRole("group", { name: /^Bookings by space, / });
 const rowNamed = (start: string) => screen.getAllByRole("listitem").find((li) => li.getAttribute("aria-label")?.startsWith(start)) as HTMLElement;
 const bars = (spaceId: string) => [...screen.getByTestId(`track-${spaceId}`).querySelectorAll<HTMLElement>("[data-start]")];
+const axisLabels = () => [...chart().querySelectorAll<HTMLElement>("[data-tick]")].map((t) => t.textContent);
 
 beforeEach(() => {
   FakeWebSocket.reset();
@@ -79,12 +80,24 @@ describe("DayTimeline (VIZ-02)", () => {
     vi.stubGlobal("fetch", fetchSpy);
     renderTimeline();
     expect(screen.getByText("Now 10:00")).toBeTruthy();
+    // On the narrowest track (1 px per minute) the Now label covers 09:00's label, so it goes.
+    expect(axisLabels()).toEqual(["07:00", "11:00", "13:00", "15:00", "17:00"]);
+    expect(screen.getByTestId("now-label").style.left).toBe(`${180 - 74 / 2}px`);
     const rule = screen.getByTestId("now-rule");
     expect(rule.style.getPropertyValue("--now")).toBe(String(180 / 720));
     await act(async () => vi.advanceTimersByTime(60_000));
     expect(screen.getByText("Now 10:01")).toBeTruthy();
     expect(screen.getByTestId("now-rule").style.getPropertyValue("--now")).toBe(String(181 / 720));
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps the Now label inside the axis late in the day", () => {
+    // 18:50: centred on the line it would run past the chart's right edge.
+    vi.setSystemTime(Date.parse("2026-10-09T01:50:00.000Z"));
+    renderTimeline();
+    expect(screen.getByText("Now 18:50")).toBeTruthy();
+    expect(screen.getByTestId("now-label").style.left).toBe(`${720 - 74}px`);
+    expect(axisLabels()).toEqual(["07:00", "09:00", "11:00", "13:00", "15:00", "17:00"]);
   });
 
   it("hides the Now rule outside open hours", () => {
