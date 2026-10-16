@@ -155,7 +155,8 @@ export function RequestDetailPage() {
   return (
     <section className={styles.stack}>
       <h1>{r.title}</h1>
-      {created ? (
+      {/* The notice describes a request still waiting: gone once it is cancelled or picked up. */}
+      {created && (r.status === "submitted" || r.status === "awaiting_review") ? (
         <p role="status" className={styles.notice}>
           {created.triage === "pending"
             ? "Your request was submitted. Classification pending; staff can still review it."

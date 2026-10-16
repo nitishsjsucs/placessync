@@ -65,6 +65,27 @@ describe("Request detail cancel (UX-07)", () => {
     expect(screen.getByText("Cancelled")).toBeTruthy();
   });
 
+  it("drops the submitted notice once the new request is cancelled", async () => {
+    let request: Record<string, unknown> = { ...submitted };
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/requests/req_p": () => ({ request, suggestion: null, events }),
+      "POST /api/requests/req_p/cancel": () => {
+        request = { ...request, status: "cancelled" };
+        return { request };
+      },
+    });
+    renderAtEntries([{ pathname: "/requests/req_p", state: { created: true, triage: "started" } }]);
+    expect(await screen.findByText(/Your request was submitted/)).toBeTruthy();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Cancel this request" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Cancel this request?" })).getByRole("button", { name: "Cancel request" }));
+    await waitFor(() => expect(screen.getByText("Cancelled")).toBeTruthy());
+    expect(screen.queryByText(/Your request was submitted/)).toBeNull();
+    expect((await screen.findByTestId("status-banner")).textContent).toContain("Request cancelled.");
+  });
+
   it("a refused cancel keeps the request on screen and shows the server's reason under the button", async () => {
     let request: Record<string, unknown> = { ...awaiting };
     installFakeApi({
