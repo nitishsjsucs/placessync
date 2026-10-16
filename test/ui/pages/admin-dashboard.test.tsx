@@ -397,3 +397,80 @@ describe("Deactivate names what reports show from today on (VIZ-06)", () => {
     await waitFor(() => expect(api.calls.some((c) => c.method === "PATCH" && c.url === "/api/admin/resources/res_2a01")).toBe(true));
   });
 });
+
+describe("Requests tab: staff decisions and time to review (VIZ-09)", () => {
+  const REQUESTS = {
+    from: "2026-09-10",
+    to: "2026-10-22",
+    categories: [{ category: "electrical_av", status: "assigned", n: 4 }],
+    agreement: [
+      { provider: "stub", reviewed: 8, agreed: 6, agreementRate: 0.75 },
+      { provider: "workers-ai", reviewed: 3, agreed: 3, agreementRate: 1 },
+    ],
+    medianMinutesToReview: 783.5,
+    reviewedCount: 12,
+    kept: [
+      { provider: "stub", suggested: "electrical_av", final: "electrical_av", n: 5 },
+      { provider: "stub", suggested: "furniture_fixtures", final: "building_systems", n: 2 },
+      { provider: "stub", suggested: "furniture_fixtures", final: "furniture_fixtures", n: 1 },
+      { provider: "workers-ai", suggested: "cleaning_safety", final: "cleaning_safety", n: 3 },
+    ],
+    reviewBuckets: [
+      { bucket: "under_1h", n: 2 },
+      { bucket: "1h_to_4h", n: 3 },
+      { bucket: "4h_to_24h", n: 1 },
+      { bucket: "over_24h", n: 6 },
+    ],
+  };
+
+  async function openRequests() {
+    renderAt("/admin");
+    await userEvent.setup().click(await screen.findByRole("tab", { name: "Requests" }));
+    return screen.findByRole("table", { name: "Suggestion agreement by provider" });
+  }
+
+  it("keeps the agreement table, then one matrix per provider whose totals match it, then the review-time chart", async () => {
+    api.set("GET /api/admin/reports/requests", REQUESTS);
+    const agreement = await openRequests();
+    const stub = await screen.findByRole("table", { name: "Keyword stub (keyword-v1): suggested category by final category" });
+    const ai = screen.getByRole("table", { name: "Workers AI: suggested category by final category" });
+    expect(agreement.compareDocumentPosition(stub) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The stub's diagonal is its "Staff agreed" (6) and its cells sum to "Reviewed" (8).
+    const keptCells = within(stub).getAllByRole("row").slice(1).map((r) => (within(r).getAllByRole("cell").at(-1) as HTMLElement).textContent);
+    expect(keptCells).toEqual(["kept 5 of 5", "kept 1 of 3"]);
+    expect(screen.getByText("Most changed: Furniture and fixtures suggestions became Building systems 2 times.")).toBeTruthy();
+    expect(screen.getByText("Staff kept every suggestion.")).toBeTruthy();
+    expect(within(ai).getAllByRole("row")).toHaveLength(2);
+    expect(stub.textContent).not.toMatch(/\bAI\b/);
+    const buckets = screen.getByRole("img", { name: /^Reviews by time from submission:/ });
+    expect(stub.compareDocumentPosition(buckets) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The first span in each column is its printed count.
+    const counts = [...buckets.querySelectorAll("[data-bucket]")].map((s) => Number(s.querySelector("span")?.textContent));
+    expect(counts.reduce((a, b) => a + b, 0)).toBe(REQUESTS.reviewedCount);
+    expect(screen.getByText("Median time to review: 13 h 4 min (12 reviewed).")).toBeTruthy();
+    expect(screen.getByRole("table", { name: "Requests by category and status" })).toBeTruthy();
+  });
+
+  it("says so when no suggestion was reviewed in the range", async () => {
+    api.set("GET /api/admin/reports/requests", { ...REQUESTS, agreement: [], kept: [], reviewBuckets: REQUESTS.reviewBuckets.map((b) => ({ ...b, n: 0 })), reviewedCount: 0, medianMinutesToReview: null });
+    await openRequests();
+    const section = screen.getByRole("region", { name: "Staff decisions on suggestions" });
+    expect(within(section).getByText("No reviewed suggestions in this range.")).toBeTruthy();
+    expect(screen.getByText("No reviews in this range.")).toBeTruthy();
+  });
+
+  it("an older server without the new fields still shows the agreement table and the median", async () => {
+    const { kept: _k, reviewBuckets: _b, ...older } = REQUESTS;
+    api.set("GET /api/admin/reports/requests", older);
+    await openRequests();
+    expect(screen.queryByRole("region", { name: "Staff decisions on suggestions" })).toBeNull();
+    expect(screen.getByText("Median time to review: 13 h 4 min (12 reviewed).")).toBeTruthy();
+  });
+
+  it("a report failure falls to the tab's Try again", async () => {
+    api.set("GET /api/admin/reports/requests", respond(500, { error: "internal", message: "x" }));
+    renderAt("/admin");
+    await userEvent.setup().click(await screen.findByRole("tab", { name: "Requests" }));
+    expect(await screen.findByText("Reports could not be loaded.")).toBeTruthy();
+  });
+});

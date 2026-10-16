@@ -53,6 +53,20 @@
   --color-selected: #1d5a8a;
   --color-on-selected: #ffffff;
   --color-error: #a8261b;
+  /* A 5-step blue ramp for shares in the admin's suggestion matrix (VIZ-09), light to
+     dark, from the dataviz reference steps 250, 350, 500, 600 and 700; validated with
+     validate_palette.js --ordinal against #ffffff. Each step has an ink that clears
+     4.5:1 on it (test/node/chart-tokens.test.ts). */
+  --chart-seq-1: #86b6ef;
+  --chart-seq-1-ink: #1b1f24;
+  --chart-seq-2: #5598e7;
+  --chart-seq-2-ink: #1b1f24;
+  --chart-seq-3: #256abf;
+  --chart-seq-3-ink: #ffffff;
+  --chart-seq-4: #184f95;
+  --chart-seq-4-ink: #ffffff;
+  --chart-seq-5: #0d366b;
+  --chart-seq-5-ink: #ffffff;
   --shadow-dialog: 0 12px 40px rgb(0 0 0 / 0.25);
   --backdrop: rgb(15 20 30 / 0.55);
 }
@@ -84,6 +98,18 @@
     --color-selected: #7cb8ea;
     --color-on-selected: #0b1a26;
     --color-error: #ff8a7d;
+    /* Dark: the anchor flips, a small share sits near the surface (steps 550, 400, 300,
+       200, 100; validated --ordinal against #1b2129). */
+    --chart-seq-1: #1c5cab;
+    --chart-seq-1-ink: #ffffff;
+    --chart-seq-2: #3987e5;
+    --chart-seq-2-ink: #0b1a26;
+    --chart-seq-3: #6da7ec;
+    --chart-seq-3-ink: #0b1a26;
+    --chart-seq-4: #9ec5f4;
+    --chart-seq-4-ink: #0b1a26;
+    --chart-seq-5: #cde2fb;
+    --chart-seq-5-ink: #0b1a26;
     --shadow-dialog: 0 12px 40px rgb(0 0 0 / 0.6);
     --backdrop: rgb(0 0 0 / 0.7);
   }

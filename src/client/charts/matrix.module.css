@@ -1,0 +1,139 @@
+/* Suggestion matrices (VIZ-09). Cells carry their numbers; the shade is the share of the
+   row on the --chart-seq ramp, each step with its own ink (tokens.css). */
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.headline {
+  margin: 0;
+  font-weight: 600;
+}
+
+.scroll {
+  overflow-x: auto;
+  position: relative;
+}
+
+.matrix {
+  border-collapse: separate;
+  border-spacing: 2px;
+  background: var(--color-surface);
+  font-variant-numeric: tabular-nums;
+}
+
+.caption {
+  text-align: left;
+  font-weight: 700;
+  padding: var(--space-1) 0;
+}
+
+.matrix th {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  text-align: left;
+  color: var(--color-text-muted);
+}
+
+.matrix thead th {
+  text-align: center;
+}
+
+.matrix thead th.corner {
+  text-align: left;
+}
+
+.matrix abbr {
+  text-decoration: none;
+}
+
+.cell {
+  min-width: 3rem;
+  height: var(--touch-target);
+  padding: 0 var(--space-2);
+  text-align: center;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+}
+
+.diagonal {
+  box-shadow: inset 0 0 0 2px var(--color-text);
+}
+
+.keptCell {
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.bin0 {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.bin1 {
+  background: var(--chart-seq-1);
+  color: var(--chart-seq-1-ink);
+}
+.bin2 {
+  background: var(--chart-seq-2);
+  color: var(--chart-seq-2-ink);
+}
+.bin3 {
+  background: var(--chart-seq-3);
+  color: var(--chart-seq-3-ink);
+}
+.bin4 {
+  background: var(--chart-seq-4);
+  color: var(--chart-seq-4-ink);
+}
+.bin5 {
+  background: var(--chart-seq-5);
+  color: var(--chart-seq-5-ink);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.swatch {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 2px;
+}
+
+.narrow {
+  display: none;
+}
+
+@media (max-width: 639px) {
+  .wide {
+    display: none;
+  }
+  .narrow {
+    display: inline;
+  }
+  .cell {
+    min-width: 2.25rem;
+    padding: 0 var(--space-1);
+  }
+  .matrix th,
+  .keptCell {
+    padding: var(--space-1);
+    font-size: var(--text-xs);
+  }
+}

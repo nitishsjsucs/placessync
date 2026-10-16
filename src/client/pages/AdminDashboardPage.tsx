@@ -18,6 +18,9 @@ import { ApiClientError, api, qs } from "../api/client.ts";
 import { DailyColumns, monthDay } from "../charts/DailyColumns.tsx";
 import { FixedBar } from "../charts/FixedBar.tsx";
 import { Freshness } from "../charts/Freshness.tsx";
+import { KeptMatrix, ShareLegend } from "../charts/KeptMatrix.tsx";
+import { ReviewBuckets } from "../charts/ReviewBuckets.tsx";
+import { matrices } from "../charts/kept-matrix.ts";
 import { StatTiles } from "../charts/StatTiles.tsx";
 import chartStyles from "../charts/charts.module.css";
 import { type SpaceUse, percent, splitAtToday, weekdaysBetween } from "../charts/held-ahead.ts";
@@ -105,6 +108,7 @@ export function AdminDashboardPage() {
   const hourlyId = useId();
   const hourlyHeadingId = useId();
   const spacesHeadingId = useId();
+  const keptHeadingId = useId();
   const [upcoming, setUpcoming] = useState<Upcoming | null>(null);
   const upcomingSeq = useRef(0);
   const [error, setError] = useState<string | null>(null);
@@ -306,6 +310,10 @@ export function AdminDashboardPage() {
     );
   };
 
+  // One matrix per provider, in the agreement table's order; never merged (SPEC 6.1).
+  const keptMatrices = reqs?.kept ? matrices(reqs.kept, reqs.agreement.map((a) => a.provider)) : [];
+  const medianSentence = `Median time to review: ${reqs?.medianMinutesToReview == null ? "no reviews yet" : formatDuration(reqs.medianMinutesToReview)} (${reqs?.reviewedCount ?? 0} reviewed).`;
+
   const upcomingText = (r: Resource): string => {
     if (!upcoming || upcoming.status === "loading") return "Checking upcoming bookings…";
     if (upcoming.status === "error") return "Upcoming bookings could not be checked.";
@@ -504,7 +512,7 @@ export function AdminDashboardPage() {
               )}
             />
           ) : (
-            <div className={styles.stack}>
+            <div className={`${styles.stack} ${reloading ? chartStyles.refreshing : ""}`} aria-busy={reloading || undefined}>
               <DataTable
                 caption="Suggestion agreement by provider"
                 columns={[
@@ -517,10 +525,28 @@ export function AdminDashboardPage() {
                 rowKey={(r) => r.provider}
                 empty="No reviewed suggestions in this range."
               />
-              <p>
-                Median time to review: {reqs?.medianMinutesToReview == null ? "no reviews yet" : formatDuration(reqs.medianMinutesToReview)} ({reqs?.reviewedCount ?? 0} reviewed).
-                Manual categorizations never saw a suggestion and are excluded from agreement.
-              </p>
+              <p className={styles.muted}>Manual categorizations never saw a suggestion and are excluded from agreement.</p>
+              {reqs?.kept ? (
+                <section className={chartStyles.section} aria-labelledby={keptHeadingId}>
+                  <h2 id={keptHeadingId}>Staff decisions on suggestions</h2>
+                  <p className={styles.muted}>How often staff kept each provider's suggestion. Not an accuracy measure. Rows are the suggested category, columns the category staff chose.</p>
+                  {keptMatrices.length === 0 ? (
+                    <p className={styles.muted}>No reviewed suggestions in this range.</p>
+                  ) : (
+                    <>
+                      <ShareLegend />
+                      {keptMatrices.map((m) => (
+                        <KeptMatrix key={m.provider} matrix={m} />
+                      ))}
+                    </>
+                  )}
+                </section>
+              ) : null}
+              {reqs?.reviewBuckets ? (
+                <ReviewBuckets buckets={reqs.reviewBuckets} median={medianSentence} />
+              ) : (
+                <p>{medianSentence}</p>
+              )}
               <DataTable
                 caption="Requests by category and status"
                 columns={[
