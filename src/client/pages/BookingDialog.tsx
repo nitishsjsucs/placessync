@@ -156,7 +156,7 @@ export function BookingDialog({ open, onClose, resource, date, startMin, endMin,
           {problem}
         </p>
       ) : null}
-      <Link to={`/resources/${resource.id}`}>See the week calendar for {resource.name}</Link>
+      <Link to={`/resources/${resource.id}?date=${date}`}>See the week calendar for {resource.name}</Link>
     </Dialog>
   );
 }

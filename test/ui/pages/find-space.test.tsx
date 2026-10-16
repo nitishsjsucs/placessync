@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateResources } from "../../../src/shared/synthetic/resources.ts";
 import { HEALTH, installFakeApi, me, respond } from "../fake-api.ts";
 import { FakeWebSocket } from "../fake-ws.ts";
-import { renderAt } from "../render-app.tsx";
+import { renderAt, renderAtEntries } from "../render-app.tsx";
 
 const RESOURCES = generateResources();
 const DATE = "2026-10-12";
@@ -226,5 +226,81 @@ describe("Find a space (SPEC 14.1)", () => {
     expect(await screen.findByRole("grid", { name: /^Availability on/ })).toBeTruthy();
     expect(availabilityCalls(api).length).toBe(before + 1);
     expect(screen.queryByText("Availability could not be loaded.")).toBeNull();
+  });
+});
+
+describe("Find a space keeps its search in the URL (UX-04)", () => {
+  function fakes() {
+    return installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/sites/hq/availability": (c: { url: string }) => availability(c.url),
+      "GET /api/resources/res_sequoia/calendar": (c: { url: string }) => {
+        const weekStart = new URL(c.url, "http://x").searchParams.get("weekStart") ?? "";
+        return { resource: RESOURCES.find((r) => r.id === "res_sequoia"), days: Array.from({ length: 7 }, (_, i) => ({ date: addDaysLocal(weekStart, i), busy: [] })) };
+      },
+    });
+  }
+  const addDaysLocal = (d: string, n: number) => new Date(Date.parse(`${d}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  const lastQuery = (api: { calls: { url: string }[] }) => new URL(availabilityCalls(api).at(-1)?.url ?? "", "http://x").searchParams;
+
+  it("restores the date, tab and filters from the URL and sends them to the API", async () => {
+    const api = fakes();
+    renderAt("/find?date=2026-10-12&kind=desk&floor=3");
+    await screen.findByRole("heading", { level: 1, name: "Find a space" });
+    await waitFor(() => expect(availabilityCalls(api).length).toBeGreaterThan(0));
+    expect(Object.fromEntries(lastQuery(api))).toEqual({ date: "2026-10-12", kind: "desk", floor: "3" });
+    expect(screen.getByRole("gridcell", { name: "Monday, October 12, 2026" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: "Desks" }).getAttribute("aria-selected")).toBe("true");
+    expect((screen.getByRole("combobox", { name: "Floor" }) as HTMLSelectElement).value).toBe("3");
+    expect(await screen.findByText("Monday, October 12, 2026", { exact: false, selector: "p" })).toBeTruthy();
+  });
+
+  it("writes every change with replace, so Back leaves the page", async () => {
+    fakes();
+    const { router } = renderAtEntries(["/bookings", "/find"]);
+    await screen.findByRole("heading", { level: 1, name: "Find a space" });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("gridcell", { name: "Monday, October 12, 2026" }));
+    await user.click(screen.getByRole("tab", { name: "Rooms" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Floor" }), "2");
+    await user.click(screen.getByRole("checkbox", { name: "Whiteboard" }));
+    await waitFor(() => expect(Object.fromEntries(new URLSearchParams(router.state.location.search))).toEqual({ date: "2026-10-12", kind: "room", floor: "2", amenity: "whiteboard" }));
+    expect(router.state.historyAction).toBe("REPLACE");
+    await router.navigate(-1);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/bookings"));
+  });
+
+  it.each([
+    ["a Saturday", "2026-10-10"],
+    ["a past date", "2026-10-01"],
+    ["a date beyond the horizon", "2026-10-30"],
+    ["garbage", "garbage"],
+  ])("falls back to the first bookable date for %s", async (_label, bad) => {
+    const api = fakes();
+    renderAt(`/find?date=${bad}&kind=boat&from=600&to=540&floor=9&minCapacity=3&amenity=whiteboard,jacuzzi`);
+    await screen.findByRole("heading", { level: 1, name: "Find a space" });
+    await waitFor(() => expect(availabilityCalls(api).length).toBeGreaterThan(0));
+    // Thursday 2026-10-08 at 08:00 site time: today is bookable.
+    expect(Object.fromEntries(lastQuery(api))).toEqual({ date: "2026-10-08", amenity: "whiteboard" });
+    expect(screen.getByRole("tab", { name: "All spaces" }).getAttribute("aria-selected")).toBe("true");
+    expect((screen.getByRole("combobox", { name: "Free from" }) as HTMLSelectElement).value).toBe("");
+    expect((screen.getByRole("combobox", { name: "Until" }) as HTMLSelectElement).value).toBe("");
+  });
+
+  it("week-calendar links carry the selected date, and Back from a week calendar restores the search", async () => {
+    fakes();
+    const { router } = renderAt("/find?date=2026-10-12&kind=room");
+    const user = userEvent.setup();
+    await screen.findByRole("gridcell", { name: "Sequoia (8), 09:00 to 09:30, available" });
+    await user.click(screen.getByText("Week calendars"));
+    const link = screen.getByRole("link", { name: "Sequoia" });
+    expect(link.getAttribute("href")).toBe("/resources/res_sequoia?date=2026-10-12");
+    await user.click(link);
+    expect(await screen.findByRole("grid", { name: /Sequoia, week of Monday, October 12, 2026/ })).toBeTruthy();
+    await router.navigate(-1);
+    await screen.findByRole("heading", { level: 1, name: "Find a space" });
+    expect(screen.getByRole("tab", { name: "Rooms" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("gridcell", { name: "Monday, October 12, 2026" }).getAttribute("aria-selected")).toBe("true");
   });
 });

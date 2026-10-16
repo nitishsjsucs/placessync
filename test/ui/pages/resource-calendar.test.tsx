@@ -104,4 +104,26 @@ describe("resource week calendar (SPEC 14.1)", () => {
     await userEvent.setup().click(within(alert).getByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("heading", { level: 1, name: "Sequoia" })).toBeTruthy();
   });
+
+  it("opens on the week of ?date, keeps the shown week in ?week, and links back to Find a space on a date in view", async () => {
+    const api = installFakeApi({ "GET /api/health": HEALTH, "GET /api/me": me("emp_001", "employee"), "GET /api/resources/res_sequoia/calendar": (c: { url: string }) => calendar(c.url) });
+    const { router, unmount } = renderAt("/resources/res_sequoia?date=2026-10-21");
+    expect(await screen.findByRole("grid", { name: /Sequoia, week of Monday, October 19, 2026/ })).toBeTruthy();
+    expect(api.calls.at(-1)?.url).toContain("weekStart=2026-10-19");
+    const back = () => within(screen.getByRole("main")).getByRole("link", { name: "Back to Find a space" });
+    expect(back().getAttribute("href")).toBe("/find?date=2026-10-21");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Previous week" }));
+    await waitFor(() => expect(router.state.location.search).toBe("?week=2026-10-12"));
+    expect(router.state.historyAction).toBe("REPLACE");
+    expect(await screen.findByRole("grid", { name: /week of Monday, October 12, 2026/ })).toBeTruthy();
+    // The date it was opened for is not in this week: the week's first bookable day.
+    expect(back().getAttribute("href")).toBe("/find?date=2026-10-12");
+    unmount();
+
+    renderAt("/resources/res_sequoia?week=2026-10-28");
+    expect(await screen.findByRole("grid", { name: /Sequoia, week of Monday, October 26, 2026/ })).toBeTruthy();
+    // Nothing in that week is bookable yet (the horizon ends on 2026-10-22).
+    expect(back().getAttribute("href")).toBe("/find");
+  });
 });

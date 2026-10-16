@@ -1,10 +1,12 @@
 // Resource detail and week booking calendar (SPEC 14.1): a SlotGrid with the seven days
-// as rows, live updates for the week's dates, and booking from a selected range.
+// as rows, live updates for the week's dates, and booking from a selected range. The
+// first week comes from ?date (Find a space links carry its date) and the shown week is
+// kept in ?week, written with replace.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { type CalendarResponse, CalendarResponse as CalendarSchema, type Reservation } from "../../shared/api.ts";
 import { AMENITIES } from "../../shared/synthetic/resources.ts";
-import { addDays, isWeekday, weekStartOf } from "../../shared/time.ts";
+import { DATE_RE, addDays, isValidDate, isWeekday, weekStartOf } from "../../shared/time.ts";
 import { ApiClientError, api, qs } from "../api/client.ts";
 import { useLiveAvailability } from "../live/useLiveAvailability.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
@@ -15,7 +17,8 @@ import { DateGrid, longDate } from "../ui/DateGrid.tsx";
 import { SlotGrid, type SlotRow, type SlotSelection } from "../ui/SlotGrid.tsx";
 import { BookingDialog } from "./BookingDialog.tsx";
 import styles from "./pages.module.css";
-import { dateDisabledReason, minStartOn, timeRange, useSite } from "./site.ts";
+import { bookableDateParam } from "./find-params.ts";
+import { dateDisabledReason, firstBookableDate, minStartOn, timeRange, useSite } from "./site.ts";
 import { usePageTitle } from "./usePageTitle.ts";
 
 const AMENITY_LABELS = new Map(AMENITIES.map((a) => [a.id, a.label]));
@@ -26,7 +29,12 @@ export function ResourcePage() {
   const site = useSite();
   const announce = useAnnounce();
   const banner = useStatusBanner();
-  const [weekStart, setWeekStart] = useState(() => weekStartOf(site.today));
+  const [params, setParams] = useSearchParams();
+  const dateParam = bookableDateParam(params.get("date"), site);
+  const weekParam = params.get("week");
+  const weekStart =
+    weekParam && DATE_RE.test(weekParam) && isValidDate(weekParam) ? weekStartOf(weekParam) : weekStartOf(dateParam ?? firstBookableDate(site));
+  const setWeekStart = (week: string) => setParams(new URLSearchParams({ week }), { replace: true });
   const [data, setData] = useState<CalendarResponse | null>(null);
   const [error, setError] = useState<"not_found" | "failed" | null>(null);
   const [selection, setSelection] = useState<SlotSelection | null>(null);
@@ -113,9 +121,16 @@ export function ResourcePage() {
   }
   if (!data) return <p role="status">Loading the calendar…</p>;
   const r = data.resource;
+  // Back to Find a space on a date in view: the selected one, the one this page was opened
+  // for, or the first bookable day of the shown week.
+  const inWeek = (d: string | null | undefined) => !!d && d >= weekStart && d <= addDays(weekStart, 6) && !dateDisabledReason(d, site);
+  const backDate = [selection?.rowId, dateParam, ...Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))].find(inWeek);
 
   return (
     <section className={styles.stack}>
+      <p>
+        <Link to={backDate ? `/find?date=${backDate}` : "/find"}>Back to Find a space</Link>
+      </p>
       <h1>{r.name}</h1>
       <dl className={styles.dl}>
         <dt>Kind</dt>

@@ -1,7 +1,8 @@
 // Find a space (SPEC 14.1): filters, a date, live availability for every matching
-// resource, select a range in the SlotGrid, confirm in a Dialog.
+// resource, select a range in the SlotGrid, confirm in a Dialog. The date, tab and
+// filters live in the URL (find-params.ts), written with replace so Back leaves the page.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { type AvailabilityResponse, AvailabilityResponse as AvailabilitySchema, type Reservation, type Resource } from "../../shared/api.ts";
 import { AMENITIES } from "../../shared/synthetic/resources.ts";
 import { formatMinutes } from "../../shared/time.ts";
@@ -16,6 +17,7 @@ import { SlotGrid, type SlotRow, type SlotSelection } from "../ui/SlotGrid.tsx";
 import { Tabs } from "../ui/Tabs.tsx";
 import { TextField } from "../ui/TextField.tsx";
 import { BookingDialog } from "./BookingDialog.tsx";
+import { CAPACITIES, FLOORS, type FindFilters, type Kind, fromTimes, parseFindParams, toTimes, writeFindParams } from "./find-params.ts";
 import styles from "./pages.module.css";
 import { dateDisabledReason, firstBookableDate, minStartOn, timeRange, useSite } from "./site.ts";
 import { usePageTitle } from "./usePageTitle.ts";
@@ -31,14 +33,13 @@ export function FindSpacePage() {
   const site = useSite();
   const announce = useAnnounce();
   const banner = useStatusBanner();
-  const [kind, setKind] = useState("all");
-  const [floor, setFloor] = useState("");
-  const [amenities, setAmenities] = useState<string[]>([]);
-  const [minCapacity, setMinCapacity] = useState("");
-  const [q, setQ] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [date, setDate] = useState(() => firstBookableDate(site));
+  const [params, setParams] = useSearchParams();
+  const defaultDate = firstBookableDate(site);
+  const filters = parseFindParams(params, site, defaultDate);
+  const { date, kind, floor, amenities, minCapacity, q, from, to } = filters;
+  const update = (patch: Partial<FindFilters>) => {
+    setParams((prev) => writeFindParams({ ...parseFindParams(prev, site, defaultDate), ...patch }, defaultDate), { replace: true });
+  };
   const [data, setData] = useState<AvailabilityResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selection, setSelection] = useState<SlotSelection | null>(null);
@@ -112,8 +113,6 @@ export function FindSpacePage() {
     refresh();
   };
 
-  const times: number[] = [];
-  for (let m = site.rules.openMin; m <= site.rules.closeMin; m += 30) times.push(m);
 
   return (
     <section className={styles.stack}>
@@ -128,27 +127,30 @@ export function FindSpacePage() {
         <div className={styles.stack}>
           <div className={styles.panel}>
             <DateGrid label="Booking date" value={date} today={site.today} onChange={(d) => {
-              setDate(d);
+              update({ date: d });
               setSelection(null);
             }} isDisabled={(d) => dateDisabledReason(d, site)} />
           </div>
           <form className={styles.panel} role="search" aria-label="Filter spaces" onSubmit={(e) => e.preventDefault()}>
             <fieldset className={styles.filters}>
               <legend className="visually-hidden">Filters</legend>
-              <TextField label="Search" type="search" value={q} onChange={setQ} placeholder="Name, zone or amenity" />
+              <TextField label="Search" type="search" value={q} onChange={(v) => update({ q: v })} placeholder="Name, zone or amenity" maxLength={100} />
               <label className={styles.selectLabel}>
                 Floor
-                <select className={styles.select} value={floor} onChange={(e) => setFloor(e.target.value)}>
+                <select className={styles.select} value={floor} onChange={(e) => update({ floor: e.target.value })}>
                   <option value="">Any floor</option>
-                  <option value="2">Floor 2</option>
-                  <option value="3">Floor 3</option>
+                  {FLOORS.map((f) => (
+                    <option key={f} value={f}>
+                      Floor {f}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className={styles.selectLabel}>
                 Seats
-                <select className={styles.select} value={minCapacity} onChange={(e) => setMinCapacity(e.target.value)}>
+                <select className={styles.select} value={minCapacity} onChange={(e) => update({ minCapacity: e.target.value })}>
                   <option value="">Any size</option>
-                  {[2, 4, 6, 8, 10].map((n) => (
+                  {CAPACITIES.map((n) => (
                     <option key={n} value={n}>
                       {n} or more
                     </option>
@@ -162,7 +164,7 @@ export function FindSpacePage() {
                     <input
                       type="checkbox"
                       checked={amenities.includes(a.id)}
-                      onChange={(e) => setAmenities((list) => (e.target.checked ? [...list, a.id] : list.filter((x) => x !== a.id)))}
+                      onChange={(e) => update({ amenities: e.target.checked ? [...amenities, a.id] : amenities.filter((x) => x !== a.id) })}
                     />
                     {a.label}
                   </label>
@@ -171,9 +173,14 @@ export function FindSpacePage() {
               <div className={styles.row}>
                 <label className={styles.selectLabel}>
                   Free from
-                  <select className={styles.select} value={from} onChange={(e) => setFrom(e.target.value)}>
+                  <select
+                    className={styles.select}
+                    value={from}
+                    // A start at or after the chosen end replaces that end.
+                    onChange={(e) => update({ from: e.target.value, ...(e.target.value && to && Number(to) <= Number(e.target.value) ? { to: "" } : {}) })}
+                  >
                     <option value="">Any time</option>
-                    {times.slice(0, -1).map((m) => (
+                    {fromTimes(site).map((m) => (
                       <option key={m} value={m}>
                         {formatMinutes(m)}
                       </option>
@@ -182,9 +189,13 @@ export function FindSpacePage() {
                 </label>
                 <label className={styles.selectLabel}>
                   Until
-                  <select className={styles.select} value={to} onChange={(e) => setTo(e.target.value)}>
+                  <select
+                    className={styles.select}
+                    value={to}
+                    onChange={(e) => update({ to: e.target.value, ...(e.target.value && from && Number(e.target.value) <= Number(from) ? { from: "" } : {}) })}
+                  >
                     <option value="">Any time</option>
-                    {times.slice(1).map((m) => (
+                    {toTimes(site).map((m) => (
                       <option key={m} value={m}>
                         {formatMinutes(m)}
                       </option>
@@ -197,7 +208,7 @@ export function FindSpacePage() {
         </div>
         <div className={styles.stack}>
           <Tabs tabs={KIND_TABS} value={kind} onChange={(k) => {
-            setKind(k);
+            update({ kind: k as Kind });
             setSelection(null);
           }} label="Kind of space">
             {() => (
@@ -238,7 +249,7 @@ export function FindSpacePage() {
                     <ul className={styles.inlineList}>
                       {data.resources.map((r) => (
                         <li key={r.resource.id}>
-                          <Link to={`/resources/${r.resource.id}`}>{r.resource.name}</Link>
+                          <Link to={`/resources/${r.resource.id}?date=${date}`}>{r.resource.name}</Link>
                         </li>
                       ))}
                     </ul>
