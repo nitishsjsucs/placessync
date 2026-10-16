@@ -20,9 +20,19 @@ import { usePageTitle } from "./usePageTitle.ts";
 const ROLE_ORDER: Role[] = ["facilities_admin", "facilities_staff", "employee"];
 const EMPLOYEE_FIELD_ID = "login-employee";
 
-/** Only a same-origin path: "/x" but never "//host" or "/\host", which browsers treat as another origin. */
+/**
+ * Only a same-origin path: "/x" but never "//host" or "/\host", which browsers treat as
+ * another origin. A backslash or a control character anywhere is refused too: browsers
+ * drop tab and newline when they parse a URL, so "/<tab>/host" becomes "//host". What is
+ * left must still resolve to this origin.
+ */
 export function safeNext(next: string | null): string {
-  return next && /^\/(?![/\\])/.test(next) ? next : "/find";
+  if (!next || !next.startsWith("/") || next.startsWith("//") || /[\u0000-\u001f\u007f\\]/.test(next)) return "/find";
+  try {
+    return new URL(next, window.location.origin).origin === window.location.origin ? next : "/find";
+  } catch {
+    return "/find";
+  }
 }
 
 export function DevLoginPage() {

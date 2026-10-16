@@ -1,6 +1,7 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { safeNext } from "../../../src/client/pages/DevLoginPage.tsx";
 import { HEALTH, installFakeApi, me, respond } from "../fake-api.ts";
 import { renderAt } from "../render-app.tsx";
 import { browserFocusFixup } from "../setup.ts";
@@ -111,11 +112,16 @@ describe("dev login page", () => {
     expect(screen.getByRole("link", { name: "Continue as Test Person" }).getAttribute("href")).toBe("/bookings");
     first.unmount();
 
-    for (const bad of ["//evil.example", "/\\evil.example", "https://evil.example"]) {
+    for (const bad of ["//evil.example", "/\\evil.example", "https://evil.example", "/\t/evil.example/phish", "/\n/evil.example", "/\r/evil.example", "/find\\..\\/evil.example"]) {
       const view = renderAt(`/login?next=${encodeURIComponent(bad)}`);
       expect((await screen.findByRole("link", { name: "Continue as Test Person" })).getAttribute("href")).toBe("/find");
       view.unmount();
     }
+  });
+
+  it("safeNext keeps same-origin paths with their search and refuses anything a browser could read as another host", () => {
+    for (const good of ["/find?kind=room&q=a%20b", "/requests/req_1", "/staff?tab=working"]) expect(safeNext(good)).toBe(good);
+    for (const bad of [null, "", "find", "//evil.example", "/\\evil.example", "/\t/evil.example", "/\n/evil.example", "/x\u0000y", "javascript:alert(1)"]) expect(safeNext(bad)).toBe("/find");
   });
 
   it("after Sign in, ignores a next parameter that points at another origin", async () => {
