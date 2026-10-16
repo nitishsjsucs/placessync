@@ -159,13 +159,15 @@ export function FindSpacePage() {
               setSelection(null);
             }} isDisabled={(d) => dateDisabledReason(d, site)} />
           </div>
-          <form className={`${styles.panel} ${narrow ? styles.panelTight : ""}`} role="search" aria-label="Filter spaces" onSubmit={(e) => e.preventDefault()}>
+          <form className={narrow ? styles.stack : styles.panel} role="search" aria-label="Filter spaces" onSubmit={(e) => e.preventDefault()}>
             {narrow ? (
-              <Button variant="secondary" aria-expanded={filtersOpen} aria-controls="find-filters" onClick={() => setFiltersOpen((o) => !o)}>
-                {activeFilters > 0 ? `Filters (${activeFilters} active)` : "Filters"}
-              </Button>
+              <div>
+                <Button variant="secondary" aria-expanded={filtersOpen} aria-controls="find-filters" onClick={() => setFiltersOpen((o) => !o)}>
+                  {activeFilters > 0 ? `Filters (${activeFilters} active)` : "Filters"}
+                </Button>
+              </div>
             ) : null}
-            <fieldset id="find-filters" className={`${styles.filters} ${narrow ? styles.filtersDisclosed : ""}`} hidden={narrow && !filtersOpen}>
+            <fieldset id="find-filters" className={`${styles.filters} ${narrow ? styles.panel : ""}`} hidden={narrow && !filtersOpen}>
               <legend className="visually-hidden">Filters</legend>
               <TextField label="Search" type="search" value={q} onChange={(v) => update({ q: v })} placeholder="Name, zone or amenity" maxLength={100} />
               <label className={styles.selectLabel}>
@@ -253,7 +255,7 @@ export function FindSpacePage() {
           }} label="Kind of space">
             {() => (
               <div className={styles.stack}>
-                <div id="slots" ref={slotsRef} tabIndex={-1} className={styles.stack}>
+                <div id="slots" ref={slotsRef} tabIndex={-1} className={`${styles.stack} ${styles.slotArea}`}>
                 {loadError ? <LoadError message={loadError} onRetry={retry} /> : null}
                 {data === null && !loadError ? <p role="status">Loading availability…</p> : null}
                 {data !== null && !loadError ? (
