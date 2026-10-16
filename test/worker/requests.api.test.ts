@@ -244,6 +244,13 @@ describe("staff review (SPEC 7.3 conditional write)", () => {
     expect(back.status).toBe(409);
     await back.body?.cancel();
     expect(await eventTypes(id)).toEqual(["reviewed", "status_changed", "status_changed"]);
+    // The resolution note is stored on the event the reporter's timeline shows.
+    const detail = await json<{ events: { type: string; data: { to?: string; note?: string | null } }[] }>(await (await as(EMPLOYEE)).get(`/api/requests/${id}`));
+    const changes = detail.events.filter((e) => e.type === "status_changed").map((e) => e.data);
+    expect(changes).toEqual([
+      { from: "assigned", to: "in_progress", note: null },
+      { from: "in_progress", to: "resolved", note: "Replaced the cable." },
+    ]);
   });
 
   it("two concurrent status changes at the same instant give one 200, one 409 and one status_changed event", async () => {

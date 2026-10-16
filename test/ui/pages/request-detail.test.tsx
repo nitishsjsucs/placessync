@@ -192,3 +192,20 @@ describe("Request detail notices and the way back (UX-07, UX-08)", () => {
     expect((await screen.findByRole("link", { name: text })).getAttribute("href")).toBe(href);
   });
 });
+
+describe("Request detail timeline (UX-09)", () => {
+  it("shows the note staff left when resolving", async () => {
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/requests/req_p": {
+        request: { ...awaiting, status: "resolved", finalCategory: "electrical_av" },
+        suggestion,
+        events: [...events, { id: 2, type: "status_changed", actorId: "emp_093", data: { from: "in_progress", to: "resolved", note: "Replaced the HDMI cable" }, at: "2026-10-08T17:00:00.000Z" }],
+      },
+    });
+    renderAt("/requests/req_p");
+    expect(await screen.findByText("Status changed to Resolved: Replaced the HDMI cable")).toBeTruthy();
+  });
+});
+

@@ -6,6 +6,9 @@
 // also refreshes on its own: every 60 s while the page is visible, when the page becomes
 // visible again, and when the live socket reconnects. A request still in "submitted"
 // becomes eligible after 2 minutes without any staff event, so live events alone miss it.
+// Resolving cannot be undone, so it asks first and takes an optional note for the
+// reporter. Only a 409 is reported as "changed meanwhile"; any other failure says to
+// check the connection, inside the dialog, which stays open so a typed note is kept.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { StaffBookingsResponse, StaffQueueResponse } from "../../shared/api.ts";
@@ -21,6 +24,7 @@ import { Combobox } from "../ui/Combobox.tsx";
 import { DataTable } from "../ui/DataTable.tsx";
 import { Dialog } from "../ui/Dialog.tsx";
 import { Tabs } from "../ui/Tabs.tsx";
+import { TextField } from "../ui/TextField.tsx";
 import styles from "./pages.module.css";
 import { categoryLabel, statusLabel } from "./requests-ui.ts";
 import { timeRange, useSite } from "./site.ts";
@@ -36,6 +40,8 @@ const TABS = [
   { id: "today", label: "Today's bookings" },
 ];
 export const QUEUE_REFRESH_MS = 60_000;
+const SAVE_FAILED = "Could not save. Check your connection and try again.";
+const NOTE_MAX = 500;
 
 function hhmm(d: Date): string {
   return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -67,6 +73,11 @@ export function StaffDashboardPage() {
   const [category, setCategory] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [resolving, setResolving] = useState<QueueItem | null>(null);
+  const [note, setNote] = useState("");
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [resolvePending, setResolvePending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [today, setToday] = useState<Booking[] | null>(null);
   // Today's bookings has its own error, so it never hides or replaces the queue's.
@@ -160,16 +171,25 @@ export function StaffDashboardPage() {
   function openReview(item: QueueItem, mode: ReviewMode) {
     setCategory(mode === "reassign" ? (item.suggestion?.category ?? null) : null);
     setReviewError(null);
+    setCategoryError(null);
     setReview({ item, mode });
+  }
+
+  function openResolve(item: QueueItem) {
+    setNote("");
+    setResolveError(null);
+    setResolving(item);
   }
 
   async function submitReview() {
     if (!review) return;
     const body = review.mode === "accept" ? { decision: "accept" } : { decision: review.mode, category };
     if (review.mode !== "accept" && !category) {
-      setReviewError("Choose a category.");
+      setCategoryError("Choose a category.");
       return;
     }
+    setCategoryError(null);
+    setReviewError(null);
     setPending(true);
     try {
       await api.postRaw(`/api/staff/requests/${review.item.id}/review`, body);
@@ -179,11 +199,11 @@ export function StaffDashboardPage() {
       setReview(null);
       setNotice(null);
     } catch (err) {
-      if (err instanceof ApiClientError && err.code === "not_reviewable") {
+      if (err instanceof ApiClientError && err.status === 409) {
         setReview(null);
         setNotice(`Already reviewed: "${review.item.title}" was handled by someone else or cancelled. The queue has been refreshed.`);
       } else {
-        setReviewError("The review could not be saved.");
+        setReviewError(SAVE_FAILED);
       }
     } finally {
       setPending(false);
@@ -191,15 +211,48 @@ export function StaffDashboardPage() {
     }
   }
 
-  async function changeStatus(item: QueueItem, status: "in_progress" | "resolved") {
+  /** Posts a status change: "ok", "conflict" (a 409, reported on the page) or "failed". */
+  async function postStatus(item: QueueItem, status: "in_progress" | "resolved", noteText?: string): Promise<"ok" | "conflict" | "failed"> {
     try {
-      await api.postRaw(`/api/staff/requests/${item.id}/status`, { status });
+      await api.postRaw(`/api/staff/requests/${item.id}/status`, noteText ? { status, note: noteText } : { status });
       announce(`"${item.title}" is now ${statusLabel(status).toLowerCase()}.`);
-      banner.show({ text: `"${item.title}" is now ${statusLabel(status)}.`, focus: true });
-    } catch {
-      setNotice(`"${item.title}" changed meanwhile. The list has been refreshed.`);
+      setNotice(null);
+      void load();
+      return "ok";
+    } catch (err) {
+      if (err instanceof ApiClientError && err.status === 409) {
+        setNotice(`"${item.title}" changed meanwhile. The list has been refreshed.`);
+        void load();
+        return "conflict";
+      }
+      return "failed";
     }
-    void load();
+  }
+
+  // The row's button is gone after the change, so the result takes focus. It is shown in
+  // the same update that closes a dialog, so it runs after the dialog's focus restore.
+  const showStatus = (item: QueueItem, status: "in_progress" | "resolved") =>
+    banner.show({ text: `"${item.title}" is now ${statusLabel(status)}.`, focus: true });
+
+  async function startWork(item: QueueItem) {
+    const outcome = await postStatus(item, "in_progress");
+    if (outcome === "ok") showStatus(item, "in_progress");
+    if (outcome === "failed") setNotice(SAVE_FAILED);
+  }
+
+  async function submitResolve() {
+    if (!resolving) return;
+    const item = resolving;
+    setResolvePending(true);
+    setResolveError(null);
+    const outcome = await postStatus(item, "resolved", note.trim() || undefined);
+    setResolvePending(false);
+    if (outcome === "failed") {
+      setResolveError(SAVE_FAILED);
+      return;
+    }
+    setResolving(null);
+    if (outcome === "ok") showStatus(item, "resolved");
   }
 
   const base = [
@@ -299,11 +352,11 @@ export function StaffDashboardPage() {
               rowActions={(r) => (
                 <>
                   {r.status === "assigned" ? (
-                    <Button size="sm" variant="secondary" onClick={() => void changeStatus(r, "in_progress")}>
+                    <Button size="sm" variant="secondary" onClick={() => void startWork(r)}>
                       Start work{" "}<span className="visually-hidden">on {r.title}</span>
                     </Button>
                   ) : null}
-                  <Button size="sm" onClick={() => void changeStatus(r, "resolved")}>
+                  <Button size="sm" onClick={() => openResolve(r)}>
                     Resolve{" "}<span className="visually-hidden">{r.title}</span>
                   </Button>
                 </>
@@ -363,8 +416,43 @@ export function StaffDashboardPage() {
                 Suggested: {categoryLabel(review.item.suggestion.category)} ({providerLabel(review.item.suggestion.provider)}). {review.item.suggestion.rationale}
               </p>
             ) : null}
-            {review.mode !== "accept" ? <Combobox label="Category" options={CATEGORY_OPTIONS} value={category} onChange={setCategory} error={reviewError} /> : null}
-            {review.mode === "accept" && reviewError ? <p role="alert">{reviewError}</p> : null}
+            {review.mode !== "accept" ? <Combobox label="Category" options={CATEGORY_OPTIONS} value={category} onChange={setCategory} error={categoryError} /> : null}
+            {reviewError ? (
+              <p role="alert" className={styles.notice}>
+                {reviewError}
+              </p>
+            ) : null}
+          </>
+        ) : null}
+      </Dialog>
+      <Dialog
+        open={resolving !== null}
+        onClose={() => setResolving(null)}
+        dismissable={!resolvePending}
+        title="Resolve this request?"
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setResolving(null)} disabled={resolvePending}>
+              Cancel
+            </Button>
+            <Button onClick={() => void submitResolve()} loading={resolvePending}>
+              Resolve
+            </Button>
+          </>
+        }
+      >
+        {resolving ? (
+          <>
+            <p>
+              <strong>{resolving.title}</strong>
+            </p>
+            <p className={styles.muted}>A resolved request cannot be reopened. The reporter sees the note in the request's timeline.</p>
+            <TextField label="Note for the reporter (optional)" value={note} onChange={setNote} multiline rows={3} maxLength={NOTE_MAX} />
+            {resolveError ? (
+              <p role="alert" className={styles.notice}>
+                {resolveError}
+              </p>
+            ) : null}
           </>
         ) : null}
       </Dialog>

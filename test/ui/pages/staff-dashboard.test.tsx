@@ -249,3 +249,94 @@ describe("Staff dashboard stays current and keeps its tab (UX-08)", () => {
     expect(queueGets().length).toBe(before + 1);
   });
 });
+
+describe("Resolving and save errors (UX-09)", () => {
+  const working = { ...suggested, id: "req_w", title: "Chair broken", status: "in_progress", finalCategory: "furniture_fixtures" };
+  const assigned = { ...suggested, id: "req_a", title: "Lamp out", status: "assigned", finalCategory: "electrical_av" };
+  const statusPosts = () => api.calls.filter((c) => c.method === "POST" && c.url.endsWith("/status"));
+  const rejectFetchFor = (suffix: string) => {
+    const realFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", (input: string, init?: RequestInit) => (String(input).endsWith(suffix) ? Promise.reject(new TypeError("Failed to fetch")) : realFetch(input, init)));
+  };
+
+  async function openWorking() {
+    api.set("GET /api/staff/requests?status=in_progress", { requests: [working] });
+    api.set("GET /api/staff/requests?status=assigned", { requests: [assigned] });
+    api.set("POST /api/staff/requests/req_w/status", { request: {} });
+    api.set("POST /api/staff/requests/req_a/status", { request: {} });
+    renderAt("/staff?tab=working");
+    await screen.findByRole("link", { name: "Chair broken" });
+    return userEvent.setup();
+  }
+
+  it("Resolve asks first; Cancel sends nothing; a note is sent when given and left out when blank", async () => {
+    const user = await openWorking();
+    await user.click(screen.getByRole("button", { name: "Resolve Chair broken" }));
+    let dialog = screen.getByRole("dialog", { name: "Resolve this request?" });
+    expect(within(dialog).getByText("Chair broken")).toBeTruthy();
+    const field = within(dialog).getByRole("textbox", { name: "Note for the reporter (optional)" });
+    expect(field.getAttribute("maxlength")).toBe("500");
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(statusPosts()).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "Resolve Chair broken" }));
+    dialog = screen.getByRole("dialog", { name: "Resolve this request?" });
+    await user.type(within(dialog).getByRole("textbox", { name: "Note for the reporter (optional)" }), "Replaced the HDMI cable");
+    await user.click(within(dialog).getByRole("button", { name: "Resolve" }));
+    await waitFor(() => expect(statusPosts()).toHaveLength(1));
+    expect(statusPosts()[0]?.body).toEqual({ status: "resolved", note: "Replaced the HDMI cable" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect((await screen.findByTestId("status-banner")).textContent).toContain('"Chair broken" is now Resolved.');
+
+    await user.click(screen.getByRole("button", { name: "Resolve Lamp out" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Resolve this request?" })).getByRole("button", { name: "Resolve" }));
+    await waitFor(() => expect(statusPosts()).toHaveLength(2));
+    expect(statusPosts()[1]?.body).toEqual({ status: "resolved" });
+  });
+
+  it("Start work stays one click", async () => {
+    const user = await openWorking();
+    await user.click(screen.getByRole("button", { name: "Start work on Lamp out" }));
+    await waitFor(() => expect(statusPosts()[0]?.body).toEqual({ status: "in_progress" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("a network failure says to check the connection: on the page for Start work, in the open dialog for Resolve", async () => {
+    rejectFetchFor("/status");
+    const user = await openWorking();
+    await user.click(screen.getByRole("button", { name: "Start work on Lamp out" }));
+    expect(await screen.findByText("Could not save. Check your connection and try again.")).toBeTruthy();
+    expect(screen.queryByText(/changed meanwhile/)).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Resolve Chair broken" }));
+    const dialog = screen.getByRole("dialog", { name: "Resolve this request?" });
+    await user.type(within(dialog).getByRole("textbox", { name: "Note for the reporter (optional)" }), "Tightened the screws");
+    await user.click(within(dialog).getByRole("button", { name: "Resolve" }));
+    expect(await within(dialog).findByText("Could not save. Check your connection and try again.")).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Resolve this request?" })).toBeTruthy();
+    expect((within(dialog).getByRole("textbox", { name: "Note for the reporter (optional)" }) as HTMLTextAreaElement).value).toBe("Tightened the screws");
+  });
+
+  it("a 409 on Resolve says the request changed meanwhile", async () => {
+    const user = await openWorking();
+    api.set("POST /api/staff/requests/req_w/status", respond(409, { error: "invalid_transition", message: "The request changed meanwhile; reload and try again." }));
+    await user.click(screen.getByRole("button", { name: "Resolve Chair broken" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Resolve this request?" })).getByRole("button", { name: "Resolve" }));
+    expect(await screen.findByText('"Chair broken" changed meanwhile. The list has been refreshed.')).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("a review that fails for another reason keeps the dialog open with the connection message", async () => {
+    api.set("POST /api/staff/requests/req_s/review", respond(500, { error: "internal", message: "Something went wrong." }));
+    renderAt("/staff");
+    const user = userEvent.setup();
+    await screen.findByRole("link", { name: "Projector dead" });
+    await user.click(within(rowOf("Projector dead")).getByRole("button", { name: /^Accept/ }));
+    const dialog = screen.getByRole("dialog", { name: "Accept the suggestion?" });
+    await user.click(within(dialog).getByRole("button", { name: "Accept" }));
+    expect(await within(dialog).findByText("Could not save. Check your connection and try again.")).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Accept the suggestion?" })).toBeTruthy();
+    expect(screen.queryByText(/Already reviewed/)).toBeNull();
+  });
+});
+
