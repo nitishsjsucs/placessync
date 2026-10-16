@@ -1,6 +1,7 @@
 // The slot grid on a laptop (UX-13): at 1280x900 the 24 half-hour columns are wider than
 // the panel beside the filters, and macOS draws no scrollbar. Late in the day the grid
-// must open scrolled to the first column that can still be booked.
+// must open scrolled to the first column that can still be booked, with the grid's key
+// still in view.
 import { expect, test } from "@playwright/test";
 import { isWeekdayDate, login, siteInstant, siteToday } from "./helpers.ts";
 
@@ -29,4 +30,11 @@ test("at 16:10 site time the 16:30 column is in view without scrolling by hand",
   // Right of the sticky row header and inside the scroller's visible box.
   expect(head.x).toBeGreaterThanOrEqual(sticky.x + sticky.width - 1);
   expect(head.x + head.width).toBeLessThanOrEqual(box.x + box.width + 1);
+  // The key under the grid sits inside the same scroller and is sticky, so after that
+  // scroll it still shows whole, including what the counts under each time mean.
+  const key = await scroller.locator("p").filter({ hasText: "Number under each time" }).boundingBox();
+  if (!key) throw new Error("no legend box");
+  expect(await scroller.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+  expect(key.x).toBeGreaterThanOrEqual(box.x - 1);
+  expect(key.x + key.width).toBeLessThanOrEqual(box.x + box.width + 1);
 });

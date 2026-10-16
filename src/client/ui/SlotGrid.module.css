@@ -78,7 +78,11 @@
   background: var(--color-selected);
 }
 
+/* Inside the sideways scroller, so it is sticky: when the grid scrolls to the first open
+   column, the help and the key (including what the counts under each time mean) stay in view. */
 .legend {
+  position: sticky;
+  left: 0;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
