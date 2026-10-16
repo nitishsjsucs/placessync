@@ -70,6 +70,17 @@ export function timeRange(startMin: number, endMin: number): string {
   return `${formatMinutes(startMin)} to ${formatMinutes(endMin)}`;
 }
 
+/** Grid cells in the shortest booking of this kind: 2 for a 60-minute desk, 1 for a room. */
+export function minSlots(kind: "desk" | "room", slotMinutes = 30): number {
+  return Math.ceil(DURATION_LIMITS[kind].min / slotMinutes);
+}
+
+/** Shown next to Book while a selection is shorter than the kind allows, else null. */
+export function shortSelectionHint(kind: "desk" | "room", startMin: number, endMin: number): string | null {
+  const min = DURATION_LIMITS[kind].min;
+  return endMin - startMin < min ? `${kind === "desk" ? "Desks" : "Rooms"} need at least ${min} minutes; extend the selection.` : null;
+}
+
 export function durationHint(kind: "desk" | "room"): string {
   const l = DURATION_LIMITS[kind];
   return `${kind === "desk" ? "Desks" : "Rooms"} book for ${l.min} to ${l.max} minutes.`;

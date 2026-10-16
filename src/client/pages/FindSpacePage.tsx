@@ -19,7 +19,7 @@ import { TextField } from "../ui/TextField.tsx";
 import { BookingDialog } from "./BookingDialog.tsx";
 import { CAPACITIES, FLOORS, type FindFilters, type Kind, fromTimes, parseFindParams, toTimes, writeFindParams } from "./find-params.ts";
 import styles from "./pages.module.css";
-import { dateDisabledReason, firstBookableDate, minStartOn, timeRange, todayHasClosed, useSite } from "./site.ts";
+import { dateDisabledReason, firstBookableDate, minSlots, minStartOn, shortSelectionHint, timeRange, todayHasClosed, useSite } from "./site.ts";
 import { usePageTitle } from "./usePageTitle.ts";
 
 const KIND_TABS = [
@@ -94,6 +94,9 @@ export function FindSpacePage() {
   }, [data, liveDate, from, to]);
 
   const selectedResource = data?.resources.find((r) => r.resource.id === selection?.rowId)?.resource ?? null;
+  const kindById = useMemo(() => new Map((data?.resources ?? []).map((r) => [r.resource.id, r.resource.kind])), [data]);
+  const minSlotsFor = useCallback((id: string) => minSlots(kindById.get(id) ?? "room"), [kindById]);
+  const tooShort = selection && selectedResource ? shortSelectionHint(selectedResource.kind, selection.startMin, selection.endMin) : null;
   const refresh = useCallback(() => setRefreshTick((t) => t + 1), []);
   const retry = () => {
     setLoadError(null);
@@ -232,6 +235,7 @@ export function FindSpacePage() {
                         selection={selection}
                         onSelect={onSelect}
                         minStartFor={() => minStartOn(date, site)}
+                        minSlotsFor={minSlotsFor}
                       />
                     ) : (
                       <p>No spaces match these filters.</p>
@@ -245,6 +249,7 @@ export function FindSpacePage() {
                   >
                     {selection && selectedResource ? `Book ${selectedResource.name}, ${timeRange(selection.startMin, selection.endMin)}` : "Select a time to book"}
                   </Button>
+                  {tooShort ? <p className={styles.muted}>{tooShort}</p> : null}
                 </div>
                 {data && data.resources.length > 0 ? (
                   <details>

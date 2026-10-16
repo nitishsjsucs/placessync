@@ -7,9 +7,13 @@
 // day beyond the horizon) are drawn plainly muted, not hatched like booked ones, and
 // their names say why. When the grid first shows a date, it scrolls so the first
 // selectable column (or the selection) sits next to the sticky row header.
+// A plain click, a tap, or Enter without a Shift-extended range selects the shortest
+// valid booking for that row (minSlotsFor, such as two cells for a 60-minute desk
+// minimum) when those cells are free, else the one cell. An explicit range is never padded.
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { COMPACT_QUERY, useMediaQuery } from "../hooks/useMediaQuery.ts";
 import { formatMinutes } from "../../shared/time.ts";
+import { Button } from "./Button.tsx";
 import styles from "./SlotGrid.module.css";
 
 export interface SlotBusy {
@@ -44,6 +48,8 @@ export interface SlotGridProps {
   minStartFor?: (rowId: string) => number;
   /** A word when a whole row cannot be booked ("past", "closed", "not open for booking yet"). */
   rowUnavailable?: (rowId: string) => string | null;
+  /** Cells a first click selects in this row, the shortest valid booking (default 1). */
+  minSlotsFor?: (rowId: string) => number;
 }
 
 type CellState = "free" | "busy" | "mine";
@@ -55,6 +61,21 @@ function stateOf(row: SlotRow, start: number, end: number): CellState {
 
 function overlapsBusy(row: SlotRow | undefined, sel: SlotSelection): boolean {
   return !!row && row.busy.some((b) => b.startMin < sel.endMin && sel.startMin < b.endMin);
+}
+
+/**
+ * The shortest valid selection starting at column c: n cells when all of them are
+ * selectable and inside open hours, else the single cell.
+ */
+function paddedFrom(rowId: string, c: number, n: number, slots: readonly number[], slotMinutes: number, blocked: (c: number) => boolean): SlotSelection {
+  const start = slots[c] as number;
+  let last = c;
+  if (n > 1 && c + n - 1 < slots.length) {
+    let ok = true;
+    for (let k = c + 1; k < c + n; k++) if (blocked(k)) ok = false;
+    if (ok) last = c + n - 1;
+  }
+  return { rowId, startMin: start, endMin: (slots[last] as number) + slotMinutes };
 }
 
 export function SlotGrid(props: SlotGridProps) {
@@ -85,7 +106,7 @@ export function SlotGrid(props: SlotGridProps) {
   );
 }
 
-function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection, onSelect, rowHeader = "Resource", minStartFor, rowUnavailable }: SlotGridProps) {
+function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection, onSelect, rowHeader = "Resource", minStartFor, rowUnavailable, minSlotsFor }: SlotGridProps) {
   const base = useId();
   const slots = useMemo(() => {
     const out: number[] = [];
@@ -143,8 +164,14 @@ function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection
     // Only a new date or new rows re-scroll; live updates and selections never do.
   }, [scrollKey]);
 
+  const padded = (r: number, c: number): SlotSelection | null => {
+    const row = rows[r];
+    if (!row || blocked(r, c)) return null;
+    return paddedFrom(row.id, c, minSlotsFor?.(row.id) ?? 1, slots, slotMinutes, (k) => blocked(r, k));
+  };
+
   /** The range from the anchor to the focused cell, if it is entirely free and in one row. */
-  const pendingRange = (): SlotSelection | null => {
+  const extendedRange = (): SlotSelection | null => {
     const row = rows[focus.r];
     if (!row) return null;
     const a = anchor && anchor.r === focus.r ? anchor.c : focus.c;
@@ -198,7 +225,9 @@ function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection
       case "Enter":
       case " ": {
         e.preventDefault();
-        const range = pendingRange();
+        // A Shift-extended range is taken as it is; otherwise the shortest valid booking.
+        const extended = anchor && anchor.r === focus.r && anchor.c !== focus.c;
+        const range = extended ? extendedRange() : padded(focus.r, focus.c);
         if (range) onSelect(range);
         break;
       }
@@ -210,7 +239,7 @@ function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection
     }
   };
 
-  const range = pendingRange();
+  const range = extendedRange();
   const inPending = (r: number, c: number) =>
     !!anchor && !!range && anchor.r === r && rows[r]?.id === range.rowId && startOf(c) >= range.startMin && startOf(c) < range.endMin;
   const inSelection = (r: number, c: number) =>
@@ -286,7 +315,8 @@ function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection
                         if (!overlapsBusy(row, candidate)) onSelect(candidate);
                       } else {
                         setAnchor(null);
-                        onSelect({ rowId: row.id, startMin: m, endMin: m + slotMinutes });
+                        const first = padded(r, c);
+                        if (first) onSelect(first);
                       }
                     }}
                   />
@@ -297,7 +327,7 @@ function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection
         </tbody>
       </table>
       <p id={`${base}-help`} className={styles.legend}>
-        <span>Arrow keys move. Shift with Left or Right extends the time. Enter selects. Escape clears.</span>
+        <span>Click a start time; Shift+click a later time to extend. Arrow keys move, Shift with Left or Right extends, Enter selects, Escape clears.</span>
         <span>
           <span className={`${styles.swatch} ${styles.busy}`} aria-hidden="true" />
           Booked
@@ -319,7 +349,7 @@ function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection
   );
 }
 
-function CompactSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection, onSelect, rowHeader = "Resource", minStartFor, rowUnavailable }: SlotGridProps) {
+function CompactSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection, onSelect, rowHeader = "Resource", minStartFor, rowUnavailable, minSlotsFor }: SlotGridProps) {
   const base = useId();
   const [rowId, setRowId] = useState<string>(selection?.rowId ?? rows[0]?.id ?? "");
   const row = rows.find((r) => r.id === rowId) ?? rows[0];
@@ -334,13 +364,21 @@ function CompactSlots({ label, rows, openMin, closeMin, slotMinutes = 30, select
   const minStart = minStartFor?.(row.id) ?? -1;
   const closed = rowUnavailable?.(row.id) ?? null;
 
+  const blockedAt = (c: number) => {
+    const m = slots[c] as number;
+    return stateOf(row, m, m + slotMinutes) !== "free" || m < minStart || closed !== null;
+  };
   const pick = (m: number) => {
-    const single = { rowId: row.id, startMin: m, endMin: m + slotMinutes };
-    if (selection && selection.rowId === row.id && m >= selection.endMin) {
-      const extended = { rowId: row.id, startMin: selection.startMin, endMin: m + slotMinutes };
-      onSelect(overlapsBusy(row, extended) ? single : extended);
+    const first = paddedFrom(row.id, slots.indexOf(m), minSlotsFor?.(row.id) ?? 1, slots, slotMinutes, blockedAt);
+    const inRow = selection && selection.rowId === row.id ? selection : null;
+    if (inRow && m > inRow.startMin && m < inRow.endMin) {
+      // A tap inside the selection moves its end there.
+      onSelect({ rowId: row.id, startMin: inRow.startMin, endMin: m + slotMinutes });
+    } else if (inRow && m >= inRow.endMin) {
+      const extended = { rowId: row.id, startMin: inRow.startMin, endMin: m + slotMinutes };
+      onSelect(overlapsBusy(row, extended) ? first : extended);
     } else {
-      onSelect(single);
+      onSelect(first);
     }
   };
 
@@ -356,7 +394,7 @@ function CompactSlots({ label, rows, openMin, closeMin, slotMinutes = 30, select
           ))}
         </select>
       </label>
-      <ul className={styles.chips} aria-label={`${label}: ${row.label}`}>
+      <ul className={styles.chips} aria-label={`${label}: ${row.label}`} aria-describedby={`${base}-help`}>
         {slots.map((m) => {
           const state = stateOf(row, m, m + slotMinutes);
           const selected = !!selection && selection.rowId === row.id && m >= selection.startMin && m < selection.endMin;
@@ -378,6 +416,16 @@ function CompactSlots({ label, rows, openMin, closeMin, slotMinutes = 30, select
           );
         })}
       </ul>
+      <p id={`${base}-help`} className={styles.legend}>
+        Tap a start time, then a later time to extend.
+      </p>
+      {selection ? (
+        <div>
+          <Button variant="secondary" onClick={() => onSelect(null)}>
+            Clear selection
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

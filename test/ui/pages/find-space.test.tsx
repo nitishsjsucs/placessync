@@ -32,11 +32,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function openPage(post: unknown) {
+async function openPage(post: unknown, busy: Parameters<typeof availability>[1] = {}) {
   const api = installFakeApi({
     "GET /api/health": HEALTH,
     "GET /api/me": me("emp_001", "employee"),
-    "GET /api/sites/hq/availability": (c: { url: string }) => availability(c.url),
+    "GET /api/sites/hq/availability": (c: { url: string }) => availability(c.url, busy),
     "POST /api/reservations": post,
   });
   renderAt("/find");
@@ -182,9 +182,11 @@ describe("Find a space (SPEC 14.1)", () => {
   });
 
   it("validates inline with the shared rules before posting (desk under 60 minutes)", async () => {
-    const { api, user } = await openPage(respond(500, {}));
+    // 09:30 is taken, so a click on 09:00 can only select one 30-minute cell.
+    const { api, user } = await openPage(respond(500, {}), { res_2a01: [{ startMin: 570, endMin: 600, mine: false }] });
     await user.click(await screen.findByRole("gridcell", { name: "Desk 2A-01, 09:00 to 09:30, available" }));
-    await user.click(screen.getByRole("button", { name: /^Book Desk 2A-01/ }));
+    expect(screen.getByText("Desks need at least 60 minutes; extend the selection.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Book Desk 2A-01, 09:00 to 09:30" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("alert").textContent).toContain("A desk booking lasts 60 to 600 minutes.");
     expect((within(dialog).getByRole("button", { name: "Confirm booking" }) as HTMLButtonElement).disabled).toBe(true);
@@ -194,6 +196,27 @@ describe("Find a space (SPEC 14.1)", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: /^Book Desk 2A-01/ }));
+  });
+
+  it("one click on a desk selects an hour, and Book opens a dialog whose Confirm is enabled", async () => {
+    const { user } = await openPage(respond(500, {}));
+    await user.click(await screen.findByRole("gridcell", { name: "Desk 2A-01, 10:00 to 10:30, available" }));
+    expect(screen.queryByText(/need at least 60 minutes/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Book Desk 2A-01, 10:00 to 11:00" }));
+    const dialog = await screen.findByRole("dialog", { name: "Book Desk 2A-01" });
+    const confirm = within(dialog).getByRole("button", { name: "Confirm booking" }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(false);
+    expect(document.activeElement).toBe(confirm);
+    expect(within(dialog).queryByRole("alert")).toBeNull();
+  });
+
+  it("a click then Shift+click still gives the range between them", async () => {
+    const { user } = await openPage(respond(500, {}));
+    await user.click(await screen.findByRole("gridcell", { name: "Desk 2A-01, 10:00 to 10:30, available" }));
+    await user.keyboard("{Shift>}");
+    await user.click(screen.getByRole("gridcell", { name: "Desk 2A-01, 10:30 to 11:00, available" }));
+    await user.keyboard("{/Shift}");
+    expect(screen.getByRole("button", { name: "Book Desk 2A-01, 10:00 to 11:00" })).toBeTruthy();
   });
 
   it("applies live deltas from the socket to the grid", async () => {

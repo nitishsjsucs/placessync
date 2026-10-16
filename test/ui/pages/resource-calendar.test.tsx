@@ -161,4 +161,17 @@ describe("resource week calendar (SPEC 14.1)", () => {
     // Nothing in that week is bookable yet (the horizon ends on 2026-10-22).
     expect(back().getAttribute("href")).toBe("/find");
   });
+
+  it("one click on a desk's week grid selects an hour", async () => {
+    const desk = generateResources().find((r) => r.id === "res_2a01");
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/resources/res_2a01/calendar": (c: { url: string }) => ({ ...calendar(c.url), resource: desk }),
+    });
+    renderAt("/resources/res_2a01");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("gridcell", { name: "Friday 10/09, 13:00 to 13:30, available" }));
+    expect(screen.getByRole("button", { name: "Book Friday, October 9, 2026, 13:00 to 14:00" })).toBeTruthy();
+  });
 });

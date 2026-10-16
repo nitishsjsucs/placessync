@@ -18,6 +18,7 @@ function Harness({
   closeMin = 720,
   minStartFor,
   rowUnavailable,
+  minSlotsFor,
 }: {
   rows?: SlotRow[];
   onCommit?: (s: SlotSelection | null) => void;
@@ -25,6 +26,7 @@ function Harness({
   closeMin?: number;
   minStartFor?: (rowId: string) => number;
   rowUnavailable?: (rowId: string) => string | null;
+  minSlotsFor?: (rowId: string) => number;
 }) {
   const [selection, setSelection] = useState<SlotSelection | null>(null);
   return (
@@ -41,6 +43,7 @@ function Harness({
         }}
         minStartFor={minStartFor}
         rowUnavailable={rowUnavailable}
+        minSlotsFor={minSlotsFor}
       />
       <output data-testid="sel">{selection ? `${selection.rowId} ${selection.startMin}-${selection.endMin}` : "none"}</output>
     </div>
@@ -238,5 +241,69 @@ describe("SlotGrid past and closed cells (UX-01, UX-13)", () => {
     // ...and a new date with an open morning needs no scroll.
     await act(async () => rerender(<Harness closeMin={1140} minStartFor={() => -1} label="Availability on Friday" />));
     expect(scroller.scrollLeft).toBe(0);
+  });
+});
+
+describe("SlotGrid first selection is the shortest valid booking (UX-03)", () => {
+  const DESK: SlotRow[] = [
+    { id: "d1", label: "Desk 2A-05", busy: [] },
+    { id: "d2", label: "Desk 2A-06", busy: [{ startMin: 630, endMin: 660 }] },
+  ];
+  const two = () => 2;
+
+  it("a click selects minSlots cells when they are free, else one cell, and never past closing", async () => {
+    render(<Harness rows={DESK} closeMin={1140} minSlotsFor={two} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("gridcell", { name: "Desk 2A-05, 10:00 to 10:30, available" }));
+    expect(sel()).toBe("d1 600-660");
+    await user.click(screen.getByRole("gridcell", { name: "Desk 2A-06, 10:00 to 10:30, available" }));
+    expect(sel()).toBe("d2 600-630");
+    await user.click(screen.getByRole("gridcell", { name: "Desk 2A-05, 18:30 to 19:00, available" }));
+    expect(sel()).toBe("d1 1110-1140");
+  });
+
+  it("Enter with no range pads; Shift+Arrow then Enter keeps the explicit range", async () => {
+    render(<Harness rows={DESK} closeMin={1140} minSlotsFor={two} />);
+    const user = userEvent.setup();
+    await user.tab();
+    await user.keyboard("{Enter}");
+    expect(sel()).toBe("d1 420-480");
+    await user.keyboard("{ArrowRight}{ArrowRight}{Shift>}{ArrowRight}{ArrowRight}{/Shift}{Enter}");
+    expect(sel()).toBe("d1 480-570");
+    // Back to a single explicit cell next to a busy one: one cell, never padded across.
+    await user.keyboard("{Escape}{ArrowDown}{End}");
+    for (let i = 0; i < 17; i++) await user.keyboard("{ArrowLeft}");
+    expect(focusedCell()).toBe("d2 600");
+    await user.keyboard("{Enter}");
+    expect(sel()).toBe("d2 600-630");
+  });
+
+  it("keeps one-cell clicks when minSlots is 1 (rooms)", async () => {
+    render(<Harness rows={DESK} closeMin={1140} minSlotsFor={() => 1} />);
+    await userEvent.setup().click(screen.getByRole("gridcell", { name: "Desk 2A-05, 10:00 to 10:30, available" }));
+    expect(sel()).toBe("d1 600-630");
+  });
+
+  it("the help text tells mouse users about Shift+click", () => {
+    render(<Harness rows={DESK} />);
+    expect(screen.getByText(/Click a start time; Shift\+click a later time to extend\./)).toBeTruthy();
+  });
+
+  it("compact: a tap pads, a tap inside the selection shortens it, and Clear selection empties it", async () => {
+    setMediaMatches("(max-width: 639px)", true);
+    render(<Harness rows={DESK} closeMin={1140} minSlotsFor={two} />);
+    const compact = screen.getByTestId("slotgrid-compact");
+    const user = userEvent.setup();
+    expect(within(compact).getByText("Tap a start time, then a later time to extend.")).toBeTruthy();
+    expect(within(compact).queryByRole("button", { name: "Clear selection" })).toBeNull();
+    await user.click(within(compact).getByRole("button", { name: "09:00 to 09:30" }));
+    expect(sel()).toBe("d1 540-600");
+    await user.click(within(compact).getByRole("button", { name: "11:00 to 11:30" }));
+    expect(sel()).toBe("d1 540-690");
+    await user.click(within(compact).getByRole("button", { name: "10:00 to 10:30" }));
+    expect(sel()).toBe("d1 540-630");
+    await user.click(within(compact).getByRole("button", { name: "Clear selection" }));
+    expect(sel()).toBe("none");
+    expect(within(compact).queryByRole("button", { name: "Clear selection" })).toBeNull();
   });
 });

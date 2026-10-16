@@ -27,6 +27,8 @@ const ROWS = [
 // Row a shows today's past slots (before 09:00); row d a closed day.
 const galleryMinStart = (rowId: string) => (rowId === "a" ? 540 : -1);
 const galleryRowWord = (rowId: string) => (rowId === "d" ? "closed" : null);
+// Desks book for at least an hour (two cells); the room for at least 15 minutes (one).
+const galleryMinSlots = (rowId: string) => (rowId === "c" ? 1 : 2);
 type Row = { id: string; space: string; time: string };
 const TABLE_ROWS: Row[] = [
   { id: "1", space: "Desk 2A-01", time: "09:00 to 11:00" },
@@ -87,6 +89,7 @@ export function UiGalleryPage() {
         onSelect={setSelection}
         minStartFor={galleryMinStart}
         rowUnavailable={galleryRowWord}
+        minSlotsFor={galleryMinSlots}
       />
 
       <h2>Tabs</h2>
