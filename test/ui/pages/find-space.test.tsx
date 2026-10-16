@@ -602,6 +602,42 @@ describe("Find a space below 1024 px puts availability first (UX-12)", () => {
     expect(last).not.toContain("amenity=");
   });
 
+  it("under 640 px folds the month grid behind the chosen date and Change date, and folds it again after a pick", async () => {
+    setMediaMatches("(max-width: 1023px)", true);
+    setMediaMatches("(max-width: 639px)", true);
+    const api = fakes();
+    renderAt("/find");
+    await screen.findByTestId("slotgrid-compact");
+    const toggle = screen.getByRole("button", { name: "Change date" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    const panel = document.getElementById(toggle.getAttribute("aria-controls") ?? "") as HTMLElement;
+    expect(panel.hidden).toBe(true);
+    expect(screen.queryByRole("grid", { name: /^Booking date/ })).toBeNull();
+    expect(screen.getByText("Thursday, October 8, 2026", { selector: "strong" })).toBeTruthy();
+    // The chips come before nothing else that is tall: date line, Filters, tabs, then slots.
+    expect(toggle.compareDocumentPosition(screen.getByTestId("slotgrid-compact")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const user = userEvent.setup();
+    await user.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(panel.hidden).toBe(false);
+    await user.click(screen.getByRole("gridcell", { name: "Monday, October 12, 2026" }));
+    expect(panel.hidden).toBe(true);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(toggle);
+    expect(screen.getByText("Monday, October 12, 2026", { selector: "strong" })).toBeTruthy();
+    await waitFor(() => expect(availabilityCalls(api).at(-1)?.url).toContain("date=2026-10-12"));
+  });
+
+  it("between 640 and 1023 px keeps the month grid open, with no Change date", async () => {
+    setMediaMatches("(max-width: 1023px)", true);
+    fakes();
+    renderAt("/find");
+    await screen.findByRole("grid", { name: /^Availability on/ });
+    expect(screen.getByRole("grid", { name: /^Booking date/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Change date" })).toBeNull();
+  });
+
   it("at 1024 px and wider shows the filters as before, with no toggle", async () => {
     fakes();
     renderAt("/find");

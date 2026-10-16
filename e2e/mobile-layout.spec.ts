@@ -65,20 +65,29 @@ test.describe("Find a space and admin on small screens", () => {
   test.describe("at 375x812", () => {
     test.use({ viewport: { width: 375, height: 812 } });
 
-    test("the first time chip starts within 900 px, and Book stays above the bottom nav once a time is picked", async ({ page }, testInfo) => {
+    test("the first time chip is on the first screen above the bottom nav, and Book stays above the nav once a time is picked", async ({ page }, testInfo) => {
       await page.goto("/find");
       const chip = page.getByTestId("slotgrid-compact").locator("button:not([disabled])").first();
       await expect(chip).toBeVisible();
       await page.waitForLoadState("networkidle");
-      const top = await page.getByTestId("slotgrid-compact").locator("li button").first().evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+      // The first screen is the viewport above the fixed bottom nav, before any scrolling.
+      const { top, bottom, visibleBottom } = await page
+        .getByTestId("slotgrid-compact")
+        .locator("li button")
+        .first()
+        .evaluate((el) => {
+          const nav = document.querySelector('nav[aria-label="Main"]');
+          const r = el.getBoundingClientRect();
+          return { top: r.top + window.scrollY, bottom: r.bottom + window.scrollY, visibleBottom: window.innerHeight - (nav?.getBoundingClientRect().height ?? 0) };
+        });
       await chip.click();
       const book = page.getByRole("button", { name: /^Book / });
       await expect(book).toBeEnabled();
       const box = await book.boundingBox();
       if (!box) throw new Error("no Book button box");
       const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.textContent ?? null, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
-      await testInfo.attach("find-375", { body: JSON.stringify({ firstChipTop: top, book: box, hit }), contentType: "application/json" });
-      expect(top).toBeLessThanOrEqual(900);
+      await testInfo.attach("find-375", { body: JSON.stringify({ firstChipTop: top, firstChipBottom: bottom, visibleBottom, book: box, hit }), contentType: "application/json" });
+      expect(bottom).toBeLessThanOrEqual(visibleBottom);
       expect(box.y).toBeGreaterThanOrEqual(0);
       expect(box.y + box.height).toBeLessThanOrEqual(812);
       expect(hit).toMatch(/^Book /);

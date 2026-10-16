@@ -2,7 +2,9 @@
 // resource, select a range in the SlotGrid, confirm in a Dialog. The date, tab and
 // filters live in the URL (find-params.ts), written with replace so Back leaves the page.
 // Below 1024 px the filters fold into a disclosure, so availability comes first on phones
-// and tablets; under 640 px the Book button stays above the bottom nav while chips scroll.
+// and tablets. Under 640 px the month grid folds too, behind the chosen date and a
+// "Change date" button, so the first time chips are in the first screen; the Book button
+// stays above the bottom nav while chips scroll.
 // The default date (the first that can still be booked) is fixed when the page opens: if
 // it followed the clock, an open page would move to the next working day at 18:30 and
 // keep the selection made on the day before. Anything that changes the date clears the
@@ -52,6 +54,8 @@ export function FindSpacePage() {
   const narrow = useMediaQuery(NARROW_QUERY);
   const compact = useMediaQuery(COMPACT_QUERY);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [dateOpen, setDateOpen] = useState(false);
+  const dateToggleRef = useRef<HTMLButtonElement>(null);
   const activeFilters = activeFilterCount(filters);
   const filtersToggleRef = useRef<HTMLButtonElement>(null);
   // Clear filters removes itself (it shows only while filters are set or nothing
@@ -180,11 +184,34 @@ export function FindSpacePage() {
       </div>
       <div className={styles.layout}>
         <div className={styles.stack}>
-          <div className={styles.panel}>
-            <DateGrid label="Booking date" value={date} today={site.today} onChange={(d) => {
-              update({ date: d });
-              setSelection(null);
-            }} isDisabled={(d) => dateDisabledReason(d, site)} />
+          <div className={`${styles.panel} ${compact ? styles.stack : ""}`}>
+            {compact ? (
+              <div className={styles.row}>
+                <span>
+                  Booking date: <strong>{longDate(date)}</strong>
+                </span>
+                <Button ref={dateToggleRef} variant="secondary" aria-expanded={dateOpen} aria-controls="find-date" onClick={() => setDateOpen((o) => !o)}>
+                  Change date
+                </Button>
+              </div>
+            ) : null}
+            <div id="find-date" hidden={compact && !dateOpen}>
+              <DateGrid
+                label="Booking date"
+                value={date}
+                today={site.today}
+                onChange={(d) => {
+                  update({ date: d });
+                  setSelection(null);
+                  // The grid folds away again on a phone; focus stays on its toggle.
+                  if (compact) {
+                    setDateOpen(false);
+                    dateToggleRef.current?.focus();
+                  }
+                }}
+                isDisabled={(d) => dateDisabledReason(d, site)}
+              />
+            </div>
           </div>
           <form className={narrow ? styles.stack : styles.panel} role="search" aria-label="Filter spaces" onSubmit={(e) => e.preventDefault()}>
             {narrow ? (
