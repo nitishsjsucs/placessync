@@ -6,6 +6,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const css = readFileSync(path.join(import.meta.dirname, "../../src/client/ui/tokens.css"), "utf8");
+const matrixCss = readFileSync(path.join(import.meta.dirname, "../../src/client/charts/matrix.module.css"), "utf8");
 
 function block(source: string, start: number): string {
   const open = source.indexOf("{", start);
@@ -68,5 +69,20 @@ describe("chart sequential ramp tokens (VIZ-09)", () => {
   it("the lightest light step and the darkest dark step stay visible on the table surface (2:1, the ordinal floor)", () => {
     expect(contrast(light.get("--chart-seq-1") as string, light.get("--color-surface") as string)).toBeGreaterThanOrEqual(2);
     expect(contrast(dark.get("--chart-seq-1") as string, dark.get("--color-surface") as string)).toBeGreaterThanOrEqual(2);
+  });
+
+  it("the kept outline is a --color-text ring with a surface gap inside it, on the surface table, at 3:1 or more in both themes", () => {
+    // The ring touches only the surface: the table's 2px border spacing outside it and its own
+    // gap inside it. Drawn straight on the fill it fell to 1.39:1 on the darkest light step.
+    const rule = block(matrixCss, matrixCss.indexOf(".diagonal {"));
+    const shadow = /box-shadow:\s*inset 0 0 0 2px var\(--color-text\),\s*inset 0 0 0 (\d+)px var\(--color-surface\);/.exec(rule);
+    expect(shadow, ".diagonal box-shadow").not.toBeNull();
+    expect(Number(shadow?.[1])).toBeGreaterThanOrEqual(4);
+    expect(block(matrixCss, matrixCss.indexOf(".matrix {"))).toMatch(/background: var\(--color-surface\);/);
+    for (const tokens of [light, dark]) {
+      expect(contrast(tokens.get("--color-text") as string, tokens.get("--color-surface") as string)).toBeGreaterThanOrEqual(3);
+    }
+    // Forced colors drop the shadow; an outline keeps the mark.
+    expect(block(matrixCss, matrixCss.indexOf("@media (forced-colors: active)"))).toMatch(/\.diagonal\s*\{\s*outline: 2px solid CanvasText;/);
   });
 });
