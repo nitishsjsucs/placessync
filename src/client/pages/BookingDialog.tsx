@@ -44,6 +44,8 @@ export function BookingDialog({ open, onClose, resource, date, startMin, endMin,
   const pickRef = useRef<HTMLButtonElement>(null);
   const problemRef = useRef<HTMLParagraphElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const attendeesRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  const titleRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   // When the selection breaks a rule, the dialog opens on the reason (Confirm is disabled).
   const issuesRef = useRef<HTMLUListElement>(null);
   // The ledger binds a key to the first body it saw and stores every answer under it,
@@ -69,6 +71,13 @@ export function BookingDialog({ open, onClose, resource, date, startMin, endMin,
     if (conflict === "resource") pickRef.current?.focus();
     if (conflict === "employee") problemRef.current?.focus();
   }, [conflict]);
+
+  // A 422 about a field: focus goes to that field, to correct it. Any other failure shows
+  // a role="alert" message, which the Dialog moves focus to.
+  useEffect(() => {
+    if (fieldErrors.attendees) attendeesRef.current?.focus();
+    else if (fieldErrors.title) titleRef.current?.focus();
+  }, [fieldErrors]);
 
   if (!resource) return null;
   const isRoom = resource.kind === "room";
@@ -171,11 +180,12 @@ export function BookingDialog({ open, onClose, resource, date, startMin, endMin,
             inputMode="numeric"
             value={attendees}
             onChange={setAttendees}
+            inputRef={attendeesRef}
             hint={`Up to ${resource.capacity}.`}
             error={attendeesError}
             required
           />
-          <TextField label="Meeting title (optional)" value={title} onChange={setTitle} maxLength={80} error={titleError} />
+          <TextField label="Meeting title (optional)" value={title} onChange={setTitle} maxLength={80} error={titleError} inputRef={titleRef} />
         </>
       ) : null}
       {problem ? (

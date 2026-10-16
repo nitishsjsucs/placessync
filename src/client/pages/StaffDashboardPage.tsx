@@ -9,6 +9,8 @@
 // Resolving cannot be undone, so it asks first and takes an optional note for the
 // reporter. Only a 409 is reported as "changed meanwhile"; any other failure says to
 // check the connection, inside the dialog, which stays open so a typed note is kept.
+// After a 409 the control that was used is gone (its dialog closes and the refresh
+// removes its row), so the notice takes focus once the dialog has closed.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { StaffBookingsResponse, StaffQueueResponse } from "../../shared/api.ts";
@@ -79,6 +81,10 @@ export function StaffDashboardPage() {
   const [resolveError, setResolveError] = useState<string | null>(null);
   const [resolvePending, setResolvePending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const noticeRef = useRef<HTMLParagraphElement>(null);
+  // Bumped to move focus to the notice; an effect, so it runs after a closing dialog's
+  // focus restore in the same commit.
+  const [noticeFocus, setNoticeFocus] = useState(0);
   const [today, setToday] = useState<Booking[] | null>(null);
   // Today's bookings has its own error, so it never hides or replaces the queue's.
   const [todayError, setTodayError] = useState<string | null>(null);
@@ -168,6 +174,10 @@ export function StaffDashboardPage() {
     lastStatus.current = liveStatus;
   }, [liveStatus, loadQueue]);
 
+  useEffect(() => {
+    if (noticeFocus) noticeRef.current?.focus();
+  }, [noticeFocus]);
+
   function openReview(item: QueueItem, mode: ReviewMode) {
     setCategory(mode === "reassign" ? (item.suggestion?.category ?? null) : null);
     setReviewError(null);
@@ -202,6 +212,7 @@ export function StaffDashboardPage() {
       if (err instanceof ApiClientError && err.status === 409) {
         setReview(null);
         setNotice(`Already reviewed: "${review.item.title}" was handled by someone else or cancelled. The queue has been refreshed.`);
+        setNoticeFocus((n) => n + 1);
       } else {
         setReviewError(SAVE_FAILED);
       }
@@ -237,6 +248,7 @@ export function StaffDashboardPage() {
   async function startWork(item: QueueItem) {
     const outcome = await postStatus(item, "in_progress");
     if (outcome === "ok") showStatus(item, "in_progress");
+    if (outcome === "conflict") setNoticeFocus((n) => n + 1);
     if (outcome === "failed") setNotice(SAVE_FAILED);
   }
 
@@ -253,6 +265,7 @@ export function StaffDashboardPage() {
     }
     setResolving(null);
     if (outcome === "ok") showStatus(item, "resolved");
+    if (outcome === "conflict") setNoticeFocus((n) => n + 1);
   }
 
   const base = [
@@ -312,7 +325,7 @@ export function StaffDashboardPage() {
         />
       ) : null}
       {notice ? (
-        <p role="alert" className={styles.notice}>
+        <p ref={noticeRef} tabIndex={-1} role="alert" className={styles.notice}>
           {notice}
         </p>
       ) : null}

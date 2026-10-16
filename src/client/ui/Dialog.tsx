@@ -12,6 +12,11 @@
 // listbox, which must not close the dialog too).
 // Focus back: the opener when it is still connected and enabled, else returnFocus, else
 // #main. Never body.
+// Focus kept: a pressed button that starts loading is disabled, and the browser then
+// moves focus to body (so does removing the focused control). While open, the dialog
+// takes focus back: onto its role="alert" message when it shows one, else onto itself,
+// and onto the message as soon as one appears (a failed request). A page can still move
+// focus somewhere more specific in its own effects, which run after the dialog's.
 import { type KeyboardEvent, type ReactNode, type RefObject, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import styles from "./Dialog.module.css";
@@ -36,6 +41,26 @@ function focusables(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => !el.hasAttribute("inert"));
 }
 
+/**
+ * Puts focus back inside an open dialog when it has fallen to body, or when the dialog
+ * parked it on itself and a message has appeared since. Returns whether focus is parked
+ * on the dialog itself afterwards.
+ */
+function reclaimFocus(root: HTMLElement, parked: boolean): boolean {
+  if (!root.isConnected) return false;
+  const active = document.activeElement;
+  const lost = active === null || active === document.body;
+  if (!lost && !(parked && active === root)) return false;
+  const alert = root.querySelector<HTMLElement>('[role="alert"]');
+  if (alert) {
+    if (!alert.hasAttribute("tabindex")) alert.tabIndex = -1;
+    alert.focus();
+    return false;
+  }
+  root.focus();
+  return true;
+}
+
 /** True when el can take focus now: in the document, not disabled, not inside an inert subtree. */
 export function canFocus(el: HTMLElement | null | undefined): el is HTMLElement {
   if (!el || !el.isConnected) return false;
@@ -56,6 +81,7 @@ export function Dialog({ open, onClose, title, children, actions, initialFocus, 
   initialRef.current = initialFocus;
   const returnRef = useRef(returnFocus);
   returnRef.current = returnFocus;
+  const parked = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -76,7 +102,27 @@ export function Dialog({ open, onClose, title, children, actions, initialFocus, 
       onCloseRef.current();
     };
     document.addEventListener("keydown", onDocumentKey);
+    // Chrome fires focusout with no relatedTarget once a focused button is disabled; the
+    // check waits a task so activeElement has settled. A window blur also has no
+    // relatedTarget, but leaves activeElement in place, so nothing moves then.
+    let pendingCheck: ReturnType<typeof setTimeout> | undefined;
+    const onFocusOut = (e: FocusEvent) => {
+      if (e.relatedTarget || !root) return;
+      clearTimeout(pendingCheck);
+      pendingCheck = setTimeout(() => {
+        parked.current = reclaimFocus(root, parked.current);
+      }, 0);
+    };
+    const onFocusIn = (e: FocusEvent) => {
+      if (e.target !== root) parked.current = false;
+    };
+    root?.addEventListener("focusout", onFocusOut);
+    root?.addEventListener("focusin", onFocusIn);
     return () => {
+      clearTimeout(pendingCheck);
+      parked.current = false;
+      root?.removeEventListener("focusout", onFocusOut);
+      root?.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("keydown", onDocumentKey);
       for (const el of siblings) el.removeAttribute("inert");
       const back = opener.current;
@@ -92,6 +138,12 @@ export function Dialog({ open, onClose, title, children, actions, initialFocus, 
       document.getElementById("main")?.focus();
     };
   }, [open]);
+
+  // After every render while open: a request that failed re-renders the dialog with its
+  // message and the re-enabled button, so this is where focus comes back.
+  useEffect(() => {
+    if (open && ref.current) parked.current = reclaimFocus(ref.current, parked.current);
+  });
 
   if (!open) return null;
 

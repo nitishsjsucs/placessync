@@ -5,7 +5,7 @@ import { generateResources } from "../../../src/shared/synthetic/resources.ts";
 import { HEALTH, installFakeApi, me, respond } from "../fake-api.ts";
 import { FakeWebSocket } from "../fake-ws.ts";
 import { renderAt, renderAtEntries } from "../render-app.tsx";
-import { setMediaMatches } from "../setup.ts";
+import { browserFocusFixup, setMediaMatches } from "../setup.ts";
 
 const RESOURCES = generateResources();
 const DATE = "2026-10-12";
@@ -156,6 +156,22 @@ describe("Find a space (SPEC 14.1)", () => {
     const field = within(dialog).getByRole("spinbutton", { name: /Attendees/ });
     await waitFor(() => expect(field.getAttribute("aria-invalid")).toBe("true"));
     expect(within(dialog).getByText("This room holds 8.")).toBeTruthy();
+    // Focus goes to the field to correct.
+    expect(document.activeElement).toBe(field);
+  });
+
+  it("a booking that could not be saved keeps focus in the dialog, on the message", async () => {
+    let fail: (() => void) | null = null;
+    const { user } = await openPage(() => new Promise((resolve) => (fail = () => resolve(respond(503, { error: "unavailable", message: "x" })))));
+    await user.click(await screen.findByRole("gridcell", { name: "Desk 2A-01, 10:00 to 10:30, available" }));
+    await user.click(screen.getByRole("button", { name: /^Book Desk 2A-01/ }));
+    const dialog = await screen.findByRole("dialog");
+    await user.keyboard("{Enter}");
+    browserFocusFixup();
+    await waitFor(() => expect(document.activeElement).toBe(dialog));
+    await act(async () => fail?.());
+    const message = await within(dialog).findByText("The booking could not be saved. Try again.");
+    expect(document.activeElement).toBe(message);
   });
 
   // The fake below keeps the ledger's idempotency contract (SPEC 7.1): a key is bound to

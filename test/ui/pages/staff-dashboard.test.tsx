@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HEALTH, type FakeApi, installFakeApi, me, respond } from "../fake-api.ts";
 import { FakeWebSocket } from "../fake-ws.ts";
 import { renderAt } from "../render-app.tsx";
+import { browserFocusFixup } from "../setup.ts";
 
 const base = {
   siteId: "hq",
@@ -119,16 +120,22 @@ describe("Staff dashboard (SPEC 14.1)", () => {
     await waitFor(() => expect(api.calls.find((c) => c.url === "/api/staff/requests/req_p/review")?.body).toEqual({ decision: "categorize", category: "cleaning_safety" }));
   });
 
-  it("shows Already reviewed on a 409 not_reviewable and refreshes", async () => {
-    api.set("POST /api/staff/requests/req_s/review", respond(409, { error: "not_reviewable", message: "x" }));
+  it("shows Already reviewed on a 409 not_reviewable, refreshes, and puts focus on the notice", async () => {
+    api.set("POST /api/staff/requests/req_s/review", () => {
+      // Someone else reviewed it, so the refresh no longer lists it.
+      queue = [pending, unavailable];
+      return respond(409, { error: "not_reviewable", message: "x" });
+    });
     renderAt("/staff");
     const user = userEvent.setup();
     await screen.findByRole("link", { name: "Projector dead" });
     const before = api.calls.filter((c) => c.url === "/api/staff/requests").length;
     await user.click(within(rowOf("Projector dead")).getByRole("button", { name: /^Accept/ }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Accept" }));
-    expect(await screen.findByText(/Already reviewed/)).toBeTruthy();
+    const notice = await screen.findByText(/Already reviewed/);
     await waitFor(() => expect(api.calls.filter((c) => c.url === "/api/staff/requests").length).toBeGreaterThan(before));
+    await waitFor(() => expect(screen.queryByRole("link", { name: "Projector dead" })).toBeNull());
+    expect(document.activeElement).toBe(notice);
   });
 
   it("subscribes to staff events and a live staff_event inserts a row", async () => {
@@ -322,8 +329,18 @@ describe("Resolving and save errors (UX-09)", () => {
     api.set("POST /api/staff/requests/req_w/status", respond(409, { error: "invalid_transition", message: "The request changed meanwhile; reload and try again." }));
     await user.click(screen.getByRole("button", { name: "Resolve Chair broken" }));
     await user.click(within(screen.getByRole("dialog", { name: "Resolve this request?" })).getByRole("button", { name: "Resolve" }));
-    expect(await screen.findByText('"Chair broken" changed meanwhile. The list has been refreshed.')).toBeTruthy();
+    const notice = await screen.findByText('"Chair broken" changed meanwhile. The list has been refreshed.');
     expect(screen.queryByRole("dialog")).toBeNull();
+    // The Resolve button that opened the dialog may be gone after the refresh.
+    expect(document.activeElement).toBe(notice);
+  });
+
+  it("a 409 on Start work puts focus on the notice", async () => {
+    const user = await openWorking();
+    api.set("POST /api/staff/requests/req_a/status", respond(409, { error: "invalid_transition", message: "x" }));
+    await user.click(screen.getByRole("button", { name: "Start work on Lamp out" }));
+    const notice = await screen.findByText('"Lamp out" changed meanwhile. The list has been refreshed.');
+    expect(document.activeElement).toBe(notice);
   });
 
   it("a review that fails for another reason keeps the dialog open with the connection message", async () => {
@@ -337,6 +354,24 @@ describe("Resolving and save errors (UX-09)", () => {
     expect(await within(dialog).findByText("Could not save. Check your connection and try again.")).toBeTruthy();
     expect(screen.getByRole("dialog", { name: "Accept the suggestion?" })).toBeTruthy();
     expect(screen.queryByText(/Already reviewed/)).toBeNull();
+  });
+
+  it("a failed Resolve keeps focus in the dialog, on the message, after the loading button dropped it", async () => {
+    let fail: (() => void) | null = null;
+    const user = await openWorking();
+    const realFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", (input: string, init?: RequestInit) =>
+      String(input).endsWith("/status") ? new Promise((_, reject) => (fail = () => reject(new TypeError("Failed to fetch")))) : realFetch(input, init),
+    );
+    await user.click(screen.getByRole("button", { name: "Resolve Chair broken" }));
+    const dialog = screen.getByRole("dialog", { name: "Resolve this request?" });
+    await user.type(within(dialog).getByRole("textbox", { name: "Note for the reporter (optional)" }), "Tightened the screws");
+    await user.click(within(dialog).getByRole("button", { name: "Resolve" }));
+    browserFocusFixup();
+    await waitFor(() => expect(document.activeElement).toBe(dialog));
+    await act(async () => fail?.());
+    const message = await within(dialog).findByText("Could not save. Check your connection and try again.");
+    expect(document.activeElement).toBe(message);
   });
 });
 

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef, useState } from "react";
 import { describe, expect, it } from "vitest";
@@ -6,6 +6,7 @@ import { Button } from "../../../src/client/ui/Button.tsx";
 import { Combobox } from "../../../src/client/ui/Combobox.tsx";
 import { Dialog } from "../../../src/client/ui/Dialog.tsx";
 import { expectNoAxeViolations } from "../axe.ts";
+import { browserFocusFixup } from "../setup.ts";
 
 function Harness({ dismissable = true, withInitial = false }: { dismissable?: boolean; withInitial?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -193,6 +194,103 @@ function ComboHarness() {
     </div>
   );
 }
+
+// A save that the test settles by hand, like a page's confirm button.
+let settleSave: ((ok: boolean) => void) | null = null;
+
+function SavingHarness() {
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function save() {
+    setPending(true);
+    setError(null);
+    const ok = await new Promise<boolean>((resolve) => {
+      settleSave = resolve;
+    });
+    setPending(false);
+    if (ok) setOpen(false);
+    else setError("Could not save. Try again.");
+  }
+  return (
+    <div>
+      <Button onClick={() => setOpen(true)}>Open dialog</Button>
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Save changes"
+        dismissable={!pending}
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setOpen(false)} disabled={pending}>
+              Cancel
+            </Button>
+            <Button loading={pending} onClick={() => void save()}>
+              Save
+            </Button>
+          </>
+        }
+      >
+        <label>
+          Note <input />
+        </label>
+        {error ? <p role="alert">{error}</p> : null}
+      </Dialog>
+    </div>
+  );
+}
+
+describe("Dialog keeps focus while a request is pending", () => {
+  it("takes focus back when its loading button drops it, and puts it on the failure message", async () => {
+    render(<SavingHarness />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const dialog = screen.getByRole("dialog", { name: "Save changes" });
+    const save = screen.getByRole("button", { name: "Save" }) as HTMLButtonElement;
+    await user.click(save);
+    expect(save.disabled).toBe(true);
+    expect(document.activeElement).toBe(save);
+    browserFocusFixup();
+    await waitFor(() => expect(document.activeElement).toBe(dialog));
+    await act(async () => settleSave?.(false));
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toBe("Could not save. Try again.");
+    expect(document.activeElement).toBe(alert);
+    // Tab goes on from the message to the next control, inside the dialog.
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cancel" }));
+  });
+
+  it("moves to a message that is already showing, and does nothing when the window only loses focus", async () => {
+    render(<SavingHarness />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await act(async () => settleSave?.(false));
+    await user.click(screen.getByRole("textbox", { name: "Note" }));
+    const field = screen.getByRole("textbox", { name: "Note" });
+    // A window blur: focusout without a relatedTarget while activeElement stays put.
+    act(() => {
+      field.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }));
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(document.activeElement).toBe(field);
+    browserFocusFixup();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("alert")));
+  });
+
+  it("after a successful save closes, focus returns to the opener as before", async () => {
+    render(<SavingHarness />);
+    const user = userEvent.setup();
+    const opener = screen.getByRole("button", { name: "Open dialog" });
+    await user.click(opener);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    browserFocusFixup();
+    await act(async () => settleSave?.(true));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+});
 
 describe("Dialog focus fallbacks and document-level Escape", () => {
   it("falls back to a focusable element when initialFocus is disabled, and Escape still closes it", async () => {
