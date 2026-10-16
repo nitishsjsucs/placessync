@@ -11,6 +11,20 @@ export class FakeWebSocket {
     if (!ws) throw new Error("no FakeWebSocket opened");
     return ws;
   }
+  /** Opens every socket that is not open yet (call inside act). */
+  static openAll(): void {
+    for (const ws of FakeWebSocket.instances) if (ws.readyState === 0) ws.open();
+  }
+  /**
+   * The open socket that subscribed to a date: the live availability socket. The staff page also opens a
+   * staff-events socket on the same URL, and which of the two is created last depends on which query
+   * resolves first, so tests on that page must not rely on last().
+   */
+  static availability(): FakeWebSocket {
+    const ws = FakeWebSocket.instances.find((s) => s.readyState === 1 && s.sent.some((m) => m["type"] === "subscribe"));
+    if (!ws) throw new Error("no open FakeWebSocket subscribed to a date");
+    return ws;
+  }
 
   readonly url: string;
   readyState = 0;

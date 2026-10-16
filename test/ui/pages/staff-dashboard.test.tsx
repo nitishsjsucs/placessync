@@ -499,8 +499,10 @@ describe("Today's bookings timeline on the staff page (VIZ-02)", () => {
     });
     renderAt("/staff?tab=today");
     await screen.findByRole("group", { name: /^Bookings by space/ });
-    const ws = FakeWebSocket.last();
-    await act(async () => ws.open());
+    // Both the staff-events and the availability socket exist; pick the one that subscribed to the date.
+    await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThanOrEqual(2));
+    await act(async () => FakeWebSocket.openAll());
+    const ws = FakeWebSocket.availability();
     // Someone books Alder at 13:00: the live snapshot has it, the fetch did not.
     await act(async () =>
       ws.receive({ type: "snapshot", date: "2026-10-08", dateVersion: 2, ledgerVersion: 2, busy: { res_alder: [{ startMin: 600, endMin: 660, mine: false }, { startMin: 780, endMin: 840, mine: false }] } }),
