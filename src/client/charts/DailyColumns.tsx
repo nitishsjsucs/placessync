@@ -2,8 +2,9 @@
 // weekday axis and one shared y scale, so the facilities admin can see whether demand is
 // changing and how much is already booked ahead. Weekends are left out (the site is
 // closed); a missing weekday is a zero column. Columns before today are --color-primary;
-// from today on they are --color-border-strong under a "Today, booked so far" label,
-// because those days are not over.
+// from today on they are --color-border-strong under a "Today, booked so far" label
+// ("Booked so far" when the first of them is not today, on a weekend or in a range that
+// starts later), because those days are not over.
 //
 // Each chart is one tab stop (role="img" with a summary sentence): Left, Right, Home and
 // End move a focused column whose numbers show beside it and in a polite live region;
@@ -214,7 +215,7 @@ function Columns({ kind, title, columns, max, range, today }: ColumnsProps) {
           ) : null}
           {ahead.length ? (
             <span className={`${styles.group} ${held.length ? styles.today : ""}`} style={{ flexGrow: ahead.length }}>
-              <span className={`${styles.region} ${ahead.length <= 3 ? styles.regionEnd : ""}`}>{held.length ? "Today, booked so far" : "Booked so far"}</span>
+              <span className={`${styles.region} ${ahead.length <= 3 ? styles.regionEnd : ""}`}>{ahead[0]?.date === today ? "Today, booked so far" : "Booked so far"}</span>
               {ahead.map(slot)}
             </span>
           ) : null}

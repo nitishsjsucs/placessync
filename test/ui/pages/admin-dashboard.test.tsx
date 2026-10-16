@@ -327,6 +327,18 @@ describe("Admin dashboard (SPEC 14.1)", () => {
     expect(await screen.findByText(/Median time to review: 13 h 4 min \(3 reviewed\)/)).toBeTruthy();
   });
 
+  it("counts booked ahead from the range's first date, and says so, when the range starts after today", async () => {
+    renderAt("/admin");
+    await screen.findByRole("table", { name: DESKS });
+    expect(screen.getByText(/booked ahead is the same for the 11 weekdays from today on, with the bookings/)).toBeTruthy();
+    const user = userEvent.setup();
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-10-12" } });
+    await user.click(screen.getByRole("button", { name: "Apply range" }));
+    const tiles = screen.getByRole("list", { name: "Utilization at a glance" });
+    await waitFor(() => expect(within(tiles).getAllByRole("listitem")[2]?.textContent).toBe("Booked ahead2 bookingsfrom Monday, October 12, 2026 to Thursday, October 22, 2026"));
+    expect(screen.getByText(/the 0 weekdays before today in the range; booked ahead is the same for the 9 weekdays from Monday, October 12, 2026 on,/)).toBeTruthy();
+  });
+
   it("failed report and resource loads each offer Try again", async () => {
     let reportFailures = 1;
     let resourceFailures = 1;

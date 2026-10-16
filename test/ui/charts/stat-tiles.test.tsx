@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { StatTiles } from "../../../src/client/charts/StatTiles.tsx";
+import { StatTiles, aheadSpan } from "../../../src/client/charts/StatTiles.tsx";
 import type { Split } from "../../../src/client/charts/held-ahead.ts";
 import { expectNoAxeViolations } from "../axe.ts";
 
@@ -17,7 +17,7 @@ const texts = () => within(screen.getByRole("list", { name: "Utilization at a gl
 
 describe("StatTiles (VIZ-07)", () => {
   it("shows held percentages per kind, bookings ahead and the cancelled share", async () => {
-    render(<StatTiles split={SPLIT} to="2026-10-30" />);
+    render(<StatTiles split={SPLIT} today="2026-10-16" />);
     expect(texts()).toEqual([
       "Desk time booked, past days33%of the 14 desks bookable now",
       "Room time booked, past days41%of the 6 rooms bookable now",
@@ -31,7 +31,7 @@ describe("StatTiles (VIZ-07)", () => {
     render(
       <StatTiles
         split={{ ...SPLIT, held: null, ahead: null, kinds: { desk: { ...SPLIT.kinds.desk, heldUtilization: null }, room: { ...SPLIT.kinds.room, heldUtilization: null } }, cancelled: 0, allBookings: 0 }}
-        to="2026-10-30"
+        today="2026-10-16"
       />,
     );
     expect(texts()).toEqual([
@@ -40,5 +40,12 @@ describe("StatTiles (VIZ-07)", () => {
       "Booked aheadNo days ahead in this range.",
       "CancelledNo bookings in this range.",
     ]);
+  });
+
+  it("counts booked ahead from the range's first date, and says so, when the range starts after today", () => {
+    // From 2027-03-01 to 2027-03-12: splitAtToday counts from March 1, not from today.
+    render(<StatTiles split={{ ...SPLIT, held: null, ahead: { from: "2027-03-01", to: "2027-03-12", weekdays: 10 }, bookedAhead: 0 }} today="2026-10-16" />);
+    expect(texts()[2]).toBe("Booked ahead0 bookingsfrom Monday, March 1, 2027 to Friday, March 12, 2027");
+    expect(aheadSpan({ from: "2026-10-16", to: "2026-10-30" }, "2026-10-16")).toBe("from today to Friday, October 30, 2026");
   });
 });

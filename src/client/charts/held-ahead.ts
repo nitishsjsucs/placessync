@@ -51,7 +51,7 @@ export interface Split {
   ahead: PartRange | null;
   spaces: SpaceUse[];
   kinds: Record<Kind, KindSummary>;
-  /** Confirmed bookings from today to the end of the range. */
+  /** Confirmed bookings from today (or the range's start, when that is later) to its end. */
   bookedAhead: number;
   cancelled: number;
   /** Confirmed plus cancelled bookings in the whole range. */

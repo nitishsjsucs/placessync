@@ -407,7 +407,7 @@ export function AdminDashboardPage() {
                         }}
                       />
                     ) : split ? (
-                      <StatTiles split={split} to={range.to} />
+                      <StatTiles split={split} today={site.today} />
                     ) : (
                       <p role="status">Loading spaces…</p>
                     )}
@@ -442,7 +442,8 @@ export function AdminDashboardPage() {
                     ) : null}
                     <p className={styles.muted}>
                       Held is booked hours over every bookable hour of the {split?.held?.weekdays ?? 0} weekdays before today in the range; booked ahead is the same for the{" "}
-                      {split?.ahead?.weekdays ?? 0} weekdays from today on, with the bookings made so far. Both are on a fixed 0 to 100% scale.
+                      {split?.ahead?.weekdays ?? 0} weekdays {!split?.ahead || split.ahead.from === site.today ? "from today on" : `from ${longDate(split.ahead.from)} on`}, with the bookings
+                      made so far. Both are on a fixed 0 to 100% scale.
                     </p>
                   </section>
                   <section className={`${chartStyles.section} ${reloading ? chartStyles.refreshing : ""}`} aria-labelledby={hourlyHeadingId}>

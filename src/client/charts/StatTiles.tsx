@@ -9,10 +9,16 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export interface StatTilesProps {
   split: Split;
-  to: string;
+  /** The site's today: "from today" when the days ahead start today, else their first date. */
+  today: string;
 }
 
-export function StatTiles({ split, to }: StatTilesProps) {
+/** "from today to Friday, October 30, 2026", or from the range's first date when it starts later. */
+export function aheadSpan(ahead: { from: string; to: string }, today: string): string {
+  return `from ${ahead.from === today ? "today" : longDate(ahead.from)} to ${longDate(ahead.to)}`;
+}
+
+export function StatTiles({ split, today }: StatTilesProps) {
   const held = (kind: "desk" | "room") => {
     const k = split.kinds[kind];
     const word = kind === "desk" ? "desk" : "room";
@@ -40,7 +46,7 @@ export function StatTiles({ split, to }: StatTilesProps) {
         {split.ahead ? (
           <>
             <span className={styles.tileValue}>{plural(split.bookedAhead, "booking")}</span>
-            <span className={styles.tileMeta}>from today to {longDate(to)}</span>
+            <span className={styles.tileMeta}>{aheadSpan(split.ahead, today)}</span>
           </>
         ) : (
           <span className={styles.tileNote}>No days ahead in this range.</span>

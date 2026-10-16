@@ -68,7 +68,7 @@
   min-width: 0;
 }
 
-/* The Today rule: the left edge of the days from today on. */
+/* The left edge of the days from today on (today's own column on a weekday). */
 .today {
   border-left: 2px solid var(--color-text);
 }

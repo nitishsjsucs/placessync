@@ -104,6 +104,25 @@ describe("DailyColumns (VIZ-07)", () => {
     expect(document.getElementById(toggle.getAttribute("aria-controls") ?? "")?.contains(table)).toBe(true);
   });
 
+  it("labels the days ahead 'Booked so far', not 'Today', when the first of them is not today", () => {
+    // Saturday: the days ahead start on Monday, after the past days.
+    const { unmount } = render(<DailyColumns report={REPORT} range={RANGE} today="2026-10-17" />);
+    const plot = screen.getByTestId("columns-desk");
+    expect(within(plot).getByText("Booked so far")).toBeTruthy();
+    expect(within(plot).queryByText("Today, booked so far")).toBeNull();
+    expect(slots("desk").filter((s) => s.querySelector("[style]")?.className.match(/ahead/)).map((s) => s.dataset.date)).toEqual(["2026-10-19"]);
+    unmount();
+    // A range that starts after today: every day is ahead.
+    render(<DailyColumns report={REPORT} range={RANGE} today="2026-10-01" />);
+    expect(within(screen.getByTestId("columns-room")).getByText("Booked so far")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Show table: bookings per day" }));
+    const over = within(screen.getByRole("table", { name: "Bookings per day" }))
+      .getAllByRole("row")
+      .slice(1)
+      .map((r) => within(r).getAllByRole("cell")[4]?.textContent);
+    expect(new Set(over)).toEqual(new Set(["No, booked so far"]));
+  });
+
   it("the table says so for an empty range", () => {
     render(<DailyColumns report={{ ...REPORT, daily: [] }} range={RANGE} today={TODAY} />);
     fireEvent.click(screen.getByRole("button", { name: "Show table: bookings per day" }));
