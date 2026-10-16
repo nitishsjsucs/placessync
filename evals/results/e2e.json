@@ -1,8 +1,8 @@
 {
   "meta": {
-    "gitSha": "af5b5736c015a99370eb368811755428010ac420",
+    "gitSha": "ec02402aa5cc683ff946ef6b3b9111811a73506f",
     "dirty": false,
-    "timestamp": "2026-10-16T18:39:04.138Z",
+    "timestamp": "2026-10-16T19:24:46.589Z",
     "node": "v25.9.0",
     "wrangler": "4.149.0",
     "os": "Darwin 25.5.0 arm64",
@@ -15,8 +15,8 @@
   },
   "summary": {
     "status": "passed",
-    "tests": 75,
-    "passed": 75,
+    "tests": 78,
+    "passed": 78,
     "failed": 0,
     "axeScans": 40,
     "axeViolations": 0,
@@ -30,8 +30,8 @@
     ],
     "realtimeLatencyMs": {
       "bookings": 20,
-      "p50": 9,
-      "p95": 13.250000000000004
+      "p50": 7,
+      "p95": 10.350000000000005
     }
   },
   "attachments": {
@@ -753,29 +753,29 @@
         "data": {
           "bookings": 20,
           "samplesMs": [
-            18,
-            13,
-            11,
-            9,
-            9,
-            9,
-            9,
-            13,
+            17,
+            8,
             7,
-            8,
-            8,
             10,
+            6,
+            7,
+            7,
+            6,
             8,
-            9,
-            9,
-            9,
-            9,
-            9,
+            6,
+            7,
+            7,
+            6,
             8,
-            7
+            7,
+            7,
+            6,
+            7,
+            6,
+            6
           ],
-          "p50": 9,
-          "p95": 13.250000000000004,
+          "p50": 7,
+          "p95": 10.350000000000005,
           "note": "request start in one context to busy cell visible in another, local Chromium"
         }
       }
@@ -1080,6 +1080,18 @@
     },
     {
       "title": "chromium > skip-link.spec.ts > Skip to availability reaches the slot grid in four key presses",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > staff-timeline.spec.ts > at 768x1024, where the chart scrolls inside its frame > End on a booking after 17:00 scrolls it, and its text, into the frame",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > staff-timeline.spec.ts > at 1280x900, the Now label on the time axis > at 11:45 it stays inside the chart and covers no hour label",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > staff-timeline.spec.ts > at 1280x900, the Now label on the time axis > at 18:50 it stays inside the chart and covers no hour label",
       "status": "passed"
     }
   ]
