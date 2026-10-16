@@ -70,7 +70,7 @@ describe("DailyColumns (VIZ-07)", () => {
     expect(within(plot).queryAllByRole("button")).toEqual([]);
   });
 
-  it("Show table reveals the same numbers", () => {
+  it("Show table reveals the same columns: every weekday for both kinds, zeros included, and which days are not over", () => {
     render(<DailyColumns report={REPORT} range={RANGE} today={TODAY} />);
     const toggle = screen.getByRole("button", { name: "Show table: bookings per day" });
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
@@ -78,8 +78,36 @@ describe("DailyColumns (VIZ-07)", () => {
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     const table = screen.getByRole("table", { name: "Bookings per day" });
-    expect(within(table).getAllByRole("row")).toHaveLength(REPORT.daily.length + 1);
+    expect(within(table).getAllByRole("columnheader").map((c) => c.textContent)).toEqual(["Date", "Kind", "Confirmed", "Cancelled", "Day over"]);
+    const rows = within(table)
+      .getAllByRole("row")
+      .slice(1)
+      .map((r) => within(r).getAllByRole("cell").map((c) => c.textContent));
+    // 12 weekdays, desks then rooms for each, as the two charts draw them.
+    expect(rows).toHaveLength(24);
+    expect(rows.slice(0, 4)).toEqual([
+      ["2026-10-05", "Desks", "0", "0", "Yes"],
+      ["2026-10-05", "Rooms", "0", "0", "Yes"],
+      ["2026-10-06", "Desks", "12", "1", "Yes"],
+      ["2026-10-06", "Rooms", "0", "0", "Yes"],
+    ]);
+    expect(rows.slice(16)).toEqual([
+      ["2026-10-15", "Desks", "0", "0", "Yes"],
+      ["2026-10-15", "Rooms", "0", "0", "Yes"],
+      ["2026-10-16", "Desks", "0", "0", "No, booked so far"],
+      ["2026-10-16", "Rooms", "0", "0", "No, booked so far"],
+      ["2026-10-19", "Desks", "9", "0", "No, booked so far"],
+      ["2026-10-19", "Rooms", "0", "0", "No, booked so far"],
+      ["2026-10-20", "Desks", "0", "0", "No, booked so far"],
+      ["2026-10-20", "Rooms", "2", "1", "No, booked so far"],
+    ]);
     expect(document.getElementById(toggle.getAttribute("aria-controls") ?? "")?.contains(table)).toBe(true);
+  });
+
+  it("the table says so for an empty range", () => {
+    render(<DailyColumns report={{ ...REPORT, daily: [] }} range={RANGE} today={TODAY} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show table: bookings per day" }));
+    expect(within(screen.getByRole("table", { name: "Bookings per day" })).getByText("No bookings in this range yet.")).toBeTruthy();
   });
 
   it("says so for an empty range, and dims the last render while refetching", () => {

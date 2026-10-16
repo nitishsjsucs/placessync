@@ -7,7 +7,8 @@
 //
 // Each chart is one tab stop (role="img" with a summary sentence): Left, Right, Home and
 // End move a focused column whose numbers show beside it and in a polite live region;
-// a pointer snaps to the nearest column. "Show table" reveals the same numbers.
+// a pointer snaps to the nearest column. "Show table" reveals the same columns, zero days
+// included, and says which days are not over.
 import { type KeyboardEvent, type PointerEvent, useId, useRef, useState } from "react";
 import type { UtilizationReport } from "../../shared/api.ts";
 import { dayOfWeek } from "../../shared/time.ts";
@@ -59,7 +60,14 @@ export interface DailyColumnsProps {
   refreshing?: boolean;
 }
 
-type DailyRow = UtilizationReport["daily"][number];
+interface TableRow extends DayColumn {
+  kind: Kind;
+}
+
+/** The table under the charts: one row per weekday and kind, as the columns draw them. */
+function tableRows(desks: readonly DayColumn[], rooms: readonly DayColumn[]): TableRow[] {
+  return desks.flatMap((d, i) => [{ ...d, kind: "desk" as const }, { ...(rooms[i] as DayColumn), kind: "room" as const }]);
+}
 
 export function DailyColumns({ report, range, today, refreshing = false }: DailyColumnsProps) {
   const [showTable, setShowTable] = useState(false);
@@ -92,13 +100,14 @@ export function DailyColumns({ report, range, today, refreshing = false }: Daily
           <DataTable
             caption="Bookings per day"
             columns={[
-              { key: "date", header: "Date", render: (r: DailyRow) => <span className={styles.nowrap}>{r.date}</span> },
-              { key: "kind", header: "Kind", render: (r: DailyRow) => (r.resourceKind === "desk" ? "Desks" : "Rooms") },
-              { key: "confirmed", header: "Confirmed", render: (r: DailyRow) => r.confirmed },
-              { key: "cancelled", header: "Cancelled", render: (r: DailyRow) => r.cancelled },
+              { key: "date", header: "Date", render: (r: TableRow) => <span className={styles.nowrap}>{r.date}</span> },
+              { key: "kind", header: "Kind", render: (r: TableRow) => (r.kind === "desk" ? "Desks" : "Rooms") },
+              { key: "confirmed", header: "Confirmed", render: (r: TableRow) => r.confirmed },
+              { key: "cancelled", header: "Cancelled", render: (r: TableRow) => r.cancelled },
+              { key: "over", header: "Day over", render: (r: TableRow) => (r.ahead ? "No, booked so far" : "Yes") },
             ]}
-            rows={report.daily}
-            rowKey={(r) => `${r.date}-${r.resourceKind}`}
+            rows={any ? tableRows(desks, rooms) : []}
+            rowKey={(r) => `${r.date}-${r.kind}`}
             empty="No bookings in this range yet."
             stacked={false}
           />

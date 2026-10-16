@@ -160,7 +160,14 @@ describe("Admin dashboard (SPEC 14.1)", () => {
     expect(within(nine).getAllByRole("cell").map((c) => c.textContent)).toEqual(["09:00", "1.5", "0"]);
     await user.click(screen.getByRole("button", { name: "Show table: bookings per day" }));
     const daily = screen.getByRole("table", { name: "Bookings per day" });
-    expect(within(daily).getAllByRole("row")).toHaveLength(4);
+    // A row per weekday and kind, as the charts draw them: 31 weekdays from September 10 to October 22.
+    const rows = within(daily)
+      .getAllByRole("row")
+      .slice(1)
+      .map((r) => within(r).getAllByRole("cell").map((c) => c.textContent));
+    expect(rows).toHaveLength(62);
+    expect(rows.find((r) => r[0] === "2026-09-14" && r[1] === "Desks")).toEqual(["2026-09-14", "Desks", "3", "0", "Yes"]);
+    expect(rows.find((r) => r[0] === "2026-10-12" && r[1] === "Desks")).toEqual(["2026-10-12", "Desks", "1", "1", "No, booked so far"]);
   });
 
   it("makes one projection status GET with the reports, and another on Refresh when reports lag", async () => {
