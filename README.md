@@ -224,7 +224,7 @@ Workflow-mode gates (every request reached review with a category in the enum, a
 
 ### End-to-end checks (Playwright, Chromium)
 
-Command: `npm run test:e2e`. Run 2026-10-16 (UTC) at commit `c806923` on Apple M5 (Darwin 25.5.0 arm64, Node v25.9.0).
+Command: `npm run test:e2e`. Run 2026-10-16 (UTC) at commit `af5b573` on Apple M5 (Darwin 25.5.0 arm64, Node v25.9.0).
 
 | Metric | Value |
 |---|---|
