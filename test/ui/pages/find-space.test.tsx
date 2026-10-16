@@ -184,6 +184,11 @@ describe("Find a space (SPEC 14.1)", () => {
     expect(within(dialog).getByRole("alert").textContent).toContain("A desk booking lasts 60 to 600 minutes.");
     expect((within(dialog).getByRole("button", { name: "Confirm booking" }) as HTMLButtonElement).disabled).toBe(true);
     expect(api.calls.some((c) => c.method === "POST")).toBe(false);
+    // Confirm is disabled, so the dialog opens on the reason; Escape closes it.
+    expect(document.activeElement).toBe(within(dialog).getByRole("alert"));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /^Book Desk 2A-01/ }));
   });
 
   it("applies live deltas from the socket to the grid", async () => {

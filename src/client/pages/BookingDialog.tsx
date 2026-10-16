@@ -33,6 +33,8 @@ export function BookingDialog({ open, onClose, resource, date, startMin, endMin,
   const [problem, setProblem] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const confirmRef = useRef<HTMLButtonElement>(null);
+  // When the selection breaks a rule, the dialog opens on the reason (Confirm is disabled).
+  const issuesRef = useRef<HTMLUListElement>(null);
   // The ledger binds a key to the first body it saw and stores every answer under it,
   // 409 and 422 included (SPEC 7.1). So a key is reused only to retry the same body after
   // no definitive answer (network error, 5xx); a changed body or a resubmit after a 409 or
@@ -104,7 +106,7 @@ export function BookingDialog({ open, onClose, resource, date, startMin, endMin,
       onClose={onClose}
       title={`Book ${resource.name}`}
       dismissable={!pending}
-      initialFocus={confirmRef}
+      initialFocus={ruleIssues.length > 0 ? issuesRef : confirmRef}
       actions={
         <>
           <Button variant="secondary" onClick={onClose} disabled={pending}>
@@ -128,7 +130,7 @@ export function BookingDialog({ open, onClose, resource, date, startMin, endMin,
       </dl>
       <p className={styles.muted}>{durationHint(resource.kind)}</p>
       {ruleIssues.length > 0 ? (
-        <ul role="alert" className={styles.errorSummary}>
+        <ul ref={issuesRef} tabIndex={-1} role="alert" className={styles.errorSummary}>
           {ruleIssues.map((i) => (
             <li key={`${i.path}-${i.code}`}>{i.message}</li>
           ))}
