@@ -412,6 +412,41 @@ describe("Find a space opens on a date that can still be booked (UX-01)", () => 
     expect(availabilityCalls(api).at(-1)?.url).toContain("date=2026-10-08");
     expect(screen.queryByText(/Bookings for today have closed/)).toBeNull();
   });
+
+  it("stays on the date it opened on when the clock passes 18:30 with a selection made", async () => {
+    const api = await openAt(18, 20);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("gridcell", { name: "Sequoia (8), 18:30 to 19:00, available" }));
+    const book = screen.getByRole("button", { name: "Book Sequoia, 18:30 to 19:00" });
+    // 18:31: no slot can start today any more, which used to move the open page to Friday.
+    vi.spyOn(Date, "now").mockReturnValue(at(18, 31));
+    await user.click(book);
+    const dialog = await screen.findByRole("dialog", { name: "Book Sequoia" });
+    expect(within(dialog).getByText("Thursday, October 8, 2026")).toBeTruthy();
+    expect(within(dialog).getByRole("alert").textContent).toContain("That start time has already passed.");
+    expect((within(dialog).getByRole("button", { name: "Confirm booking" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("gridcell", { name: "Thursday, October 8, 2026" }).getAttribute("aria-selected")).toBe("true");
+    expect(availabilityCalls(api).every((c) => c.url.includes("date=2026-10-08"))).toBe(true);
+    expect(screen.queryByText(/Bookings for today have closed/)).toBeNull();
+  });
+
+  it("clears the selection whenever the date changes, including through the address", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(at(8, 0));
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/sites/hq/availability": (c: { url: string }) => availability(c.url),
+    });
+    const { router } = renderAt("/find?date=2026-10-12");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("gridcell", { name: "Desk 2A-01, 10:00 to 10:30, available" }));
+    expect(screen.getByRole("button", { name: "Book Desk 2A-01, 10:00 to 11:00" })).toBeTruthy();
+    await act(async () => {
+      await router.navigate("/find?date=2026-10-13");
+    });
+    expect(await screen.findByText("Tuesday, October 13, 2026", { exact: false, selector: "p" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Select a time to book" })).toBeTruthy();
+  });
 });
 
 describe("Find a space below 1024 px puts availability first (UX-12)", () => {

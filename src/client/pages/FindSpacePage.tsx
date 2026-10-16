@@ -3,6 +3,10 @@
 // filters live in the URL (find-params.ts), written with replace so Back leaves the page.
 // Below 1024 px the filters fold into a disclosure, so availability comes first on phones
 // and tablets; under 640 px the Book button stays above the bottom nav while chips scroll.
+// The default date (the first that can still be booked) is fixed when the page opens: if
+// it followed the clock, an open page would move to the next working day at 18:30 and
+// keep the selection made on the day before. Anything that changes the date clears the
+// selection, and the booking dialog books the date it was opened for.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { type AvailabilityResponse, AvailabilityResponse as AvailabilitySchema, type Reservation, type Resource } from "../../shared/api.ts";
@@ -37,7 +41,7 @@ export function FindSpacePage() {
   const announce = useAnnounce();
   const banner = useStatusBanner();
   const [params, setParams] = useSearchParams();
-  const defaultDate = firstBookableDate(site);
+  const [defaultDate] = useState(() => firstBookableDate(site));
   const filters = parseFindParams(params, site, defaultDate);
   const { date, kind, floor, amenities, minCapacity, q, from, to } = filters;
   const update = (patch: Partial<FindFilters>) => {
@@ -53,7 +57,7 @@ export function FindSpacePage() {
   const [selection, setSelection] = useState<SlotSelection | null>(null);
   // The booking being confirmed, captured when the dialog opens so live updates to the
   // grid selection cannot change or close it mid-request.
-  const [booking, setBooking] = useState<{ resource: Resource; startMin: number; endMin: number } | null>(null);
+  const [booking, setBooking] = useState<{ resource: Resource; date: string; startMin: number; endMin: number } | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   // "1 to 2 on Desk 2A-01 was just booked by someone else", shown until the next selection.
   const [liveClear, setLiveClear] = useState<string | null>(null);
@@ -122,6 +126,11 @@ export function FindSpacePage() {
     setSelection(s);
     if (s) setLiveClear(null);
   }, []);
+
+  // A selection belongs to the date it was made on.
+  useEffect(() => {
+    setSelection(null);
+  }, [date]);
 
   // After Pick another time: runs after the closing Dialog's focus restore in the same commit.
   useEffect(() => {
@@ -293,7 +302,7 @@ export function FindSpacePage() {
                 <div className={`${styles.row} ${compact && selection ? styles.stickyBook : ""}`}>
                   <Button
                     disabled={!selection || !selectedResource}
-                    onClick={() => selection && selectedResource && setBooking({ resource: selectedResource, startMin: selection.startMin, endMin: selection.endMin })}
+                    onClick={() => selection && selectedResource && setBooking({ resource: selectedResource, date, startMin: selection.startMin, endMin: selection.endMin })}
                   >
                     {selection && selectedResource ? `Book ${selectedResource.name}, ${timeRange(selection.startMin, selection.endMin)}` : "Select a time to book"}
                   </Button>
@@ -321,7 +330,7 @@ export function FindSpacePage() {
         open={booking !== null}
         onClose={() => setBooking(null)}
         resource={booking?.resource ?? null}
-        date={date}
+        date={booking?.date ?? date}
         startMin={booking?.startMin ?? 0}
         endMin={booking?.endMin ?? 0}
         site={site}

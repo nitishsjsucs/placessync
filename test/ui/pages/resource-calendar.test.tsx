@@ -162,6 +162,46 @@ describe("resource week calendar (SPEC 14.1)", () => {
     expect(back().getAttribute("href")).toBe("/find");
   });
 
+  it("Previous week and Next week clear a selection made in the old week", async () => {
+    const desk = generateResources().find((r) => r.id === "res_2a01");
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/resources/res_2a01/calendar": (c: { url: string }) => ({ ...calendar(c.url), resource: desk }),
+    });
+    renderAt("/resources/res_2a01?date=2026-10-09");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("gridcell", { name: "Friday 10/09, 10:00 to 10:30, available" }));
+    expect(screen.getByRole("button", { name: "Book Friday, October 9, 2026, 10:00 to 11:00" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Next week" }));
+    expect(await screen.findByRole("grid", { name: /week of Monday, October 12, 2026/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Select a time to book" })).toBeTruthy();
+    await user.click(screen.getByRole("gridcell", { name: "Monday 10/12, 10:00 to 10:30, available" }));
+    await user.click(screen.getByRole("button", { name: "Previous week" }));
+    expect(await screen.findByRole("grid", { name: /week of Monday, October 5, 2026/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Select a time to book" })).toBeTruthy();
+  });
+
+  it("keeps the week it opened on when Friday's bookings close while the page is open", async () => {
+    // Friday 2026-10-09 at 18:20 in Los Angeles (UTC-7); at 18:31 the first bookable day is Monday.
+    const friday = (hh: number, mm: number) => Date.parse("2026-10-09T00:00:00Z") + ((hh + 7) * 60 + mm) * 60_000;
+    vi.spyOn(Date, "now").mockReturnValue(friday(18, 20));
+    installFakeApi({
+      "GET /api/health": { ...HEALTH, siteToday: "2026-10-09" },
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/resources/res_sequoia/calendar": (c: { url: string }) => calendar(c.url),
+    });
+    renderAt("/resources/res_sequoia");
+    expect(await screen.findByRole("grid", { name: /Sequoia, week of Monday, October 5, 2026/ })).toBeTruthy();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("gridcell", { name: "Friday 10/09, 18:30 to 19:00, available" }));
+    vi.spyOn(Date, "now").mockReturnValue(friday(18, 31));
+    await user.click(screen.getByRole("button", { name: "Book Friday, October 9, 2026, 18:30 to 19:00" }));
+    const dialog = await screen.findByRole("dialog", { name: "Book Sequoia" });
+    expect(within(dialog).getByRole("alert").textContent).toContain("That start time has already passed.");
+    expect(screen.getByRole("grid", { name: /Sequoia, week of Monday, October 5, 2026/ })).toBeTruthy();
+  });
+
   it("one click on a desk's week grid selects an hour", async () => {
     const desk = generateResources().find((r) => r.id === "res_2a01");
     installFakeApi({

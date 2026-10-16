@@ -1,7 +1,9 @@
 // Resource detail and week booking calendar (SPEC 14.1): a SlotGrid with the seven days
 // as rows, live updates for the week's dates, and booking from a selected range. The
 // first week comes from ?date (Find a space links carry its date) and the shown week is
-// kept in ?week, written with replace.
+// kept in ?week, written with replace. Without either, the week is the one with the first
+// bookable date when the page opened (fixed, so it never flips at 18:30 on a Friday), and
+// changing the week clears the selection, which belongs to a day of the old week.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { type CalendarResponse, CalendarResponse as CalendarSchema, type Reservation } from "../../shared/api.ts";
@@ -32,12 +34,15 @@ export function ResourcePage() {
   const [params, setParams] = useSearchParams();
   const dateParam = bookableDateParam(params.get("date"), site);
   const weekParam = params.get("week");
-  const weekStart =
-    weekParam && DATE_RE.test(weekParam) && isValidDate(weekParam) ? weekStartOf(weekParam) : weekStartOf(dateParam ?? firstBookableDate(site));
-  const setWeekStart = (week: string) => setParams(new URLSearchParams({ week }), { replace: true });
+  const [fallbackDate] = useState(() => firstBookableDate(site));
+  const weekStart = weekParam && DATE_RE.test(weekParam) && isValidDate(weekParam) ? weekStartOf(weekParam) : weekStartOf(dateParam ?? fallbackDate);
   const [data, setData] = useState<CalendarResponse | null>(null);
   const [error, setError] = useState<"not_found" | "failed" | null>(null);
   const [selection, setSelection] = useState<SlotSelection | null>(null);
+  const setWeekStart = (week: string) => {
+    setSelection(null);
+    setParams(new URLSearchParams({ week }), { replace: true });
+  };
   const [booking, setBooking] = useState<SlotSelection | null>(null);
   const [tick, setTick] = useState(0);
   const [liveClear, setLiveClear] = useState<string | null>(null);
@@ -52,6 +57,10 @@ export function ResourcePage() {
     setError(null);
     setSelection(null);
   }, [id]);
+
+  useEffect(() => {
+    setSelection(null);
+  }, [weekStart]);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,10 +172,7 @@ export function ResourcePage() {
             label="Jump to week"
             value={weekStart}
             today={site.today}
-            onChange={(d) => {
-              setWeekStart(weekStartOf(d));
-              setSelection(null);
-            }}
+            onChange={(d) => setWeekStart(weekStartOf(d))}
             isDisabled={() => null}
           />
         </div>
