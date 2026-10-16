@@ -18,7 +18,7 @@ import { SlotGrid, type SlotRow, type SlotSelection } from "../ui/SlotGrid.tsx";
 import { BookingDialog } from "./BookingDialog.tsx";
 import styles from "./pages.module.css";
 import { bookableDateParam } from "./find-params.ts";
-import { dateDisabledReason, firstBookableDate, minStartOn, timeRange, useSite } from "./site.ts";
+import { dateDisabledReason, dateUnavailableWord, firstBookableDate, minStartOn, timeRange, useSite } from "./site.ts";
 import { usePageTitle } from "./usePageTitle.ts";
 
 const AMENITY_LABELS = new Map(AMENITIES.map((a) => [a.id, a.label]));
@@ -175,7 +175,8 @@ export function ResourcePage() {
             closeMin={site.rules.closeMin}
             selection={selection}
             onSelect={onSelect}
-            minStartFor={(date) => (dateDisabledReason(date, site) ? site.rules.closeMin : minStartOn(date, site))}
+            minStartFor={(date) => minStartOn(date, site)}
+            rowUnavailable={(date) => dateUnavailableWord(date, site)}
           />
           <div className={styles.row}>
             <Button disabled={!selection} onClick={() => selection && setBooking(selection)}>

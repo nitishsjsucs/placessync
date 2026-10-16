@@ -47,6 +47,7 @@
   --color-focus: #c25e00;
   --color-busy: #d7dce3;
   --color-busy-text: #3e4652;
+  --color-unavailable: #eceef2;
   --color-mine: #cfe3f5;
   --color-mine-text: #123e60;
   --color-selected: #1d5a8a;
@@ -77,6 +78,7 @@
     --color-focus: #ffb366;
     --color-busy: #3a424d;
     --color-busy-text: #dde3ea;
+    --color-unavailable: #262c35;
     --color-mine: #1f4a6e;
     --color-mine-text: #e3f1fd;
     --color-selected: #7cb8ea;

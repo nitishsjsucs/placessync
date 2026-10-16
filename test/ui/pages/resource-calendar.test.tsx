@@ -6,6 +6,7 @@ import { addDays } from "../../../src/shared/time.ts";
 import { HEALTH, installFakeApi, me, respond } from "../fake-api.ts";
 import { FakeWebSocket } from "../fake-ws.ts";
 import { renderAt } from "../render-app.tsx";
+import { setMediaMatches } from "../setup.ts";
 
 const SEQUOIA = generateResources().find((r) => r.id === "res_sequoia");
 
@@ -77,13 +78,47 @@ describe("resource week calendar (SPEC 14.1)", () => {
     await waitFor(() => expect(screen.getByTestId("announcer").textContent).toBe("Booked Sequoia on Wednesday, October 14, 2026, 13:00 to 14:00."));
   });
 
-  it("marks past days and weekends as unavailable", async () => {
+  it("names past days, weekends and days beyond the horizon, and draws them unlike booked cells", async () => {
     installFakeApi({ "GET /api/health": HEALTH, "GET /api/me": me("emp_001", "employee"), "GET /api/resources/res_sequoia/calendar": (c: { url: string }) => calendar(c.url) });
-    renderAt("/resources/res_sequoia");
+    const { router } = renderAt("/resources/res_sequoia");
     await screen.findByRole("heading", { level: 1, name: "Sequoia" });
-    expect(screen.getByRole("gridcell", { name: "Monday 10/05, 13:00 to 13:30, past" }).getAttribute("aria-disabled")).toBe("true");
-    expect(screen.getByRole("gridcell", { name: "Saturday 10/10, 13:00 to 13:30, past" }).getAttribute("aria-disabled")).toBe("true");
+    const past = screen.getByRole("gridcell", { name: "Monday 10/05, 13:00 to 13:30, past" });
+    expect(past.getAttribute("aria-disabled")).toBe("true");
+    expect(past.className).toMatch(/unavailable/);
+    expect(past.className).not.toMatch(/busy/);
+    const saturday = screen.getByRole("gridcell", { name: "Saturday 10/10, 13:00 to 13:30, closed" });
+    expect(saturday.getAttribute("aria-disabled")).toBe("true");
+    expect(saturday.className).toMatch(/unavailable/);
+    // Today (Thursday 08:00): the 07:30 slot has started, the 08:30 one has not.
+    expect(screen.getByRole("gridcell", { name: "Thursday 10/08, 07:30 to 08:00, past" }).className).toMatch(/unavailable/);
+    expect(screen.getByRole("gridcell", { name: "Thursday 10/08, 08:30 to 09:00, available" }).getAttribute("aria-disabled")).toBeNull();
     expect(screen.getByRole("gridcell", { name: "Friday 10/09, 13:00 to 13:30, available" }).getAttribute("aria-disabled")).toBeNull();
+    // A booked cell in a past day still says booked, hatched.
+    const booked = screen.getByRole("gridcell", { name: "Tuesday 10/06, 11:00 to 11:30, booked" });
+    expect(booked.className).toMatch(/busy/);
+    expect(booked.className).not.toMatch(/unavailable/);
+
+    await router.navigate("/resources/res_sequoia?week=2026-10-19");
+    expect(await screen.findByRole("gridcell", { name: "Thursday 10/22, 13:00 to 13:30, available" })).toBeTruthy();
+    expect(screen.getByRole("gridcell", { name: "Friday 10/23, 13:00 to 13:30, not open for booking yet" }).getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByRole("gridcell", { name: "Saturday 10/24, 13:00 to 13:30, closed" })).toBeTruthy();
+  });
+
+  it("compact chips carry the same words", async () => {
+    setMediaMatches("(max-width: 639px)", true);
+    installFakeApi({ "GET /api/health": HEALTH, "GET /api/me": me("emp_001", "employee"), "GET /api/resources/res_sequoia/calendar": (c: { url: string }) => calendar(c.url) });
+    renderAt("/resources/res_sequoia?week=2026-10-19");
+    const compact = await screen.findByTestId("slotgrid-compact");
+    const select = within(compact).getByRole("combobox", { name: "Day" });
+    const user = userEvent.setup();
+    await user.selectOptions(select, "2026-10-23");
+    const chip = within(compact).getByRole("button", { name: "13:00 to 13:30, not open for booking yet" }) as HTMLButtonElement;
+    expect(chip.disabled).toBe(true);
+    expect(chip.className).toMatch(/chipUnavailable/);
+    await user.selectOptions(select, "2026-10-24");
+    expect(within(compact).getByRole("button", { name: "13:00 to 13:30, closed" })).toBeTruthy();
+    await user.selectOptions(select, "2026-10-22");
+    expect((within(compact).getByRole("button", { name: "13:00 to 13:30" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("a missing space links to Find a space; a failed load offers Try again", async () => {

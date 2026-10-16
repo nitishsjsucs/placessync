@@ -19,7 +19,7 @@ import { TextField } from "../ui/TextField.tsx";
 import { BookingDialog } from "./BookingDialog.tsx";
 import { CAPACITIES, FLOORS, type FindFilters, type Kind, fromTimes, parseFindParams, toTimes, writeFindParams } from "./find-params.ts";
 import styles from "./pages.module.css";
-import { dateDisabledReason, firstBookableDate, minStartOn, timeRange, useSite } from "./site.ts";
+import { dateDisabledReason, firstBookableDate, minStartOn, timeRange, todayHasClosed, useSite } from "./site.ts";
 import { usePageTitle } from "./usePageTitle.ts";
 
 const KIND_TABS = [
@@ -217,6 +217,9 @@ export function FindSpacePage() {
                 {data === null && !loadError ? <p role="status">Loading availability…</p> : null}
                 {data !== null && !loadError ? (
                   <>
+                    {date === defaultDate && date !== site.today && todayHasClosed(site) ? (
+                      <p className={styles.muted}>Bookings for today have closed; showing {longDate(date)}.</p>
+                    ) : null}
                     <p className={styles.muted}>
                       {rows.length} {rows.length === 1 ? "space" : "spaces"} on {longDate(date)}.
                     </p>

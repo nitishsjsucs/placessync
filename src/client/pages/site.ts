@@ -26,11 +26,35 @@ export function dateDisabledReason(date: string, site: SiteContext): string | nu
   return null;
 }
 
-/** The first bookable date from today on. */
-export function firstBookableDate(site: SiteContext): string {
+/**
+ * Why a whole day cannot be booked, as one word for slot names and the grid legend:
+ * "past", "closed" (a weekend) or "not open for booking yet" (beyond the horizon).
+ * The same offsets as dateDisabledReason.
+ */
+export function dateUnavailableWord(date: string, site: SiteContext): "past" | "closed" | "not open for booking yet" | null {
+  const offset = daysBetween(site.today, date);
+  if (offset < 0) return "past";
+  if (!isWeekday(date)) return "closed";
+  if (offset > site.rules.horizonDays) return "not open for booking yet";
+  return null;
+}
+
+/**
+ * True when today is a working day but no slot can still start: the site clock is past
+ * the last 30-minute grid start (closeMin - 30). A grid slot is the shortest selection.
+ */
+export function todayHasClosed(site: SiteContext, nowMs: number = Date.now()): boolean {
+  if (dateDisabledReason(site.today, site)) return false;
+  const clock = siteClock(site.rules.timezone, nowMs);
+  return clock.date === site.today && clock.minutes > site.rules.closeMin - 30;
+}
+
+/** The first date from today on that still has a slot to book. */
+export function firstBookableDate(site: SiteContext, nowMs: number = Date.now()): string {
+  const skipToday = todayHasClosed(site, nowMs);
   let d = site.today;
   for (let i = 0; i <= site.rules.horizonDays; i++) {
-    if (!dateDisabledReason(d, site)) return d;
+    if (!dateDisabledReason(d, site) && !(skipToday && d === site.today)) return d;
     d = addDays(d, 1);
   }
   return site.today;

@@ -22,7 +22,11 @@ const ROWS = [
   { id: "a", label: "Desk 2A-01", busy: [{ startMin: 540, endMin: 600 }] },
   { id: "b", label: "Desk 2A-02", busy: [{ startMin: 600, endMin: 690, mine: true }] },
   { id: "c", label: "Sequoia (8)", busy: [] },
+  { id: "d", label: "Desk 3A-01", busy: [] },
 ];
+// Row a shows today's past slots (before 09:00); row d a closed day.
+const galleryMinStart = (rowId: string) => (rowId === "a" ? 540 : -1);
+const galleryRowWord = (rowId: string) => (rowId === "d" ? "closed" : null);
 type Row = { id: string; space: string; time: string };
 const TABLE_ROWS: Row[] = [
   { id: "1", space: "Desk 2A-01", time: "09:00 to 11:00" },
@@ -74,7 +78,16 @@ export function UiGalleryPage() {
       <DateGrid label="Gallery date" value={date} onChange={setDate} today="2026-10-08" isDisabled={(d) => (isWeekday(d) ? null : "Closed on weekends")} />
 
       <h2>SlotGrid</h2>
-      <SlotGrid label="Gallery availability" rows={ROWS} openMin={480} closeMin={780} selection={selection} onSelect={setSelection} />
+      <SlotGrid
+        label="Gallery availability"
+        rows={ROWS}
+        openMin={480}
+        closeMin={780}
+        selection={selection}
+        onSelect={setSelection}
+        minStartFor={galleryMinStart}
+        rowUnavailable={galleryRowWord}
+      />
 
       <h2>Tabs</h2>
       <Tabs

@@ -304,3 +304,44 @@ describe("Find a space keeps its search in the URL (UX-04)", () => {
     expect(screen.getByRole("gridcell", { name: "Monday, October 12, 2026" }).getAttribute("aria-selected")).toBe("true");
   });
 });
+
+describe("Find a space opens on a date that can still be booked (UX-01)", () => {
+  // Site-local Thursday 2026-10-08 (UTC-7) at the given time.
+  const at = (hh: number, mm: number) => Date.parse("2026-10-08T00:00:00Z") + ((hh + 7) * 60 + mm) * 60_000;
+
+  async function openAt(hh: number, mm: number) {
+    vi.spyOn(Date, "now").mockReturnValue(at(hh, mm));
+    const api = installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/sites/hq/availability": (c: { url: string }) => availability(c.url),
+    });
+    renderAt("/find");
+    await screen.findByRole("heading", { level: 1, name: "Find a space" });
+    await waitFor(() => expect(availabilityCalls(api).length).toBeGreaterThan(0));
+    await screen.findByText(/spaces on/);
+    return api;
+  }
+
+  it("at 20:00 opens on Friday, says why, and asks for Friday's availability", async () => {
+    const api = await openAt(20, 0);
+    expect(availabilityCalls(api).at(-1)?.url).toContain("date=2026-10-09");
+    expect(screen.getByRole("gridcell", { name: "Friday, October 9, 2026" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByText("Bookings for today have closed; showing Friday, October 9, 2026.")).toBeTruthy();
+  });
+
+  it("at 18:45 opens on Friday", async () => {
+    const api = await openAt(18, 45);
+    expect(availabilityCalls(api).at(-1)?.url).toContain("date=2026-10-09");
+  });
+
+  it.each([
+    [18, 0],
+    [8, 0],
+  ])("at %i:%i opens on today with no closed line", async (hh, mm) => {
+    const api = await openAt(hh, mm);
+    expect(availabilityCalls(api).at(-1)?.url).toContain("date=2026-10-08");
+    expect(screen.queryByText(/Bookings for today have closed/)).toBeNull();
+  });
+});
+

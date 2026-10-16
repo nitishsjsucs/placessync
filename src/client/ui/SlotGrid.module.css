@@ -60,6 +60,13 @@
   background-image: repeating-linear-gradient(135deg, transparent 0 6px, rgb(0 0 0 / 0.08) 6px 8px);
 }
 
+/* Past, closed or not yet open: muted, never hatched, so it does not read as booked. */
+.unavailable,
+.unavailable:hover {
+  background: var(--color-unavailable);
+  cursor: not-allowed;
+}
+
 .mine,
 .mine:hover {
   background: var(--color-mine);
@@ -144,4 +151,11 @@
   color: var(--color-busy-text);
   cursor: not-allowed;
   text-decoration: line-through;
+}
+
+.chip.chipUnavailable:disabled {
+  background: var(--color-unavailable);
+  color: var(--color-text-muted);
+  border-style: dashed;
+  text-decoration: none;
 }
