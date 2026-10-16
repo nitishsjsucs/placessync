@@ -42,6 +42,7 @@ export function ResourcePage() {
   const [tick, setTick] = useState(0);
   const [liveClear, setLiveClear] = useState<string | null>(null);
   const gridRef = useRef<SlotGridHandle>(null);
+  const slotsRef = useRef<HTMLDivElement>(null);
   const [focusTarget, setFocusTarget] = useState<SlotSelection | null>(null);
   usePageTitle(data ? data.resource.name : "Resource");
 
@@ -179,6 +180,7 @@ export function ResourcePage() {
               Next week
             </Button>
           </div>
+          <div id="slots" ref={slotsRef} tabIndex={-1}>
           <SlotGrid
             ref={gridRef}
             onLiveClear={setLiveClear}
@@ -193,6 +195,7 @@ export function ResourcePage() {
             rowUnavailable={(date) => dateUnavailableWord(date, site)}
             minSlotsFor={() => minSlots(r.kind)}
           />
+          </div>
           <div className={styles.row}>
             <Button disabled={!selection} onClick={() => selection && setBooking(selection)}>
               {selection ? `Book ${longDate(selection.rowId)}, ${timeRange(selection.startMin, selection.endMin)}` : "Select a time to book"}
@@ -214,6 +217,7 @@ export function ResourcePage() {
         site={site}
         onBooked={onBooked}
         onConflict={refresh}
+        returnFocus={slotsRef}
         onPickAnother={() => {
           setFocusTarget(booking);
           setBooking(null);

@@ -50,6 +50,9 @@ export function FindSpacePage() {
   // "1 to 2 on Desk 2A-01 was just booked by someone else", shown until the next selection.
   const [liveClear, setLiveClear] = useState<string | null>(null);
   const gridRef = useRef<SlotGridHandle>(null);
+  // The "Skip to availability" target, and where focus goes if a dialog closes after
+  // the Book button was disabled.
+  const slotsRef = useRef<HTMLDivElement>(null);
   const [focusTarget, setFocusTarget] = useState<{ rowId: string; startMin: number } | null>(null);
 
   const query = qs({
@@ -230,6 +233,7 @@ export function FindSpacePage() {
           }} label="Kind of space">
             {() => (
               <div className={styles.stack}>
+                <div id="slots" ref={slotsRef} tabIndex={-1} className={styles.stack}>
                 {loadError ? <LoadError message={loadError} onRetry={retry} /> : null}
                 {data === null && !loadError ? <p role="status">Loading availability…</p> : null}
                 {data !== null && !loadError ? (
@@ -258,6 +262,7 @@ export function FindSpacePage() {
                     )}
                   </>
                 ) : null}
+                </div>
                 <div className={styles.row}>
                   <Button
                     disabled={!selection || !selectedResource}
@@ -295,6 +300,7 @@ export function FindSpacePage() {
         site={site}
         onBooked={onBooked}
         onConflict={refresh}
+        returnFocus={slotsRef}
         onPickAnother={() => {
           if (booking) setFocusTarget({ rowId: booking.resource.id, startMin: booking.startMin });
           setBooking(null);
