@@ -26,6 +26,7 @@ export const ERROR_CODES = [
   "not_cancellable",
   "upgrade_required",
   "unknown_site",
+  "schema_missing",
   "internal",
 ] as const;
 

@@ -42,4 +42,74 @@ describe("dev login page", () => {
     await user.click(await screen.findByRole("button", { name: "Sign in" }));
     expect(await screen.findByText("Choose who to sign in as.")).toBeTruthy();
   });
+
+  it("on a database with no synthetic employees, says to seed and recovers through Check again", async () => {
+    let seeded = false;
+    const api = installFakeApi({
+      "GET /api/health": () => ({ ...HEALTH, seeded, siteToday: seeded ? HEALTH.siteToday : null, siteRules: seeded ? HEALTH.siteRules : null }),
+      "GET /api/me": respond(401, { error: "unauthenticated", message: "x" }),
+      "GET /api/dev/users": () =>
+        seeded ? { users: [{ id: "emp_100", displayName: "Chloe Mensah", role: "facilities_admin", department: "Facilities" }] } : { users: [] },
+    });
+    renderAt("/login");
+    const alert = await screen.findByText("No synthetic employees yet. Run npm run seed:local in another terminal, then press Check again.");
+    expect(alert.closest("[role=alert]")).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "Quick picks" })).toBeNull();
+    seeded = true;
+    const before = api.calls.length;
+    await userEvent.setup().click(screen.getByRole("button", { name: "Check again" }));
+    expect(await screen.findByRole("button", { name: "Facilities admin: Chloe Mensah" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Quick picks" })).toBeTruthy();
+    expect(screen.queryByText(/No synthetic employees yet/)).toBeNull();
+    // Both the users list and health were fetched again, without a page reload.
+    const again = api.calls.slice(before).map((c) => c.url);
+    expect(again).toEqual(expect.arrayContaining(["/api/dev/users", "/api/health"]));
+  });
+
+  it("on a database without tables, shows the migrate instruction from health", async () => {
+    installFakeApi({
+      "GET /api/health": respond(503, { error: "schema_missing", message: "The local database has no tables yet. Run npm run db:migrate:local, then reload." }),
+      "GET /api/dev/users": respond(500, { error: "internal", message: "x" }),
+    });
+    renderAt("/login");
+    expect(await screen.findByText("Could not load PlacesSync: The local database has no tables yet. Run npm run db:migrate:local, then reload.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Check again" })).toBeTruthy();
+    expect(screen.queryByText(/Seed the database first/)).toBeNull();
+  });
+
+  it("when already signed in, offers Continue to a same-origin next path only", async () => {
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/dev/users": { users: [{ id: "emp_001", displayName: "Test Person", role: "employee", department: "Engineering" }] },
+    });
+    const first = renderAt("/login?next=%2Fbookings");
+    expect(await screen.findByText("Signed in as Test Person.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Continue as Test Person" }).getAttribute("href")).toBe("/bookings");
+    first.unmount();
+
+    for (const bad of ["//evil.example", "/\\evil.example", "https://evil.example"]) {
+      const view = renderAt(`/login?next=${encodeURIComponent(bad)}`);
+      expect((await screen.findByRole("link", { name: "Continue as Test Person" })).getAttribute("href")).toBe("/find");
+      view.unmount();
+    }
+  });
+
+  it("after Sign in, ignores a next parameter that points at another origin", async () => {
+    let signedIn = false;
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": () => (signedIn ? me("emp_001", "employee") : respond(401, { error: "unauthenticated", message: "x" })),
+      "GET /api/dev/users": { users: [{ id: "emp_001", displayName: "Test Person", role: "employee", department: "Engineering" }] },
+      "GET /api/sites/hq/availability": { date: "2026-10-08", version: 1, ledgerVersion: 1, resources: [] },
+      "POST /api/dev/login": () => {
+        signedIn = true;
+        return { token: "t", expiresAt: "2026-10-08T23:00:00.000Z" };
+      },
+    });
+    vi.stubGlobal("WebSocket", class { addEventListener() {} close() {} });
+    const { router } = renderAt("/login?next=%2F%2Fevil.example");
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Employee: Test Person" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/find"));
+  });
 });

@@ -265,6 +265,53 @@ describe("site allowlist (SPEC 7.5)", () => {
   });
 });
 
+describe("health on a database without tables (UX-16)", () => {
+  // A D1 binding whose every query fails the way an unmigrated local database does.
+  const unmigrated = {
+    prepare: () => {
+      const stmt = {
+        bind: () => stmt,
+        first: async () => {
+          throw new Error("D1_ERROR: no such table: sites: SQLITE_ERROR");
+        },
+        all: async () => {
+          throw new Error("D1_ERROR: no such table: sites: SQLITE_ERROR");
+        },
+        run: async () => {
+          throw new Error("D1_ERROR: no such table: sites: SQLITE_ERROR");
+        },
+      };
+      return stmt;
+    },
+  } as unknown as D1Database;
+  const app = createApp(defaultDeps);
+  const health = async (e: Env) => {
+    const ctx = createExecutionContext();
+    const res = await app.fetch(new Request(`${BASE}/api/health`), e, ctx);
+    await waitOnExecutionContext(ctx);
+    return res;
+  };
+
+  it("dev mode answers 503 schema_missing with the migrate instruction", async () => {
+    const res = await health({ ...env, DB: unmigrated } as Env);
+    expect(res.status).toBe(503);
+    expect(await json(res)).toEqual({ error: "schema_missing", message: "The local database has no tables yet. Run npm run db:migrate:local, then reload." });
+  });
+
+  it("access mode with the same failure answers the generic 500, as before", async () => {
+    const accessEnv = { ...env, DB: unmigrated, AUTH_MODE: "access", ACCESS_TEAM_DOMAIN: "https://team.cloudflareaccess.com", ACCESS_AUD: "aud-test" } as Env;
+    const res = await health(accessEnv);
+    expect(res.status).toBe(500);
+    expect(await json(res)).toEqual({ error: "internal", message: "Something went wrong." });
+  });
+
+  it("with tables, health is unchanged", async () => {
+    const res = await health(env);
+    expect(res.status).toBe(200);
+    expect(await json(res)).toMatchObject({ ok: true, authMode: "dev", seeded: true, siteId: "hq" });
+  });
+});
+
 describe("access mode (production code path, SPEC 9.2)", () => {
   const TEAM = "https://team.cloudflareaccess.com";
   const accessEnv = { ...env, AUTH_MODE: "access", ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "aud-test" } as Env;
