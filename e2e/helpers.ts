@@ -27,6 +27,23 @@ export function addBusinessDays(date: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+export function isWeekdayDate(date: string): boolean {
+  const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
+  return dow !== 0 && dow !== 6;
+}
+
+/** The UTC instant at which the hq clock (America/Los_Angeles) reads this date and minute. */
+export function siteInstant(date: string, minutes: number, timeZone = "America/Los_Angeles"): number {
+  const fmt = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  for (let off = -14 * 60; off <= 14 * 60; off += 15) {
+    const ms = Date.UTC(y, m - 1, d) + (minutes - off) * 60_000;
+    const parts = Object.fromEntries(fmt.formatToParts(new Date(ms)).map((p) => [p.type, p.value]));
+    if (`${parts.year}-${parts.month}-${parts.day}` === date && Number(parts.hour) * 60 + Number(parts.minute) === minutes) return ms;
+  }
+  throw new Error(`no instant for ${date} ${minutes}`);
+}
+
 export function longDate(date: string): string {
   const d = new Date(`${date}T12:00:00Z`);
   return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });

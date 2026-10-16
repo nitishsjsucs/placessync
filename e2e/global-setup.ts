@@ -1,4 +1,7 @@
-// Migrates local D1 and seeds the synthetic world through the dev route (SPEC 12.4).
+// Migrates local D1 and seeds the synthetic world through the dev route (SPEC 12.4),
+// with 20 business days of past bookings so the admin reports have real volume (the
+// mobile layout spec checks the admin page's height with them). History is in the past,
+// so it never overlaps the future dates the booking specs use.
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 
@@ -18,7 +21,7 @@ export default async function globalSetup(): Promise<void> {
     if (Date.now() > deadline) throw new Error("preview server did not answer /api/health");
     await new Promise((r) => setTimeout(r, 500));
   }
-  const res = await fetch(`${BASE}/api/dev/seed`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reset: true, history: false }) });
+  const res = await fetch(`${BASE}/api/dev/seed`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reset: true, history: true }) });
   if (!res.ok) throw new Error(`seed failed: ${res.status} ${await res.text()}`);
   console.log("seeded", await res.json());
 }

@@ -53,6 +53,9 @@ test("book a desk and cancel it using only the keyboard", async ({ page }, testI
   await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
   await expect(page.getByTestId("announcer")).toHaveText(`Booked Desk 2B-04 on ${longDate(target)}, 15:00 to 16:00.`);
+  // The Book button is disabled now; focus lands on the visible result, not on body.
+  await expect(page.getByTestId("status-banner")).toBeFocused();
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
 
   // Go to My bookings through the main navigation (Shift+Tab back from the Book button),
   // then cancel, keyboard only.
@@ -61,7 +64,8 @@ test("book a desk and cancel it using only the keyboard", async ({ page }, testI
   await expect(navLink).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/bookings$/);
-  await expect(page.getByRole("heading", { level: 1, name: "My bookings" })).toBeVisible();
+  // A route change puts focus on the new page's heading.
+  await expect(page.getByRole("heading", { level: 1, name: "My bookings" })).toBeFocused();
   const cancel = page.getByRole("button", { name: `Cancel booking for Desk 2B-04 on ${longDate(target)}` });
   await expect(cancel).toBeVisible();
   for (let i = 0; i < 40 && !(await cancel.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab");
