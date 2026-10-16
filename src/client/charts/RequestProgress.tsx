@@ -46,7 +46,7 @@ export function RequestProgress({ request, suggestion, events }: RequestProgress
               <strong className={styles.label}>{s.label}</strong>
               {s.state === "current" && s.now ? (
                 <span>
-                  Now: {s.now.who}, {elapsed(s.now.sinceMinutes)} so far
+                  Now: {s.now.who}, <span className={styles.nowrap}>{elapsed(s.now.sinceMinutes)}</span> so far
                 </span>
               ) : s.state === "done" || s.state === "cancelled" ? (
                 <span>
@@ -60,7 +60,7 @@ export function RequestProgress({ request, suggestion, events }: RequestProgress
               ) : (
                 <span className={styles.quiet}>{STATE_WORD[s.state]}</span>
               )}
-              {s.afterMinutes !== null ? <span className={styles.quiet}>after {elapsed(s.afterMinutes)}</span> : null}
+              {s.afterMinutes !== null ? <span className={`${styles.quiet} ${styles.nowrap}`}>after {elapsed(s.afterMinutes)}</span> : null}
               {s.detail ? <span className={styles.detail}>{s.detail}</span> : null}
               {s.now?.overdue ? (
                 <span className={chartStyles.warn}>

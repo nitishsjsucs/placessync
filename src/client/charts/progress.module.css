@@ -94,6 +94,11 @@
   color: var(--color-text-muted);
 }
 
+/* "9 d 7 h" never breaks between a number and its unit. */
+.nowrap {
+  white-space: nowrap;
+}
+
 .detail {
   color: var(--color-text);
 }

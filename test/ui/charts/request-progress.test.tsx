@@ -60,11 +60,12 @@ describe("RequestProgress (VIZ-03)", () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
     render(<RequestProgress request={request} suggestion={null} events={events} />);
-    expect(screen.getByText("Now: staff are working on it, 59 min so far")).toBeTruthy();
+    const current = () => screen.getAllByRole("listitem").find((li) => li.getAttribute("aria-current") === "step")?.textContent;
+    expect(current()).toContain("Now: staff are working on it, 59 min so far");
     await act(async () => vi.advanceTimersByTime(60_000));
-    expect(screen.getByText("Now: staff are working on it, 1 h so far")).toBeTruthy();
+    expect(current()).toContain("Now: staff are working on it, 1 h so far");
     await act(async () => vi.advanceTimersByTime(60_000));
-    expect(screen.getByText("Now: staff are working on it, 1 h 1 min so far")).toBeTruthy();
+    expect(current()).toContain("Now: staff are working on it, 1 h 1 min so far");
     expect(fetchSpy).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
