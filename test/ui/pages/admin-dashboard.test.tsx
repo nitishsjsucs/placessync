@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateResources } from "../../../src/shared/synthetic/resources.ts";
@@ -362,17 +362,27 @@ describe("Deactivate names what reports show from today on (VIZ-06)", () => {
     return { dialog, user };
   }
 
-  it("asks the utilization report for today through the horizon, narrowed to the space's kind, and names the count and the next date", async () => {
+  it("asks the utilization report for today through the horizon, narrowed to the space's kind, and names the count and the first date", async () => {
     api.set(UPCOMING, report([{ resourceId: "res_2a01", date: "2026-10-20", bookings: 2 }, { resourceId: "res_2a01", date: "2026-10-12", bookings: 1 }, { resourceId: "res_2a02", date: "2026-10-09", bookings: 4 }]));
     const { dialog } = await openDialog();
     expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Keep active" }));
     const status = await within(dialog).findByText(/^Reports show 3 bookings/);
-    expect(status.textContent).toBe("Reports show 3 bookings for Desk 2A-01 from today on, the next on Monday, October 12. They stay booked, and My bookings marks the space (not bookable now).");
+    expect(status.textContent).toBe("Reports show 3 bookings for Desk 2A-01 from today on, the first on Monday, October 12. They stay booked, and My bookings marks the space (not bookable now).");
     expect(status.getAttribute("role")).toBe("status");
     expect(within(dialog).getByText("Existing bookings are kept. Nobody can book it until it is activated again.")).toBeTruthy();
     expect(api.calls.filter((c) => c.url.startsWith("/api/admin/reports/utilization?from=2026-10-08")).map((c) => c.url)).toEqual([
       "/api/admin/reports/utilization?from=2026-10-08&to=2026-10-22&kind=desk",
     ]);
+  });
+
+  it("marks a first date that is today, for one booking and for several", async () => {
+    api.set(UPCOMING, report([{ resourceId: "res_2a01", date: "2026-10-08", bookings: 1 }]));
+    const first = await openDialog();
+    expect(await within(first.dialog).findByText("Reports show 1 booking for Desk 2A-01 from today on, on Thursday, October 8 (today). It stays booked, and My bookings marks the space (not bookable now).")).toBeTruthy();
+    cleanup();
+    api.set(UPCOMING, report([{ resourceId: "res_2a01", date: "2026-10-13", bookings: 1 }, { resourceId: "res_2a01", date: "2026-10-08", bookings: 2 }]));
+    const several = await openDialog();
+    expect(await within(several.dialog).findByText("Reports show 3 bookings for Desk 2A-01 from today on, the first on Thursday, October 8 (today). They stay booked, and My bookings marks the space (not bookable now).")).toBeTruthy();
   });
 
   it("says so when reports show none", async () => {

@@ -105,7 +105,7 @@ The people are the synthetic ones the seed creates: 92 employees, 6 facilities s
 
 **Manage spaces.**
 
-1. On "Resources", "Deactivate" opens "Deactivate <space>?": "Existing bookings are kept. Nobody can book it until it is activated again." It then says what the reports show for that space from today on, for example "Reports show 3 bookings for Desk 2A-04 from today on, the next on Tuesday, October 20. They stay booked, and My bookings marks the space (not bookable now).", or that it could not check. Press "Deactivate" or "Keep active". "Activate" is one click.
+1. On "Resources", "Deactivate" opens "Deactivate <space>?": "Existing bookings are kept. Nobody can book it until it is activated again." It then says what the reports show for that space from today on, for example "Reports show 3 bookings for Desk 2A-04 from today on, the first on Tuesday, October 20. They stay booked, and My bookings marks the space (not bookable now).", or that it could not check. Press "Deactivate" or "Keep active". "Activate" is one click.
 2. "Edit" changes a room's capacity (a whole number from 1 to 50, checked before sending) and any space's description.
 3. If a change fails, the page says why.
 
@@ -174,7 +174,7 @@ Charts and status views that answer a question a persona has, on the screens the
 
     [Phone, dark](screenshots/admin-utilization-375-dark.png).
 
-27. **Admin: which spaces are underused, and whom a deactivation affects.** The per-space bars were scaled to the busiest space, so 38% could draw full width, and a space with no bookings was missing. Each kind now has its own table listing every space, booked or not ("Not booked"), with "Held" (past days) and "Booked ahead" as separate bars on a fixed 0 to 100% scale, sorted by Held; the caption's average equals the tile. "Deactivate <space>?" now says how many bookings the reports show for that space from today on and when the next one is, or that it could not check.
+27. **Admin: which spaces are underused, and whom a deactivation affects.** The per-space bars were scaled to the busiest space, so 38% could draw full width, and a space with no bookings was missing. Each kind now has its own table listing every space, booked or not ("Not booked"), with "Held" (past days) and "Booked ahead" as separate bars on a fixed 0 to 100% scale, sorted by Held; the caption's average equals the tile. "Deactivate <space>?" now says how many bookings the reports show for that space from today on and the first date with one ("(today)" when it is today), or that it could not check.
 
     ![Deactivate Desk 2A-04 dialog naming the bookings reports show from today on](screenshots/admin-deactivate-1280-light.png)
 

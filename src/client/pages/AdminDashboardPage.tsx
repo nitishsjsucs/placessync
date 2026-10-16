@@ -318,9 +318,11 @@ export function AdminDashboardPage() {
     if (!upcoming || upcoming.status === "loading") return "Checking upcoming bookings…";
     if (upcoming.status === "error") return "Upcoming bookings could not be checked.";
     if (upcoming.count === 0) return `Reports show no bookings for ${r.name} from today on.`;
-    const next = upcoming.next ? (upcoming.next === site.today ? `today (${dayAndDate(upcoming.next)})` : dayAndDate(upcoming.next)) : null;
-    if (upcoming.count === 1) return `Reports show 1 booking for ${r.name} from today on${next ? `, on ${next}` : ""}. It stays booked, and My bookings marks the space (not bookable now).`;
-    return `Reports show ${upcoming.count} bookings for ${r.name} from today on${next ? `, the next on ${next}` : ""}. They stay booked, and My bookings marks the space (not bookable now).`;
+    // Reports count by date, and today's may include bookings that already ended, so the
+    // sentence names the first date ("the first on"), marked "(today)" when it is today.
+    const first = upcoming.next ? `${dayAndDate(upcoming.next)}${upcoming.next === site.today ? " (today)" : ""}` : null;
+    if (upcoming.count === 1) return `Reports show 1 booking for ${r.name} from today on${first ? `, on ${first}` : ""}. It stays booked, and My bookings marks the space (not bookable now).`;
+    return `Reports show ${upcoming.count} bookings for ${r.name} from today on${first ? `, the first on ${first}` : ""}. They stay booked, and My bookings marks the space (not bookable now).`;
   };
 
   return (
