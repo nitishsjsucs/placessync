@@ -1,8 +1,8 @@
 {
   "meta": {
-    "gitSha": "b76baab639ad2e519b312e23b15a431b51549d77",
+    "gitSha": "55a35b6645b2adfc2b4b6034eb213168c7921b6c",
     "dirty": false,
-    "timestamp": "2026-10-09T19:37:37.523Z",
+    "timestamp": "2026-10-16T04:54:41.190Z",
     "node": "v25.9.0",
     "wrangler": "4.149.0",
     "os": "Darwin 25.5.0 arm64",
@@ -15,12 +15,12 @@
   },
   "summary": {
     "status": "passed",
-    "tests": 55,
-    "passed": 55,
+    "tests": 68,
+    "passed": 68,
     "failed": 0,
-    "axeScans": 32,
+    "axeScans": 38,
     "axeViolations": 0,
-    "overflowChecks": 22,
+    "overflowChecks": 24,
     "overflowFailures": 0,
     "keyboardPaths": [
       {
@@ -30,8 +30,8 @@
     ],
     "realtimeLatencyMs": {
       "bookings": 20,
-      "p50": 11,
-      "p95": 13.600000000000009
+      "p50": 22,
+      "p95": 34.55000000000001
     }
   },
   "attachments": {
@@ -167,6 +167,33 @@
         "status": "passed",
         "data": {
           "scan": "staff-today@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > find with the filter disclosure open has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "find-filters-open@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > the result banner after a booking has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "booking-banner@mobile",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at mobile 375x812 > the booking dialog after a lost race has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "booking-conflict@mobile",
           "violations": 0,
           "details": []
         }
@@ -311,6 +338,33 @@
         "status": "passed",
         "data": {
           "scan": "staff-today@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > find with the filter disclosure open has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "find-filters-open@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > the result banner after a booking has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "booking-banner@tablet",
+          "violations": 0,
+          "details": []
+        }
+      },
+      {
+        "test": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > the booking dialog after a lost race has no axe violations",
+        "status": "passed",
+        "data": {
+          "scan": "booking-conflict@tablet",
           "violations": 0,
           "details": []
         }
@@ -589,6 +643,30 @@
           "clientWidth": 768,
           "small": []
         }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > Find a space and admin on small screens > at 375x812 > find with the filters open: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "find-filters-open",
+          "viewport": "mobile",
+          "ok": true,
+          "scrollWidth": 375,
+          "clientWidth": 375,
+          "small": []
+        }
+      },
+      {
+        "test": "chromium > mobile-layout.spec.ts > Find a space and admin on small screens > at 768x1024 > find with the filters open: no horizontal scroll and 44 px targets",
+        "status": "passed",
+        "data": {
+          "page": "find-filters-open",
+          "viewport": "tablet",
+          "ok": true,
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "small": []
+        }
       }
     ],
     "keyboard": [
@@ -597,7 +675,7 @@
         "status": "passed",
         "data": {
           "path": "book-and-cancel",
-          "date": "2026-10-13",
+          "date": "2026-10-19",
           "ok": true
         }
       }
@@ -609,29 +687,29 @@
         "data": {
           "bookings": 20,
           "samplesMs": [
-            25,
-            12,
-            10,
-            10,
-            12,
-            10,
-            11,
-            10,
-            11,
-            11,
-            10,
-            11,
-            11,
-            11,
-            11,
-            13,
-            12,
-            11,
-            13,
-            12
+            45,
+            22,
+            24,
+            22,
+            22,
+            20,
+            22,
+            21,
+            22,
+            23,
+            22,
+            27,
+            22,
+            22,
+            34,
+            22,
+            21,
+            22,
+            22,
+            24
           ],
-          "p50": 11,
-          "p95": 13.600000000000009,
+          "p50": 22,
+          "p95": 34.55000000000001,
           "note": "request start in one context to busy cell visible in another, local Chromium"
         }
       }
@@ -695,6 +773,18 @@
       "status": "passed"
     },
     {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > find with the filter disclosure open has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > the result banner after a booking has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > the booking dialog after a lost race has no axe violations",
+      "status": "passed"
+    },
+    {
       "title": "chromium > a11y.spec.ts > a11y at mobile 375x812 > booking dialog has no axe violations",
       "status": "passed"
     },
@@ -755,11 +845,27 @@
       "status": "passed"
     },
     {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > find with the filter disclosure open has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > the result banner after a booking has no axe violations",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > the booking dialog after a lost race has no axe violations",
+      "status": "passed"
+    },
+    {
       "title": "chromium > a11y.spec.ts > a11y at tablet 768x1024 > booking dialog has no axe violations",
       "status": "passed"
     },
     {
       "title": "chromium > keyboard-booking.spec.ts > book a desk and cancel it using only the keyboard",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > laptop-grid.spec.ts > at 16:10 site time the 16:30 column is in view without scrolling by hand",
       "status": "passed"
     },
     {
@@ -851,11 +957,35 @@
       "status": "passed"
     },
     {
+      "title": "chromium > mobile-layout.spec.ts > Find a space and admin on small screens > at 375x812 > the first time chip starts within 900 px, and Book stays above the bottom nav once a time is picked",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > Find a space and admin on small screens > at 375x812 > find with the filters open: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > Find a space and admin on small screens > at 375x812 > the admin page with seeded history is under 10,000 px tall",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > Find a space and admin on small screens > at 768x1024 > the slot grid starts in the first viewport",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > mobile-layout.spec.ts > Find a space and admin on small screens > at 768x1024 > find with the filters open: no horizontal scroll and 44 px targets",
+      "status": "passed"
+    },
+    {
       "title": "chromium > realtime.spec.ts > a booking in one browser shows as busy in another",
       "status": "passed"
     },
     {
       "title": "chromium > realtime.spec.ts > realtime propagation latency over 20 bookings",
+      "status": "passed"
+    },
+    {
+      "title": "chromium > skip-link.spec.ts > Skip to availability reaches the slot grid in four key presses",
       "status": "passed"
     }
   ]
