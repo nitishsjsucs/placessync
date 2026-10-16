@@ -131,6 +131,7 @@
 
 .bar {
   position: absolute;
+  z-index: 1;
   top: 8px;
   bottom: 8px;
   display: flex;
@@ -167,11 +168,12 @@
   outline-offset: -3px;
 }
 
+/* Under the bars, so names inside them stay legible: the rule shows through free time. */
 .nowRule {
   position: absolute;
   top: 2rem;
   bottom: 0;
-  z-index: 2;
+  z-index: 0;
   width: 2px;
   left: calc(var(--name-w) + (100% - var(--name-w)) * var(--now) - 1px);
   background: var(--color-text);

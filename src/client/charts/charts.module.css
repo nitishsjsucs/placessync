@@ -95,3 +95,8 @@
 .warn svg {
   flex: none;
 }
+
+/* In a table cell the pill stays on one line. */
+.nowrap {
+  white-space: nowrap;
+}

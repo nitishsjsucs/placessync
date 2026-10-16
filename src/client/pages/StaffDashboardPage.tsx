@@ -305,7 +305,7 @@ export function StaffDashboardPage() {
         r.ageMinutes >= OVER_DAY_MINUTES ? (
           <span className={chartStyles.stackTight}>
             <span>{ageShort(r.ageMinutes)}</span>
-            <span className={chartStyles.warn}>
+            <span className={`${chartStyles.warn} ${chartStyles.nowrap}`}>
               <WarningIcon />
               Over 24 h
             </span>

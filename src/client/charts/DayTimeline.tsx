@@ -252,8 +252,9 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
   const tip = hover ?? (focused ? at : null);
   const style = { "--hours": hours, "--track-min": `${(closeMin - openMin) * PX_PER_MINUTE}px` } as CSSProperties;
   const nowLeft = place(clockMinutes, clockMinutes, openMin, closeMin).left;
+  // Hour labels every 2 hours; one the Now label would cover is left out.
   const labels: number[] = [];
-  for (let m = openMin; m < closeMin; m += 120) labels.push(m);
+  for (let m = openMin; m < closeMin; m += 120) if (!showNow || Math.abs(m - clockMinutes) >= 45) labels.push(m);
 
   return (
     <div className={styles.scroll}>
