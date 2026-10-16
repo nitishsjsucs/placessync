@@ -1,7 +1,7 @@
 // Find a space (SPEC 14.1): filters, a date, live availability for every matching
 // resource, select a range in the SlotGrid, confirm in a Dialog. The date, tab and
 // filters live in the URL (find-params.ts), written with replace so Back leaves the page.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { type AvailabilityResponse, AvailabilityResponse as AvailabilitySchema, type Reservation, type Resource } from "../../shared/api.ts";
 import { AMENITIES } from "../../shared/synthetic/resources.ts";
@@ -13,7 +13,7 @@ import { LoadError } from "../shell/LoadError.tsx";
 import { useStatusBanner } from "../shell/StatusBanner.tsx";
 import { Button } from "../ui/Button.tsx";
 import { DateGrid, longDate } from "../ui/DateGrid.tsx";
-import { SlotGrid, type SlotRow, type SlotSelection } from "../ui/SlotGrid.tsx";
+import { SlotGrid, type SlotGridHandle, type SlotRow, type SlotSelection } from "../ui/SlotGrid.tsx";
 import { Tabs } from "../ui/Tabs.tsx";
 import { TextField } from "../ui/TextField.tsx";
 import { BookingDialog } from "./BookingDialog.tsx";
@@ -47,6 +47,10 @@ export function FindSpacePage() {
   // grid selection cannot change or close it mid-request.
   const [booking, setBooking] = useState<{ resource: Resource; startMin: number; endMin: number } | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  // "1 to 2 on Desk 2A-01 was just booked by someone else", shown until the next selection.
+  const [liveClear, setLiveClear] = useState<string | null>(null);
+  const gridRef = useRef<SlotGridHandle>(null);
+  const [focusTarget, setFocusTarget] = useState<{ rowId: string; startMin: number } | null>(null);
 
   const query = qs({
     date,
@@ -103,7 +107,17 @@ export function FindSpacePage() {
     setData(null);
     refresh();
   };
-  const onSelect = useCallback((s: SlotSelection | null) => setSelection(s), []);
+  const onSelect = useCallback((s: SlotSelection | null) => {
+    setSelection(s);
+    if (s) setLiveClear(null);
+  }, []);
+
+  // After Pick another time: runs after the closing Dialog's focus restore in the same commit.
+  useEffect(() => {
+    if (!focusTarget) return;
+    gridRef.current?.focusRow(focusTarget.rowId, focusTarget.startMin);
+    setFocusTarget(null);
+  }, [focusTarget]);
 
   const onBooked = (r: Reservation) => {
     const name = booking?.resource.name ?? r.resourceId;
@@ -228,6 +242,8 @@ export function FindSpacePage() {
                     </p>
                     {rows.length > 0 ? (
                       <SlotGrid
+                        ref={gridRef}
+                        onLiveClear={setLiveClear}
                         label={`Availability on ${longDate(date)}`}
                         rows={rows}
                         openMin={site.rules.openMin}
@@ -250,6 +266,7 @@ export function FindSpacePage() {
                     {selection && selectedResource ? `Book ${selectedResource.name}, ${timeRange(selection.startMin, selection.endMin)}` : "Select a time to book"}
                   </Button>
                   {tooShort ? <p className={styles.muted}>{tooShort}</p> : null}
+                  {liveClear ? <p className={styles.notice}>{liveClear}</p> : null}
                 </div>
                 {data && data.resources.length > 0 ? (
                   <details>
@@ -278,6 +295,10 @@ export function FindSpacePage() {
         site={site}
         onBooked={onBooked}
         onConflict={refresh}
+        onPickAnother={() => {
+          if (booking) setFocusTarget({ rowId: booking.resource.id, startMin: booking.startMin });
+          setBooking(null);
+        }}
       />
     </section>
   );

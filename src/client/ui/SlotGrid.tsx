@@ -10,7 +10,7 @@
 // A plain click, a tap, or Enter without a Shift-extended range selects the shortest
 // valid booking for that row (minSlotsFor, such as two cells for a 60-minute desk
 // minimum) when those cells are free, else the one cell. An explicit range is never padded.
-import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, type Ref, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { COMPACT_QUERY, useMediaQuery } from "../hooks/useMediaQuery.ts";
 import { formatMinutes } from "../../shared/time.ts";
 import { Button } from "./Button.tsx";
@@ -50,7 +50,17 @@ export interface SlotGridProps {
   rowUnavailable?: (rowId: string) => string | null;
   /** Cells a first click selects in this row, the shortest valid booking (default 1). */
   minSlotsFor?: (rowId: string) => number;
+  /** Called with the announcement when a live update clears the selection (someone else booked it). */
+  onLiveClear?: (message: string) => void;
+  ref?: Ref<SlotGridHandle>;
 }
+
+export interface SlotGridHandle {
+  /** Moves focus into a row at a time (grid), or to the row's first open chip (compact). */
+  focusRow: (rowId: string, startMin: number) => void;
+}
+
+type ModeProps = Omit<SlotGridProps, "ref"> & { handle: Ref<SlotGridHandle> };
 
 type CellState = "free" | "busy" | "mine";
 
@@ -78,10 +88,14 @@ function paddedFrom(rowId: string, c: number, n: number, slots: readonly number[
   return { rowId, startMin: start, endMin: (slots[last] as number) + slotMinutes };
 }
 
-export function SlotGrid(props: SlotGridProps) {
+export function SlotGrid({ ref, ...props }: SlotGridProps) {
   const compact = useMediaQuery(COMPACT_QUERY);
-  const { rows, selection, onSelect } = props;
+  const { rows, selection, onSelect, onLiveClear } = props;
   const [announcement, setAnnouncement] = useState("");
+  const mode = useRef<SlotGridHandle>(null);
+  useImperativeHandle(ref, () => ({ focusRow: (rowId, startMin) => mode.current?.focusRow(rowId, startMin) }), []);
+  const liveClearRef = useRef(onLiveClear);
+  liveClearRef.current = onLiveClear;
 
   // A live update that makes the selected range busy clears it, politely.
   useEffect(() => {
@@ -92,13 +106,15 @@ export function SlotGrid(props: SlotGridProps) {
     // The viewer's own booking arriving live is not news; someone else's is.
     const othersBooked = row.busy.some((b) => !b.mine && b.startMin < selection.endMin && selection.startMin < b.endMin);
     if (othersBooked) {
-      setAnnouncement(`${formatMinutes(selection.startMin)} to ${formatMinutes(selection.endMin)} on ${row.label} was just booked by someone else. Pick another time.`);
+      const message = `${formatMinutes(selection.startMin)} to ${formatMinutes(selection.endMin)} on ${row.label} was just booked by someone else. Pick another time.`;
+      setAnnouncement(message);
+      liveClearRef.current?.(message);
     }
   }, [rows, selection, onSelect]);
 
   return (
     <div>
-      {compact ? <CompactSlots {...props} /> : <GridSlots {...props} />}
+      {compact ? <CompactSlots {...props} handle={mode} /> : <GridSlots {...props} handle={mode} />}
       <div className="visually-hidden" aria-live="polite" data-testid="slotgrid-live">
         {announcement}
       </div>
@@ -106,7 +122,7 @@ export function SlotGrid(props: SlotGridProps) {
   );
 }
 
-function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection, onSelect, rowHeader = "Resource", minStartFor, rowUnavailable, minSlotsFor }: SlotGridProps) {
+function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection, onSelect, rowHeader = "Resource", minStartFor, rowUnavailable, minSlotsFor, handle }: ModeProps) {
   const base = useId();
   const slots = useMemo(() => {
     const out: number[] = [];
@@ -127,6 +143,21 @@ function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection
       shouldFocus.current = false;
     }
   }, [focus]);
+
+  useImperativeHandle(
+    handle,
+    () => ({
+      focusRow: (rowId, startMin) => {
+        const r = rows.findIndex((x) => x.id === rowId);
+        if (r < 0) return;
+        const c = Math.max(0, slots.findIndex((m) => m + slotMinutes > startMin));
+        setAnchor(null);
+        setFocus({ r, c });
+        cellRefs.current.get(`${r}:${c}`)?.focus();
+      },
+    }),
+    [rows, slots, slotMinutes],
+  );
 
   // Keep the roving focus inside the grid when rows change.
   useEffect(() => {
@@ -349,15 +380,30 @@ function GridSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection
   );
 }
 
-function CompactSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection, onSelect, rowHeader = "Resource", minStartFor, rowUnavailable, minSlotsFor }: SlotGridProps) {
+function CompactSlots({ label, rows, openMin, closeMin, slotMinutes = 30, selection, onSelect, rowHeader = "Resource", minStartFor, rowUnavailable, minSlotsFor, handle }: ModeProps) {
   const base = useId();
   const [rowId, setRowId] = useState<string>(selection?.rowId ?? rows[0]?.id ?? "");
   const row = rows.find((r) => r.id === rowId) ?? rows[0];
+  const listRef = useRef<HTMLUListElement>(null);
+  const [focusTick, setFocusTick] = useState(0);
   // Follow a selection made elsewhere, but let the viewer browse other rows freely.
   const selectedRow = selection?.rowId;
   useEffect(() => {
     if (selectedRow) setRowId(selectedRow);
   }, [selectedRow]);
+  useImperativeHandle(
+    handle,
+    () => ({
+      focusRow: (id) => {
+        setRowId(id);
+        setFocusTick((t) => t + 1);
+      },
+    }),
+    [],
+  );
+  useEffect(() => {
+    if (focusTick > 0) listRef.current?.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
+  }, [focusTick]);
   if (!row) return <p>No {rowHeader.toLowerCase()}s match.</p>;
   const slots: number[] = [];
   for (let m = openMin; m < closeMin; m += slotMinutes) slots.push(m);
@@ -394,7 +440,7 @@ function CompactSlots({ label, rows, openMin, closeMin, slotMinutes = 30, select
           ))}
         </select>
       </label>
-      <ul className={styles.chips} aria-label={`${label}: ${row.label}`} aria-describedby={`${base}-help`}>
+      <ul ref={listRef} className={styles.chips} aria-label={`${label}: ${row.label}`} aria-describedby={`${base}-help`}>
         {slots.map((m) => {
           const state = stateOf(row, m, m + slotMinutes);
           const selected = !!selection && selection.rowId === row.id && m >= selection.startMin && m < selection.endMin;

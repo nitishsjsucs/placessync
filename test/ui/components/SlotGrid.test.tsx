@@ -1,8 +1,8 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SlotGrid, type SlotRow, type SlotSelection } from "../../../src/client/ui/SlotGrid.tsx";
+import { SlotGrid, type SlotGridHandle, type SlotRow, type SlotSelection } from "../../../src/client/ui/SlotGrid.tsx";
 import { expectNoAxeViolations } from "../axe.ts";
 import { setMediaMatches } from "../setup.ts";
 
@@ -305,5 +305,45 @@ describe("SlotGrid first selection is the shortest valid booking (UX-03)", () =>
     await user.click(within(compact).getByRole("button", { name: "Clear selection" }));
     expect(sel()).toBe("none");
     expect(within(compact).queryByRole("button", { name: "Clear selection" })).toBeNull();
+  });
+});
+
+describe("SlotGrid recovery handles (UX-06)", () => {
+  function HandleHarness({ rows = ROWS, onLiveClear }: { rows?: SlotRow[]; onLiveClear?: (m: string) => void }) {
+    const [selection, setSelection] = useState<SlotSelection | null>(null);
+    const grid = useRef<SlotGridHandle>(null);
+    return (
+      <div>
+        <SlotGrid ref={grid} label="Availability" rows={rows} openMin={420} closeMin={720} selection={selection} onSelect={setSelection} onLiveClear={onLiveClear} />
+        <button type="button" onClick={() => grid.current?.focusRow("res_2a02", 600)}>
+          Back to the grid
+        </button>
+      </div>
+    );
+  }
+
+  it("focusRow puts focus on that row at that time, and the roving tab stop follows", async () => {
+    render(<HandleHarness />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Back to the grid" }));
+    expect(focusedCell()).toBe("res_2a02 600");
+    expect((document.activeElement as HTMLElement).tabIndex).toBe(0);
+  });
+
+  it("focusRow in compact mode shows that row and focuses its first open chip", async () => {
+    setMediaMatches("(max-width: 639px)", true);
+    render(<HandleHarness />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Back to the grid" }));
+    expect((screen.getByRole("combobox", { name: "Resource" }) as HTMLSelectElement).value).toBe("res_2a02");
+    // 07:00 to 08:00 is the viewer's own booking, so 08:00 is the first open chip.
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "08:00 to 08:30" }));
+  });
+
+  it("reports a live clear through onLiveClear with the announcement text", async () => {
+    const messages: string[] = [];
+    const { rerender } = render(<HandleHarness onLiveClear={(m) => messages.push(m)} />);
+    await userEvent.setup().click(screen.getByRole("gridcell", { name: "Desk 2A-01, 08:00 to 08:30, available" }));
+    const updated: SlotRow[] = [{ ...ROWS[0]!, busy: [...ROWS[0]!.busy, { startMin: 480, endMin: 540 }] }, ROWS[1]!];
+    await act(async () => rerender(<HandleHarness rows={updated} onLiveClear={(m) => messages.push(m)} />));
+    expect(messages).toEqual(["08:00 to 08:30 on Desk 2A-01 was just booked by someone else. Pick another time."]);
   });
 });

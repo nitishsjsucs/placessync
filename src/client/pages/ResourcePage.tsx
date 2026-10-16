@@ -2,7 +2,7 @@
 // as rows, live updates for the week's dates, and booking from a selected range. The
 // first week comes from ?date (Find a space links carry its date) and the shown week is
 // kept in ?week, written with replace.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { type CalendarResponse, CalendarResponse as CalendarSchema, type Reservation } from "../../shared/api.ts";
 import { AMENITIES } from "../../shared/synthetic/resources.ts";
@@ -14,7 +14,7 @@ import { LoadError } from "../shell/LoadError.tsx";
 import { useStatusBanner } from "../shell/StatusBanner.tsx";
 import { Button } from "../ui/Button.tsx";
 import { DateGrid, longDate } from "../ui/DateGrid.tsx";
-import { SlotGrid, type SlotRow, type SlotSelection } from "../ui/SlotGrid.tsx";
+import { SlotGrid, type SlotGridHandle, type SlotRow, type SlotSelection } from "../ui/SlotGrid.tsx";
 import { BookingDialog } from "./BookingDialog.tsx";
 import styles from "./pages.module.css";
 import { bookableDateParam } from "./find-params.ts";
@@ -40,6 +40,9 @@ export function ResourcePage() {
   const [selection, setSelection] = useState<SlotSelection | null>(null);
   const [booking, setBooking] = useState<SlotSelection | null>(null);
   const [tick, setTick] = useState(0);
+  const [liveClear, setLiveClear] = useState<string | null>(null);
+  const gridRef = useRef<SlotGridHandle>(null);
+  const [focusTarget, setFocusTarget] = useState<SlotSelection | null>(null);
   usePageTitle(data ? data.resource.name : "Resource");
 
   // Another space: nothing from the previous one (its data or its error) carries over.
@@ -83,7 +86,16 @@ export function ResourcePage() {
   }, [data, live.byDate]);
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
-  const onSelect = useCallback((s: SlotSelection | null) => setSelection(s), []);
+  const onSelect = useCallback((s: SlotSelection | null) => {
+    setSelection(s);
+    if (s) setLiveClear(null);
+  }, []);
+
+  useEffect(() => {
+    if (!focusTarget) return;
+    gridRef.current?.focusRow(focusTarget.rowId, focusTarget.startMin);
+    setFocusTarget(null);
+  }, [focusTarget]);
 
   const onBooked = (r: Reservation) => {
     setBooking(null);
@@ -168,6 +180,8 @@ export function ResourcePage() {
             </Button>
           </div>
           <SlotGrid
+            ref={gridRef}
+            onLiveClear={setLiveClear}
             label={`${r.name}, week of ${longDate(weekStart)}`}
             rows={rows}
             rowHeader="Day"
@@ -186,6 +200,7 @@ export function ResourcePage() {
             {selection && shortSelectionHint(r.kind, selection.startMin, selection.endMin) ? (
               <p className={styles.muted}>{shortSelectionHint(r.kind, selection.startMin, selection.endMin)}</p>
             ) : null}
+            {liveClear ? <p className={styles.notice}>{liveClear}</p> : null}
           </div>
         </div>
       </div>
@@ -199,6 +214,10 @@ export function ResourcePage() {
         site={site}
         onBooked={onBooked}
         onConflict={refresh}
+        onPickAnother={() => {
+          setFocusTarget(booking);
+          setBooking(null);
+        }}
       />
     </section>
   );

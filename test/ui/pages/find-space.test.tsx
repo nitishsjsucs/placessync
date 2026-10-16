@@ -87,7 +87,7 @@ describe("Find a space (SPEC 14.1)", () => {
     expect(document.activeElement).toBe(banner);
   });
 
-  it("shows the conflict on a 409 and refreshes availability", async () => {
+  it("shows the conflict on a 409, refreshes availability, and Pick another time returns to that row", async () => {
     const { api, user } = await openPage(respond(409, { error: "resource_conflict", message: "taken", conflicts: [{ startMin: 540, endMin: 600 }] }));
     await user.click(await screen.findByRole("gridcell", { name: "Desk 2A-01, 09:00 to 09:30, available" }));
     await user.keyboard("{Shift>}");
@@ -95,9 +95,54 @@ describe("Find a space (SPEC 14.1)", () => {
     await user.keyboard("{/Shift}");
     await user.click(screen.getByRole("button", { name: /^Book Desk 2A-01/ }));
     const before = availabilityCalls(api).length;
-    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Confirm booking" }));
-    expect(await screen.findByText(/Someone else booked this first: 09:00 to 10:00 is taken/)).toBeTruthy();
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Confirm booking" }));
+    // The sentence is the one DEMO.md quotes.
+    expect(await screen.findByText("Someone else booked this first: 09:00 to 10:00 is taken. The grid has been refreshed; pick another time.")).toBeTruthy();
     await waitFor(() => expect(availabilityCalls(api).length).toBeGreaterThan(before));
+    expect(within(dialog).queryByRole("button", { name: "Confirm booking" })).toBeNull();
+    const pick = within(dialog).getByRole("button", { name: "Pick another time" });
+    expect(document.activeElement).toBe(pick);
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeTruthy();
+    await user.click(pick);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    const focused = document.activeElement as HTMLElement;
+    expect(focused.getAttribute("role")).toBe("gridcell");
+    expect(focused.dataset.row).toBe("res_2a01");
+    expect(focused.dataset.start).toBe("540");
+    expect(api.calls.filter((c) => c.method === "POST" && c.url === "/api/reservations")).toHaveLength(1);
+  });
+
+  it("after a 409 employee_conflict links to My bookings and keeps Confirm disabled", async () => {
+    const { api, user } = await openPage(respond(409, { error: "employee_conflict", message: "yours", conflicts: [{ startMin: 600, endMin: 660 }] }));
+    await user.click(await screen.findByRole("gridcell", { name: "Desk 2A-01, 10:00 to 10:30, available" }));
+    await user.click(screen.getByRole("button", { name: /^Book Desk 2A-01/ }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Confirm booking" }));
+    const message = await within(dialog).findByText(/You already have a desk booked at that time \(10:00 to 11:00\)\./);
+    expect(document.activeElement).toBe(message);
+    expect(within(dialog).getByRole("link", { name: "See my bookings" }).getAttribute("href")).toBe("/bookings");
+    const confirm = within(dialog).getByRole("button", { name: "Confirm booking" }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    await user.click(confirm);
+    expect(api.calls.filter((c) => c.method === "POST" && c.url === "/api/reservations")).toHaveLength(1);
+  });
+
+  it("shows a visible notice when a live update takes the selection, until the next selection", async () => {
+    const { user } = await openPage(respond(500, {}));
+    const ws = FakeWebSocket.instances.at(-1) as FakeWebSocket;
+    await act(async () => ws.open());
+    const busy = Object.fromEntries(RESOURCES.map((r) => [r.id, [] as unknown[]]));
+    await act(async () => ws.receive({ type: "snapshot", date: DATE, dateVersion: 1, ledgerVersion: 1, busy }));
+    await user.click(await screen.findByRole("gridcell", { name: "Desk 2A-02, 10:00 to 10:30, available" }));
+    await act(async () =>
+      ws.receive({ type: "delta", date: DATE, dateVersion: 2, ledgerVersion: 2, op: "booked", resourceId: "res_2a02", startMin: 600, endMin: 660, mine: false }),
+    );
+    const text = "10:00 to 11:00 on Desk 2A-02 was just booked by someone else. Pick another time.";
+    expect(await screen.findByText(text, { selector: "p" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Select a time to book" })).toBeTruthy();
+    await user.click(screen.getByRole("gridcell", { name: "Desk 2A-03, 10:00 to 10:30, available" }));
+    expect(screen.queryByText(text, { selector: "p" })).toBeNull();
   });
 
   it("maps 422 issues to the dialog fields", async () => {
