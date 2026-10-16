@@ -6,6 +6,8 @@
 // employees yet (health reports seeded: false), with a Check again button. Check again
 // is disabled while it checks and goes away once the problem is fixed, so focus then
 // moves to the Employee field (or back to Check again when the problem remains).
+// After a sign-in that expired mid-session (?expired=1) it says so, and signing in
+// returns to the page with focus on its heading (the AppShell reads focusHeading).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { DevLoginResponse, DevUsersResponse } from "../../shared/api.ts";
@@ -19,6 +21,7 @@ import { usePageTitle } from "./usePageTitle.ts";
 
 const ROLE_ORDER: Role[] = ["facilities_admin", "facilities_staff", "employee"];
 const EMPLOYEE_FIELD_ID = "login-employee";
+const AFTER_SIGN_IN = { focusHeading: true };
 
 /**
  * Only a same-origin path: "/x" but never "//host" or "/\host", which browsers treat as
@@ -41,6 +44,7 @@ export function DevLoginPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = safeNext(params.get("next"));
+  const expired = params.get("expired") === "1";
   const [users, setUsers] = useState<DevUsersResponse["users"] | null>(null);
   const [choice, setChoice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +109,7 @@ export function DevLoginPage() {
     try {
       await api.post("/api/dev/login", { employeeId }, DevLoginResponse);
       await refresh();
-      navigate(next, { replace: true });
+      navigate(next, { replace: true, state: AFTER_SIGN_IN });
     } catch {
       setError("Sign in failed.");
     } finally {
@@ -120,10 +124,17 @@ export function DevLoginPage() {
         This local build has no Cloudflare Access in front of it. Pick one of the 100 synthetic employees; the server signs a short-lived RS256 token
         with a locally generated key.
       </p>
+      {expired && session.status !== "ready" ? (
+        <p role="alert" className={styles.notice}>
+          Your sign-in expired, so your last action was not saved. Sign in again to continue where you were.
+        </p>
+      ) : null}
       {session.status === "ready" ? (
         <p className={styles.row}>
           <span>Signed in as {session.employee.displayName}.</span>
-          <Link to={next}>Continue as {session.employee.displayName}</Link>
+          <Link to={next} state={AFTER_SIGN_IN}>
+            Continue as {session.employee.displayName}
+          </Link>
         </p>
       ) : null}
       {schemaProblem || unseeded ? (

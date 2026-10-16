@@ -3,7 +3,9 @@
 // On Find a space and a resource calendar a second skip link jumps past the date picker
 // and filters to the slot grid (#slots). When the pathname changes (not on first load,
 // a redirect, or a search-parameter change) focus moves to the new page's h1, or to
-// main while the page has none yet, instead of staying on the link that was used.
+// main while the page has none yet, instead of staying on the link that was used. The
+// same happens on first load after signing in (the sign-in page navigates with state
+// focusHeading), since the control that was used is gone with the sign-in page.
 import { useEffect, useRef } from "react";
 import { Link, Outlet, useLocation, useNavigationType } from "react-router";
 import { ROLE_LABELS } from "../../shared/roles.ts";
@@ -20,24 +22,33 @@ export function gridSkipLabel(pathname: string): string | null {
   return null;
 }
 
+function focusPageHeading() {
+  const heading = document.querySelector<HTMLElement>("#main h1");
+  if (heading) {
+    heading.tabIndex = -1;
+    heading.focus();
+  } else {
+    document.getElementById("main")?.focus();
+  }
+}
+
 export function AppShell() {
   const { employee, health } = useReadySession();
   const { signOut } = useSession();
-  const { pathname } = useLocation();
+  const { pathname, state } = useLocation();
   const navigationType = useNavigationType();
   const lastPath = useRef(pathname);
+  const signedInRef = useRef((state as { focusHeading?: unknown } | null)?.focusHeading === true);
+
+  useEffect(() => {
+    if (signedInRef.current) focusPageHeading();
+  }, []);
 
   useEffect(() => {
     if (lastPath.current === pathname) return;
     lastPath.current = pathname;
     if (navigationType === "REPLACE") return;
-    const heading = document.querySelector<HTMLElement>("#main h1");
-    if (heading) {
-      heading.tabIndex = -1;
-      heading.focus();
-    } else {
-      document.getElementById("main")?.focus();
-    }
+    focusPageHeading();
   }, [pathname, navigationType]);
 
   // Under 640 px the nav is a fixed bottom bar whose height depends on how its labels

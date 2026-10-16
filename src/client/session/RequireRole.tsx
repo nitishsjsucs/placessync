@@ -29,7 +29,11 @@ export function RequireSession({ children }: { children: ReactNode }) {
     );
   }
   if (session.status === "anonymous") {
-    if (session.health.authMode === "dev") return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
+    if (session.health.authMode === "dev") {
+      // The sign-in page says why when the sign-in expired mid-session.
+      const expired = session.reason === "expired" ? "&expired=1" : "";
+      return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}${expired}`} replace />;
+    }
     if (session.reason === "unknown_user") {
       return (
         <Standalone>

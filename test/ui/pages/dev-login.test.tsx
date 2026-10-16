@@ -124,6 +124,47 @@ describe("dev login page", () => {
     for (const bad of [null, "", "find", "//evil.example", "/\\evil.example", "/\t/evil.example", "/\n/evil.example", "/x\u0000y", "javascript:alert(1)"]) expect(safeNext(bad)).toBe("/find");
   });
 
+  it("after a sign-in expires mid-session, says so, and signing in returns to the same search with focus on its heading", async () => {
+    let expired = false;
+    const unauthenticated = respond(401, { error: "unauthenticated", message: "Sign in again." });
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": () => (expired ? unauthenticated : me("emp_001", "employee", "Test Person")),
+      "GET /api/dev/users": { users: [{ id: "emp_001", displayName: "Test Person", role: "employee", department: "Engineering" }] },
+      "GET /api/sites/hq/availability": () => (expired ? unauthenticated : { date: "2026-10-08", version: 1, ledgerVersion: 1, resources: [] }),
+      "POST /api/dev/login": () => {
+        expired = false;
+        return { token: "t", expiresAt: "2026-10-08T23:00:00.000Z" };
+      },
+    });
+    vi.stubGlobal("WebSocket", class { addEventListener() {} close() {} });
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-10-08T15:00:00Z"));
+    const { router } = renderAt("/find?kind=room");
+    await screen.findByRole("heading", { level: 1, name: "Find a space" });
+    expired = true;
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Desks" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Sign in (local development)" })).toBeTruthy();
+    expect(new URLSearchParams(router.state.location.search).get("next")).toBe("/find?kind=desk");
+    expect(screen.getByRole("alert").textContent).toBe("Your sign-in expired, so your last action was not saved. Sign in again to continue where you were.");
+    await user.click(await screen.findByRole("button", { name: "Employee: Test Person" }));
+    const heading = await screen.findByRole("heading", { level: 1, name: "Find a space" });
+    expect(router.state.location.search).toBe("?kind=desk");
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+  });
+
+  it("a first visit without a sign-in shows no expired notice", async () => {
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": respond(401, { error: "unauthenticated", message: "x" }),
+      "GET /api/dev/users": { users: [{ id: "emp_001", displayName: "Test Person", role: "employee", department: "Engineering" }] },
+    });
+    const { router } = renderAt("/bookings");
+    await screen.findByRole("heading", { level: 1, name: "Sign in (local development)" });
+    expect(router.state.location.search).toBe(`?next=${encodeURIComponent("/bookings")}`);
+    expect(screen.queryByText(/Your sign-in expired/)).toBeNull();
+  });
+
   it("after Sign in, ignores a next parameter that points at another origin", async () => {
     let signedIn = false;
     installFakeApi({
