@@ -2,6 +2,7 @@
 // reload, Back from a week calendar or a shared link shows the same search. Parsing is
 // strict: a parameter that is not one of the values the page offers is dropped and never
 // sent to the API. Defaults are omitted when writing.
+import { SEARCH_MAX } from "../../shared/api.ts";
 import { AMENITIES } from "../../shared/synthetic/resources.ts";
 import { DATE_RE, isValidDate } from "../../shared/time.ts";
 import { type SiteContext, dateDisabledReason } from "./site.ts";
@@ -22,7 +23,8 @@ export interface FindFilters {
 export const KINDS: readonly Kind[] = ["all", "desk", "room"];
 export const FLOORS = ["2", "3"] as const;
 export const CAPACITIES = ["2", "4", "6", "8", "10"] as const;
-export const Q_MAX = 100;
+/** The search box takes what the API accepts, so a long search is never refused. */
+export const Q_MAX = SEARCH_MAX;
 const AMENITY_IDS = new Set(AMENITIES.map((a) => a.id));
 
 /** A date someone can book on (YYYY-MM-DD, weekday, inside the horizon), else null. */

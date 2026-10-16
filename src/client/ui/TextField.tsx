@@ -1,6 +1,8 @@
 // TextField (SPEC 14.2): label association, hint and error linked through
 // aria-describedby, aria-invalid, an optional character counter that is announced
 // politely when the text reaches 80% and 100% of maxLength, and a multiline variant.
+// The counter shows whenever maxLength is set, unless counter is false (a search box
+// keeps its limit without a running count).
 import { type ChangeEvent, type Ref, useEffect, useId, useRef, useState } from "react";
 import styles from "./TextField.module.css";
 
@@ -12,6 +14,8 @@ interface BaseProps {
   error?: string | null;
   required?: boolean;
   maxLength?: number;
+  /** Show the character counter and its announcements when maxLength is set (default true). */
+  counter?: boolean;
   multiline?: boolean;
   rows?: number;
   id?: string;
@@ -34,27 +38,28 @@ function thresholdOf(length: number, max: number): 0 | 80 | 100 {
 }
 
 export function TextField(props: TextFieldProps) {
-  const { label, value, onChange, hint, error, required, maxLength, multiline, rows = 5, name, type = "text", placeholder, autoComplete, disabled, inputMode, inputRef, onBlur } = props;
+  const { label, value, onChange, hint, error, required, maxLength, counter = true, multiline, rows = 5, name, type = "text", placeholder, autoComplete, disabled, inputMode, inputRef, onBlur } = props;
+  const counted = counter ? maxLength : undefined;
   const autoId = useId();
   const id = props.id ?? `tf-${autoId}`;
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
   const counterId = `${id}-counter`;
-  const describedBy = [hint ? hintId : null, error ? errorId : null, maxLength ? counterId : null].filter(Boolean).join(" ") || undefined;
+  const describedBy = [hint ? hintId : null, error ? errorId : null, counted ? counterId : null].filter(Boolean).join(" ") || undefined;
 
   // Announce only when the length crosses into the 80% or 100% band, not on every key.
   const [announcement, setAnnouncement] = useState("");
-  const lastBand = useRef<0 | 80 | 100>(maxLength ? thresholdOf(value.length, maxLength) : 0);
+  const lastBand = useRef<0 | 80 | 100>(counted ? thresholdOf(value.length, counted) : 0);
   useEffect(() => {
-    if (!maxLength) return;
-    const band = thresholdOf(value.length, maxLength);
+    if (!counted) return;
+    const band = thresholdOf(value.length, counted);
     if (band !== lastBand.current) {
       lastBand.current = band;
-      if (band === 80) setAnnouncement(`${maxLength - value.length} characters left`);
-      else if (band === 100) setAnnouncement(`Character limit of ${maxLength} reached`);
+      if (band === 80) setAnnouncement(`${counted - value.length} characters left`);
+      else if (band === 100) setAnnouncement(`Character limit of ${counted} reached`);
       else setAnnouncement("");
     }
-  }, [value.length, maxLength]);
+  }, [value.length, counted]);
 
   const common = {
     id,
@@ -93,12 +98,12 @@ export function TextField(props: TextFieldProps) {
           {error}
         </span>
       ) : null}
-      {maxLength ? (
-        <span id={counterId} className={`${styles.counter} ${value.length >= maxLength ? styles.counterOver : ""}`}>
-          {value.length} / {maxLength}
+      {counted ? (
+        <span id={counterId} className={`${styles.counter} ${value.length >= counted ? styles.counterOver : ""}`}>
+          {value.length} / {counted}
         </span>
       ) : null}
-      {maxLength ? (
+      {counted ? (
         <span className="visually-hidden" aria-live="polite" data-testid={`${id}-announce`}>
           {announcement}
         </span>

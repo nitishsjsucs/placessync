@@ -12,7 +12,7 @@ import { Link, useSearchParams } from "react-router";
 import { type AvailabilityResponse, AvailabilityResponse as AvailabilitySchema, type Reservation, type Resource } from "../../shared/api.ts";
 import { AMENITIES } from "../../shared/synthetic/resources.ts";
 import { formatMinutes } from "../../shared/time.ts";
-import { api, qs } from "../api/client.ts";
+import { ApiClientError, api, qs } from "../api/client.ts";
 import { COMPACT_QUERY, NARROW_QUERY, useMediaQuery } from "../hooks/useMediaQuery.ts";
 import { useLiveAvailability } from "../live/useLiveAvailability.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
@@ -24,7 +24,7 @@ import { SlotGrid, type SlotGridHandle, type SlotRow, type SlotSelection } from 
 import { Tabs } from "../ui/Tabs.tsx";
 import { TextField } from "../ui/TextField.tsx";
 import { BookingDialog } from "./BookingDialog.tsx";
-import { CAPACITIES, FLOORS, type FindFilters, type Kind, NO_FILTERS, activeFilterCount, fromTimes, parseFindParams, toTimes, writeFindParams } from "./find-params.ts";
+import { CAPACITIES, FLOORS, type FindFilters, type Kind, NO_FILTERS, Q_MAX, activeFilterCount, fromTimes, parseFindParams, toTimes, writeFindParams } from "./find-params.ts";
 import styles from "./pages.module.css";
 import { dateDisabledReason, firstBookableDate, minSlots, minStartOn, shortSelectionHint, timeRange, todayHasClosed, useSite } from "./site.ts";
 import { usePageTitle } from "./usePageTitle.ts";
@@ -61,6 +61,8 @@ export function FindSpacePage() {
   };
   const [data, setData] = useState<AvailabilityResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // A search the API refused (422): shown on the Search field, with the last grid kept.
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [selection, setSelection] = useState<SlotSelection | null>(null);
   // The booking being confirmed, captured when the dialog opens so live updates to the
   // grid selection cannot change or close it mid-request.
@@ -93,10 +95,17 @@ export function FindSpacePage() {
         if (!cancelled) {
           setData(r);
           setLoadError(null);
+          setSearchError(null);
         }
       })
-      .catch(() => {
-        if (!cancelled) setLoadError("Availability could not be loaded.");
+      .catch((err) => {
+        if (cancelled) return;
+        // Trying the same search again cannot help, so say what to change instead.
+        const refused = err instanceof ApiClientError && err.status === 422 ? err.fieldErrors().q : undefined;
+        if (refused) {
+          setSearchError(refused);
+          setFiltersOpen(true);
+        } else setLoadError("Availability could not be loaded.");
       });
     return () => {
       cancelled = true;
@@ -185,7 +194,7 @@ export function FindSpacePage() {
             ) : null}
             <fieldset id="find-filters" className={`${styles.filters} ${narrow ? styles.panel : ""}`} hidden={narrow && !filtersOpen}>
               <legend className="visually-hidden">Filters</legend>
-              <TextField label="Search" type="search" value={q} onChange={(v) => update({ q: v })} placeholder="Name, zone or amenity" maxLength={100} />
+              <TextField label="Search" type="search" value={q} onChange={(v) => update({ q: v })} placeholder="Name, zone or amenity" maxLength={Q_MAX} counter={false} error={searchError} />
               <label className={styles.selectLabel}>
                 Floor
                 <select className={styles.select} value={floor} onChange={(e) => update({ floor: e.target.value })}>

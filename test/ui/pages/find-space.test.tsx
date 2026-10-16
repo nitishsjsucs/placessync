@@ -1,6 +1,7 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SEARCH_MAX } from "../../../src/shared/api.ts";
 import { generateResources } from "../../../src/shared/synthetic/resources.ts";
 import { HEALTH, installFakeApi, me, respond } from "../fake-api.ts";
 import { FakeWebSocket } from "../fake-ws.ts";
@@ -389,6 +390,43 @@ describe("Find a space keeps its search in the URL (UX-04)", () => {
     await screen.findByRole("heading", { level: 1, name: "Find a space" });
     expect(screen.getByRole("tab", { name: "Rooms" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByRole("gridcell", { name: "Monday, October 12, 2026" }).getAttribute("aria-selected")).toBe("true");
+  });
+});
+
+describe("Find a space search length", () => {
+  it("takes at most the characters the API accepts, without a counter, and cuts a longer one from the address", async () => {
+    const api = installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/sites/hq/availability": (c: { url: string }) => availability(c.url),
+    });
+    renderAt(`/find?q=${"a".repeat(100)}`);
+    const search = await screen.findByRole("searchbox", { name: "Search" });
+    expect(search.getAttribute("maxlength")).toBe(String(SEARCH_MAX));
+    expect(screen.queryByText(`0 / ${SEARCH_MAX}`)).toBeNull();
+    expect(screen.queryByText(new RegExp(`/ ${SEARCH_MAX}$`))).toBeNull();
+    await waitFor(() => expect(availabilityCalls(api).length).toBeGreaterThan(0));
+    expect(new URL(availabilityCalls(api).at(-1)?.url ?? "", "http://x").searchParams.get("q")).toBe("a".repeat(SEARCH_MAX));
+  });
+
+  it("shows a search the API refuses on the Search field and keeps the grid, with no Try again", async () => {
+    installFakeApi({
+      "GET /api/health": HEALTH,
+      "GET /api/me": me("emp_001", "employee"),
+      "GET /api/sites/hq/availability": (c: { url: string }) =>
+        new URL(c.url, "http://x").searchParams.get("q") === "refuse"
+          ? respond(422, { error: "validation", message: "Invalid query.", issues: [{ path: "q", code: "too_big", message: "Use at most 80 characters." }] })
+          : availability(c.url),
+    });
+    renderAt("/find");
+    await screen.findByRole("grid", { name: /^Availability on/ });
+    await userEvent.setup().type(screen.getByRole("searchbox", { name: "Search" }), "refuse");
+    const search = screen.getByRole("searchbox", { name: "Search" });
+    await waitFor(() => expect(search.getAttribute("aria-invalid")).toBe("true"));
+    expect(screen.getByText("Use at most 80 characters.")).toBeTruthy();
+    expect(screen.getByRole("grid", { name: /^Availability on/ })).toBeTruthy();
+    expect(screen.queryByText("Availability could not be loaded.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   });
 });
 

@@ -49,6 +49,17 @@ describe("TextField", () => {
     expect((input as HTMLInputElement).value).toBe("abcdefghij");
   });
 
+  it("keeps maxLength without a counter when counter is false", async () => {
+    render(<Controlled id="s" label="Search" type="search" maxLength={5} counter={false} />);
+    const input = screen.getByLabelText("Search");
+    expect(input.getAttribute("maxlength")).toBe("5");
+    expect(document.getElementById("s-counter")).toBeNull();
+    expect(screen.queryByTestId("s-announce")).toBeNull();
+    expect(input.getAttribute("aria-describedby")).toBeNull();
+    await userEvent.setup().type(input, "abcdefg");
+    expect((input as HTMLInputElement).value).toBe("abcde");
+  });
+
   it("renders a multiline textarea", () => {
     render(<Controlled label="Description" multiline />);
     expect(screen.getByLabelText("Description").tagName).toBe("TEXTAREA");

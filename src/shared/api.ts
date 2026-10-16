@@ -75,6 +75,9 @@ const optionalInt = (min: number) =>
     .pipe(z.number().int().min(min))
     .optional();
 
+/** The longest search text the resource and availability routes accept (after trimming). */
+export const SEARCH_MAX = 80;
+
 /** Query filters shared by resource search and availability (SPEC 8). */
 export const ResourceFiltersSchema = z.object({
   kind: ResourceKindSchema.optional(),
@@ -90,7 +93,7 @@ export const ResourceFiltersSchema = z.object({
     )
     .optional(),
   minCapacity: optionalInt(1),
-  q: z.string().trim().max(80).optional(),
+  q: z.string().trim().max(SEARCH_MAX).optional(),
 });
 export type ResourceFilters = z.output<typeof ResourceFiltersSchema>;
 
