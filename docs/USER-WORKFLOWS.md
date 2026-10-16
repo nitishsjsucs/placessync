@@ -10,19 +10,19 @@ The people are the synthetic ones the seed creates: 92 employees, 6 facilities s
 
 1. `npm ci`, `npm run setup:dev`, `npm run build`, then `npm run preview` (http://localhost:8783), as the README's "Run it locally" says.
 2. Open http://localhost:8783. If the database has no tables yet, the page says "Could not load PlacesSync: The local database has no tables yet. Run npm run db:migrate:local, then reload." Run it, then press "Try again" ("Check again" on the sign-in page).
-3. Without a sign-in you land on "Sign in (local development)". If the tables exist but nobody is seeded, it says "No synthetic employees yet. Run npm run seed:local in another terminal, then press Check again." Run it, then press "Check again"; the "Quick picks" appear without a page reload.
+3. Without a sign-in you land on "Sign in (local development)". If the tables exist but nobody is seeded, it says "No synthetic employees yet. Run npm run seed:local in another terminal, then press Check again." Run it, then press "Check again"; the "Quick picks" appear without a page reload, and focus moves to "Employee".
 4. Pick a quick pick (one admin, one staff member, one employee) or type a name in "Employee" and press "Sign in". You return to the page you asked for, or to Find a space.
 
 **Switching persona.** Press "Sign out" in the header, then pick someone else. Opening `/login` while signed in shows "Signed in as <name>." and a "Continue as <name>" link back to where you were.
 
-**When a sign-in expires.** The dev token lasts 8 hours. The next action that the server refuses with 401 sends you to the sign-in page, and signing in returns you to the same page and search.
+**When a sign-in expires.** The dev token lasts 8 hours. The next action that the server refuses with 401 sends you to the sign-in page, which says "Your sign-in expired, so your last action was not saved. Sign in again to continue where you were." Signing in returns you to the same page and search, with focus on its heading.
 
 ## Employee
 
 **Book a desk for an hour.**
 
-1. Open "Find a space". It opens on the first date that can still be booked: after the day's last slot it shows the next working day and says "Bookings for today have closed; showing <date>."
-2. Optionally choose the "Desks" tab, a floor, seats, amenities, a time window or a search. Every choice is kept in the address, so a reload or Back from a week calendar shows the same search.
+1. Open "Find a space". It opens on the first date that can still be booked: after the day's last slot it shows the next working day and says "Bookings for today have closed; showing <date>." It keeps that date while the page stays open; a time that starts meanwhile is refused in the booking dialog ("That start time has already passed.").
+2. Optionally choose the "Desks" tab, a floor, seats, amenities, a time window or a search (up to 80 characters). Every choice is kept in the address, so a reload or Back from a week calendar shows the same search. Changing the date clears a selected time.
 3. Click a start time in a desk's row. One click selects an hour (desks book for at least 60 minutes; rooms for at least 15, so one click on a room selects 30 minutes). Shift+click a later time to make it longer.
 4. Press "Book <desk>, <start> to <end>". The dialog "Book <desk>" opens with "Confirm booking" focused.
 5. Press "Confirm booking". The dialog closes and a result appears at the top of the page, with focus on it: "Booked <desk> on <date>, <start> to <end>." with a "See My bookings" link.
@@ -33,7 +33,7 @@ The people are the synthetic ones the seed creates: 92 employees, 6 facilities s
 
 1. On Find a space open "Week calendars" and choose a space, or use "See the week calendar for <space>" in the booking dialog. The week shown is the one with the date you were looking at.
 2. Rows are days. Past days, weekends and days beyond the 14-day horizon are drawn muted, unlike booked time, and their cells are named "past", "closed" or "not open for booking yet".
-3. Select a time and book as above. "Previous week", "Next week" and "Jump to week" change the week; "Back to Find a space" returns to a date in the week you are looking at.
+3. Select a time and book as above. "Previous week", "Next week" and "Jump to week" change the week and clear the selected time. "Back to Find a space" returns to a date in the week you are looking at, with the tab and filters you came from when you opened the calendar from Find a space.
 
 **When someone else books the same time first.**
 
@@ -58,10 +58,10 @@ The people are the synthetic ones the seed creates: 92 employees, 6 facilities s
 
 **On a phone (under 640 px wide).**
 
-1. Find a space shows the date picker, then a "Filters" button (with "Filters (2 active)" when filters are set, and "Clear filters" inside), then the time chips for one space at a time.
+1. Find a space shows "Booking date: <date>" with a "Change date" button (the month grid opens under it and folds away again once you pick a day), then a "Filters" button (with "Filters (2 active)" when filters are set, and "Clear filters" inside), then the time chips for one space at a time. The first chips are on the first screen, above the bottom navigation.
 2. Choose a space in "Resource" and tap a start time; tap a later time to extend, or a time inside the selection to shorten it. "Clear selection" removes it.
 3. The Book button stays visible above the bottom navigation while you scroll the chips.
-4. Between 640 and 1023 px the filters fold the same way and the full grid shows. At 1024 px and wider the filters sit beside the grid.
+4. Between 640 and 1023 px the month grid stays open, the filters fold the same way and the full grid shows. At 1024 px and wider the filters sit beside the grid.
 
 **With the keyboard or a screen reader.**
 
@@ -69,7 +69,9 @@ The people are the synthetic ones the seed creates: 92 employees, 6 facilities s
 - In the grid the arrow keys move, Shift with Left or Right extends, Enter selects (an hour for a desk) and Escape clears.
 - After moving to another page through the navigation, focus is on that page's heading.
 - Every dialog takes focus when it opens, including when its main button is disabled (the booking dialog then opens on the reason), and Escape closes it. When the button that opened it is gone, focus goes to the result or to the page, never to nothing.
-- If a page cannot load, it says so with "Try again".
+- While a dialog's main button is busy, focus stays in the dialog. If the request fails, focus moves to the message (or, in the booking dialog, to the field the server named).
+- "Clear filters" moves focus to the "Filters" button, or to the slot area from "No spaces match these filters."
+- If a page cannot load, it says so with "Try again". Focus then moves to what replaced the message (the slot area on Find a space, else the page heading), or back to "Try again" if it failed again.
 
 ## Facilities staff
 
@@ -77,13 +79,14 @@ The people are the synthetic ones the seed creates: 92 employees, 6 facilities s
 
 1. Open "Staff". The "Triage queue" tab lists requests waiting for review with the suggested category, its confidence and the provider label ("Keyword stub (keyword-v1)" locally, "Workers AI" in production). Requests still being classified show "Classification pending", and requests with no suggestion show "Automatic classification unavailable"; both offer only "Categorize".
 2. Press "Accept" (the dialog "Accept the suggestion?"), "Reassign" (choose a "Category") or "Categorize" and confirm. The result "Assigned "<title>". It is now under In progress." appears with a "Go to In progress" link.
-3. If someone else handled it first, the page says "Already reviewed" and refreshes the queue. Any other failure says "Could not save. Check your connection and try again." inside the dialog, which stays open.
+3. If someone else handled it first, the page says "Already reviewed" and refreshes the queue, with focus on that notice. Any other failure says "Could not save. Check your connection and try again." inside the dialog, which stays open, with focus on the message.
 
 **Work a request through.**
 
 1. On "In progress", press "Start work" (one click).
 2. Press "Resolve". The dialog "Resolve this request?" takes an optional "Note for the reporter" of up to 500 characters; press "Resolve". The reporter sees the note in their timeline.
-3. "Resolved" lists finished requests, and "Today's bookings" lists today's bookings with names.
+3. If the request changed meanwhile (a 409), the dialog closes and focus goes to the notice ""<title>" changed meanwhile. The list has been refreshed."
+4. "Resolved" lists finished requests, and "Today's bookings" lists today's bookings with names.
 
 **Staying current.** New suggestions arrive live ("Live updates on", or "Connecting to live updates" while connecting). The queue also refreshes every 60 seconds while the page is visible, when you come back to the tab, and when the live connection returns, so a request that becomes eligible after 2 minutes without any event still appears. "Updated hh:mm" says when it last loaded. The open tab is kept in the address (`/staff?tab=working`), and a request opened from it links "Back to the staff queue" to that tab.
 
@@ -114,10 +117,24 @@ Local and not deployed. Each item below is a commit on `main` after `e9d5feb`; t
 5. **A lost race has a way on.** After a conflict the dialog left "Confirm booking" enabled, which only repeated the conflict. It now offers "Pick another time" (back to that row) or, for your own clash, "See my bookings". A booking taken while you were choosing is explained beside the Book button, not only to screen readers.
 6. **Dialogs always take focus and close on Escape.** A dialog whose preferred focus target was disabled left focus behind the page, so Escape did nothing; Escape in an open category list also closed the whole staff dialog. Both are fixed. A "Skip to availability" link jumps past the filters, and each new page puts focus on its heading.
 7. **Failures offer "Try again".** A failed load showed a message with no way on, on every page. Find a space, the week calendar, My bookings, My requests, the request page, Staff and Admin now offer "Try again". Loading never shows an empty-list sentence such as "No upcoming bookings", and an expired sign-in leads back to sign-in instead of each action failing with a generic error.
-8. **The request page and the staff queue stay current.** "Classification pending" stayed until a manual reload, and a refused cancel replaced the whole page with a generic error. The request page now checks again for up to 3 minutes and confirms a cancel, and the staff queue refreshes every 60 seconds, on return to the tab and on reconnect. Both stay within the Free plan's shared request allowance (at most 18 requests per open request page, one per minute per staff page).
-9. **Availability first on phones and tablets.** The 14 filter controls came before the slots: measured at `e9d5feb` signed in as an admin, the first time chip started 1,625 px down a 375x812 screen and the grid 1,251 px down a 768x1024 one. The filters now fold behind a "Filters" button below 1024 px, and Book stays visible above the bottom navigation. The same measurement now gives 862 px and 748 px.
+8. **The request page and the staff queue stay current.** "Classification pending" stayed until a manual reload, and a refused cancel replaced the whole page with a generic error. The request page now checks again for up to 3 minutes and confirms a cancel, and the staff queue refreshes every 60 seconds, on return to the tab and on reconnect. The timed checks are kept small for the Free plan's shared request allowance: at most 17 after the first load per open request page, and one a minute per staff page, plus one each time the staff page's tab is shown again. "Check again", the reload after a cancel and the staff page's refresh on each live event (four requests) come on top of those.
+9. **Availability earlier on phones and tablets.** The 14 filter controls came before the slots: measured at `e9d5feb` signed in as an admin, the first time chip started 1,625 px down a 375x812 screen and the grid 1,251 px down a 768x1024 one. The filters now fold behind a "Filters" button below 1024 px, and Book stays visible above the bottom navigation. The same measurement gave 862 px and 748 px at `ccddc60`; on the phone that was still below the bottom navigation (which starts about 765 px down), which item 13 fixes.
 10. **Find a space remembers the search.** A reload or Back reset the date and filters, and the week calendar always opened on the current week. Both now keep the date and filters.
 11. **Resolving asks for a note and confirms first, and staff errors say what failed.** Resolving cannot be undone, and every failure was reported as "changed meanwhile", network errors included.
 12. **Admin.** Deactivating asked nothing, and a failed toggle showed nothing. My bookings showed a raw id for a space deactivated after booking. The utilization report had one row per space and day, which made the admin page 94,444 px tall at 375x812 with seeded history (measured at `e9d5feb`). Deactivating now confirms, failures show, names stay, and utilization defaults to one row per space with date presets; the same measurement now gives 8,304 px.
 
 Server changes in this round, none of which weakens a rule: `/api/health` answers 503 `schema_missing` on a database without tables in dev mode only, and `GET /api/reservations` also returns the names of the spaces in its list.
+
+## Second pass, also 2026-10-15
+
+A review of the round above walked the same workflows in Chromium and found the problems below; each was verified in the code and fixed in its own commit, with tests. Local and not deployed.
+
+13. **The phone shows time chips on the first screen.** Under 640 px the month grid now folds behind "Booking date: <date>" and "Change date". Measured as before (admin, after the day's last slot), the first time chip at 375x812 now starts 644 px down, above the bottom navigation, and the e2e check measures it against the screen above the navigation instead of a fixed 900 px.
+14. **An open page keeps its date.** Find a space worked out its default date from the clock on every render, so a page left open past 18:30 moved to the next working day and kept the selection, and Book then offered the wrong day with Confirm enabled. The week calendar's default week could flip the same way on a Friday, and its week buttons kept a selection from the old week. Both pages now fix the default when they open and clear the selection when the date or week changes.
+15. **Focus inside dialogs.** A dialog's main button is disabled while it works, which made the browser drop focus to the page, and nothing put it back when the request failed. The dialog now keeps focus and moves it to the failure message. After a staff 409 the "Already reviewed" or "changed meanwhile" notice takes focus, since the row that opened the dialog is gone.
+16. **Focus after Clear filters, Try again and Check again.** Each removed or disabled itself and left focus on nothing; each now moves focus to the next sensible place (listed under "With the keyboard or a screen reader").
+17. **Search length.** The search box took 100 characters but the server accepts 80, so a long search failed with a "Try again" that could never work. Both now use one limit, and a refused search is shown on the Search field.
+18. **Sign-in `next`.** A `next` with a tab or newline after the first slash could still point at another site; the sign-in page now refuses any backslash or control character and checks the origin, so it does follow only a same-origin `next`.
+19. **Back to Find a space** from a week calendar now keeps the tab and filters, not only the date.
+20. **A cancelled request** no longer also says "Your request was submitted."
+21. **An expired sign-in** says so on the sign-in page, and signing in returns with focus on the page heading.
