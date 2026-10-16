@@ -224,15 +224,15 @@ Workflow-mode gates (every request reached review with a category in the enum, a
 
 ### End-to-end checks (Playwright, Chromium)
 
-Command: `npm run test:e2e`. Run 2026-10-16 (UTC) at commit `84b9de2` on Apple M5 (Darwin 25.5.0 arm64, Node v25.9.0).
+Command: `npm run test:e2e`. Run 2026-10-16 (UTC) at commit `c806923` on Apple M5 (Darwin 25.5.0 arm64, Node v25.9.0).
 
 | Metric | Value |
 |---|---|
-| Tests passed | 69 of 69 |
-| axe scans (WCAG 2.0 A/AA, 2.1 AA, 2.2 AA) and violations | 38 scans, 0 violations |
-| Layout checks at 375x812 and 768x1024 and failures | 24 checks, 0 failures |
+| Tests passed | 75 of 75 |
+| axe scans (WCAG 2.0 A/AA, 2.1 AA, 2.2 AA) and violations | 40 scans, 0 violations |
+| Layout checks at 375x812 and 768x1024 and failures | 28 checks, 0 failures |
 | Keyboard-only booking and cancellation | passed |
-| Live update propagation, 20 bookings, p50 / p95 (local Chromium, booking request to busy cell in a second browser) | 6 / 10 ms |
+| Live update propagation, 20 bookings, p50 / p95 (local Chromium, booking request to busy cell in a second browser) | 9 / 13 ms |
 
 ### Production verification (deployed Worker, Cloudflare Workers Free plan)
 
