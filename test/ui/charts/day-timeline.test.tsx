@@ -129,6 +129,24 @@ describe("DayTimeline (VIZ-02)", () => {
     expect(tip()).toContain("Alder");
   });
 
+  it("names both bar colors in a legend beside the chart, never in the table or the cards", () => {
+    const { unmount } = renderTimeline();
+    const legend = screen.getByTestId("timeline-legend");
+    expect(legend.textContent).toBe("BookedEnded before now");
+    // The swatches are decoration: the words carry the meaning.
+    const swatches = [...legend.querySelectorAll("[aria-hidden=true]")];
+    expect(swatches).toHaveLength(2);
+    expect(swatches[1]?.className).toMatch(/ended/);
+    // The ended booking's bar uses the same class as its swatch.
+    expect(bars("res_2a01")[0]?.className).toMatch(/ended/);
+    fireEvent.click(screen.getByRole("button", { name: "Show as table" }));
+    expect(screen.queryByTestId("timeline-legend")).toBeNull();
+    unmount();
+    setMediaMatches("(max-width: 639px)", true);
+    renderTimeline();
+    expect(screen.queryByTestId("timeline-legend")).toBeNull();
+  });
+
   it("Show as table swaps in the bookings table with the same bookings", () => {
     renderTimeline();
     const toggle = screen.getByRole("button", { name: "Show as table" });

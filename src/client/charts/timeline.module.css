@@ -1,6 +1,7 @@
 /* Today's bookings as a day timeline (VIZ-02). Bars are --color-primary; bookings that
-   already ended are --color-border-strong and say "ended" in their text. Gridlines are
-   hairlines in --color-border. The chart scrolls sideways inside its own frame only. */
+   already ended are --color-border-strong, named "Ended before now" in the legend and
+   "ended" in their text. Gridlines are hairlines in --color-border. The chart scrolls
+   sideways inside its own frame only. */
 .timeline {
   display: flex;
   flex-direction: column;
@@ -154,6 +155,33 @@
 }
 
 .ended {
+  background: var(--color-border-strong);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.swatch {
+  display: inline-block;
+  width: 1.5rem;
+  height: 0.75rem;
+  border-radius: 4px;
+  background: var(--color-primary);
+}
+
+.swatch.ended {
   background: var(--color-border-strong);
 }
 

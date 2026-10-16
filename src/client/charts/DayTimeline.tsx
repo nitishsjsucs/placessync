@@ -257,86 +257,100 @@ function Chart({ site, rows, nowMin, nowForBars, showNow, clockMinutes, requests
   for (let m = openMin; m < closeMin; m += 120) if (!showNow || Math.abs(m - clockMinutes) >= 45) labels.push(m);
 
   return (
-    <div className={styles.scroll}>
-      <div
-        role="group"
-        tabIndex={0}
-        aria-label={`Bookings by space, ${longDate(site.today)}`}
-        aria-describedby={helpId}
-        className={styles.chart}
-        style={style}
-        onKeyDown={onKeyDown}
-        onFocus={() => {
-          setFocused(true);
-          if (!at) go({ r: 0, b: nearest(0, null) });
-        }}
-        onBlur={() => setFocused(false)}
-      >
-        <div className={styles.axis} aria-hidden="true">
-          <span className={styles.nameCell}>Space</span>
-          <span className={styles.axisTrack}>
-            {labels.map((m) => (
-              <span key={m} className={styles.tick} style={{ left: `${place(m, m, openMin, closeMin).left}%` }}>
-                {formatMinutes(m)}
-              </span>
-            ))}
-            {showNow ? (
-              <span className={styles.nowLabel} style={{ left: `${nowLeft}%` }}>
-                Now {formatMinutes(clockMinutes)}
-              </span>
-            ) : null}
-          </span>
-        </div>
-        <ul className={styles.rows}>
-          {rows.map((row, r) => {
-            const reqs = requestsFor(row.space.id);
-            const sentence = rowSentence(row, nowForBars, summarize(row, nowMin, openMin, closeMin), reqs.length);
-            const rowFocused = focused && at?.r === r && at.b === -1;
-            return (
-              <li key={row.space.id} className={styles.row} aria-label={sentence}>
-                <span className={`${styles.nameCell} ${rowFocused ? styles.rowFocus : ""}`}>
-                  <span aria-hidden="true" className={styles.name}>
-                    {row.space.name}
-                    {row.space.active ? "" : " (inactive)"}
-                  </span>
-                  <RequestFlag requests={reqs} />
-                </span>
-                <span className={styles.track} aria-hidden="true" data-testid={`track-${row.space.id}`}>
-                  {row.bars.map((bar, b) => {
-                    const { left, width } = place(bar.startMin, bar.endMin, openMin, closeMin);
-                    const over = ended(bar, nowForBars);
-                    const label = bar.booking?.employeeName ?? "Booked";
-                    const isFocus = focused && at?.r === r && at.b === b;
-                    return (
-                      <span
-                        key={bar.key}
-                        className={`${styles.bar} ${over ? styles.ended : ""} ${isFocus ? styles.barFocus : ""}`}
-                        style={{ left: `calc(${left}% + 1px)`, width: `calc(${width}% - 2px)` }}
-                        data-start={bar.startMin}
-                        data-end={bar.endMin}
-                        data-ended={over || undefined}
-                        onPointerEnter={() => setHover({ r, b })}
-                        onPointerLeave={() => setHover(null)}
-                      >
-                        {!over && labelFits(label, bar.endMin - bar.startMin, PX_PER_MINUTE) ? <span className={styles.barLabel}>{label}</span> : null}
-                      </span>
-                    );
-                  })}
-                  {tip && tip.r === r && row.bars[tip.b] ? <Tooltip text={textAt(tip)} span={place((row.bars[tip.b] as Bar).startMin, (row.bars[tip.b] as Bar).endMin, openMin, closeMin)} below={r === 0} /> : null}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-        {showNow ? <span className={styles.nowRule} style={{ "--now": nowLeft / 100 } as CSSProperties} aria-hidden="true" data-testid="now-rule" /> : null}
-      </div>
-      <p id={helpId} className={styles.help}>
-        Up and Down move between spaces, Left and Right between bookings, Home and End to the first and last.
+    <>
+      {/* Two bar colors carry meaning, so a legend names them in words. The same words are
+          in each row's accessible name, the tooltip and the table ("ended"). */}
+      <p className={styles.legend} data-testid="timeline-legend">
+        <span className={styles.legendItem}>
+          <span className={styles.swatch} aria-hidden="true" />
+          Booked
+        </span>
+        <span className={styles.legendItem}>
+          <span className={`${styles.swatch} ${styles.ended}`} aria-hidden="true" />
+          Ended before now
+        </span>
       </p>
-      <div className="visually-hidden" aria-live="polite">
-        {focused ? said : ""}
+      <div className={styles.scroll}>
+        <div
+          role="group"
+          tabIndex={0}
+          aria-label={`Bookings by space, ${longDate(site.today)}`}
+          aria-describedby={helpId}
+          className={styles.chart}
+          style={style}
+          onKeyDown={onKeyDown}
+          onFocus={() => {
+            setFocused(true);
+            if (!at) go({ r: 0, b: nearest(0, null) });
+          }}
+          onBlur={() => setFocused(false)}
+        >
+          <div className={styles.axis} aria-hidden="true">
+            <span className={styles.nameCell}>Space</span>
+            <span className={styles.axisTrack}>
+              {labels.map((m) => (
+                <span key={m} className={styles.tick} style={{ left: `${place(m, m, openMin, closeMin).left}%` }}>
+                  {formatMinutes(m)}
+                </span>
+              ))}
+              {showNow ? (
+                <span className={styles.nowLabel} style={{ left: `${nowLeft}%` }}>
+                  Now {formatMinutes(clockMinutes)}
+                </span>
+              ) : null}
+            </span>
+          </div>
+          <ul className={styles.rows}>
+            {rows.map((row, r) => {
+              const reqs = requestsFor(row.space.id);
+              const sentence = rowSentence(row, nowForBars, summarize(row, nowMin, openMin, closeMin), reqs.length);
+              const rowFocused = focused && at?.r === r && at.b === -1;
+              return (
+                <li key={row.space.id} className={styles.row} aria-label={sentence}>
+                  <span className={`${styles.nameCell} ${rowFocused ? styles.rowFocus : ""}`}>
+                    <span aria-hidden="true" className={styles.name}>
+                      {row.space.name}
+                      {row.space.active ? "" : " (inactive)"}
+                    </span>
+                    <RequestFlag requests={reqs} />
+                  </span>
+                  <span className={styles.track} aria-hidden="true" data-testid={`track-${row.space.id}`}>
+                    {row.bars.map((bar, b) => {
+                      const { left, width } = place(bar.startMin, bar.endMin, openMin, closeMin);
+                      const over = ended(bar, nowForBars);
+                      const label = bar.booking?.employeeName ?? "Booked";
+                      const isFocus = focused && at?.r === r && at.b === b;
+                      return (
+                        <span
+                          key={bar.key}
+                          className={`${styles.bar} ${over ? styles.ended : ""} ${isFocus ? styles.barFocus : ""}`}
+                          style={{ left: `calc(${left}% + 1px)`, width: `calc(${width}% - 2px)` }}
+                          data-start={bar.startMin}
+                          data-end={bar.endMin}
+                          data-ended={over || undefined}
+                          onPointerEnter={() => setHover({ r, b })}
+                          onPointerLeave={() => setHover(null)}
+                        >
+                          {!over && labelFits(label, bar.endMin - bar.startMin, PX_PER_MINUTE) ? <span className={styles.barLabel}>{label}</span> : null}
+                        </span>
+                      );
+                    })}
+                    {tip && tip.r === r && row.bars[tip.b] ? <Tooltip text={textAt(tip)} span={place((row.bars[tip.b] as Bar).startMin, (row.bars[tip.b] as Bar).endMin, openMin, closeMin)} below={r === 0} /> : null}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          {showNow ? <span className={styles.nowRule} style={{ "--now": nowLeft / 100 } as CSSProperties} aria-hidden="true" data-testid="now-rule" /> : null}
+        </div>
+        <p id={helpId} className={styles.help}>
+          Up and Down move between spaces, Left and Right between bookings, Home and End to the first and last.
+        </p>
+        <div className="visually-hidden" aria-live="polite">
+          {focused ? said : ""}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
