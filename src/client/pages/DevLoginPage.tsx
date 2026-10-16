@@ -3,8 +3,10 @@
 //
 // It is also the first page a developer sees on a fresh checkout, so it says what to do
 // when the database has no tables (health answers 503 schema_missing) or no synthetic
-// employees yet (health reports seeded: false), with a Check again button.
-import { useCallback, useEffect, useMemo, useState } from "react";
+// employees yet (health reports seeded: false), with a Check again button. Check again
+// is disabled while it checks and goes away once the problem is fixed, so focus then
+// moves to the Employee field (or back to Check again when the problem remains).
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { DevLoginResponse, DevUsersResponse } from "../../shared/api.ts";
 import { ROLE_LABELS, type Role } from "../../shared/roles.ts";
@@ -16,6 +18,7 @@ import styles from "./pages.module.css";
 import { usePageTitle } from "./usePageTitle.ts";
 
 const ROLE_ORDER: Role[] = ["facilities_admin", "facilities_staff", "employee"];
+const EMPLOYEE_FIELD_ID = "login-employee";
 
 /** Only a same-origin path: "/x" but never "//host" or "/\host", which browsers treat as another origin. */
 export function safeNext(next: string | null): string {
@@ -34,6 +37,8 @@ export function DevLoginPage() {
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const checkRef = useRef<HTMLButtonElement>(null);
+  const checked = useRef(false);
 
   const loadUsers = useCallback(
     () =>
@@ -51,7 +56,15 @@ export function DevLoginPage() {
     void loadUsers();
   }, [loadUsers]);
 
+  useEffect(() => {
+    if (checking || !checked.current) return;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    if (checkRef.current?.isConnected) checkRef.current.focus();
+    else document.getElementById(EMPLOYEE_FIELD_ID)?.focus();
+  }, [checking]);
+
   async function checkAgain() {
+    checked.current = true;
     setChecking(true);
     try {
       await Promise.all([loadUsers(), refresh()]);
@@ -107,7 +120,7 @@ export function DevLoginPage() {
         <div role="alert" className={`${styles.notice} ${styles.stack}`}>
           <p>{schemaProblem ? `Could not load PlacesSync: ${schemaProblem}` : "No synthetic employees yet. Run npm run seed:local in another terminal, then press Check again."}</p>
           <div>
-            <Button variant="secondary" loading={checking} onClick={() => void checkAgain()}>
+            <Button ref={checkRef} variant="secondary" loading={checking} onClick={() => void checkAgain()}>
               Check again
             </Button>
           </div>
@@ -122,7 +135,7 @@ export function DevLoginPage() {
           void signIn(choice);
         }}
       >
-        <Combobox label="Employee" options={options} value={choice} onChange={setChoice} placeholder="Type a name" error={error} hint="Grouped by role: admins, staff, then employees." />
+        <Combobox id={EMPLOYEE_FIELD_ID} label="Employee" options={options} value={choice} onChange={setChoice} placeholder="Type a name" error={error} hint="Grouped by role: admins, staff, then employees." />
         <Button type="submit" loading={busy}>
           Sign in
         </Button>

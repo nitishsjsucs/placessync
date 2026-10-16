@@ -1,8 +1,9 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HEALTH, installFakeApi, me, respond } from "../fake-api.ts";
 import { renderAt } from "../render-app.tsx";
+import { browserFocusFixup } from "../setup.ts";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -61,9 +62,31 @@ describe("dev login page", () => {
     expect(await screen.findByRole("button", { name: "Facilities admin: Chloe Mensah" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Quick picks" })).toBeTruthy();
     expect(screen.queryByText(/No synthetic employees yet/)).toBeNull();
+    // Check again went away with the notice; focus is on the Employee field.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("combobox", { name: "Employee" })));
     // Both the users list and health were fetched again, without a page reload.
     const again = api.calls.slice(before).map((c) => c.url);
     expect(again).toEqual(expect.arrayContaining(["/api/dev/users", "/api/health"]));
+  });
+
+  it("Check again keeps focus on itself while the problem remains", async () => {
+    let answer: (() => void) | null = null;
+    installFakeApi({
+      "GET /api/health": () => new Promise((resolve) => (answer = () => resolve({ ...HEALTH, seeded: false, siteToday: null, siteRules: null }))),
+      "GET /api/me": respond(401, { error: "unauthenticated", message: "x" }),
+      "GET /api/dev/users": { users: [] },
+    });
+    renderAt("/login");
+    await waitFor(() => expect(answer).not.toBeNull());
+    await act(async () => answer?.());
+    const check = await screen.findByRole("button", { name: "Check again" });
+    answer = null;
+    await userEvent.setup().click(check);
+    browserFocusFixup();
+    await waitFor(() => expect(answer).not.toBeNull());
+    await act(async () => answer?.());
+    expect(screen.getByText(/No synthetic employees yet/)).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Check again" })));
   });
 
   it("on a database without tables, shows the migrate instruction from health", async () => {

@@ -112,6 +112,8 @@ describe("My bookings (SPEC 14.1)", () => {
     await userEvent.setup().click(within(alert).getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(rowsOf("Upcoming bookings")).toEqual(["Desk 2A-01"]));
     expect(screen.queryByRole("alert")).toBeNull();
+    // Try again is gone, so focus is on the page heading rather than on nothing.
+    expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1, name: "My bookings" }));
   });
 
   it("names a space deactivated after it was booked, without a calendar link, and asks for no resource list", async () => {

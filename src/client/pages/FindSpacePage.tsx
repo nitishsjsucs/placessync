@@ -7,7 +7,7 @@
 // it followed the clock, an open page would move to the next working day at 18:30 and
 // keep the selection made on the day before. Anything that changes the date clears the
 // selection, and the booking dialog books the date it was opened for.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { type AvailabilityResponse, AvailabilityResponse as AvailabilitySchema, type Reservation, type Resource } from "../../shared/api.ts";
 import { AMENITIES } from "../../shared/synthetic/resources.ts";
@@ -51,7 +51,14 @@ export function FindSpacePage() {
   const compact = useMediaQuery(COMPACT_QUERY);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilters = activeFilterCount(filters);
-  const clearFilters = () => update({ ...NO_FILTERS });
+  const filtersToggleRef = useRef<HTMLButtonElement>(null);
+  // Clear filters removes itself (it shows only while filters are set or nothing
+  // matches), so focus moves on: to the Filters toggle from inside the disclosure, to the
+  // slot area from the no-match message.
+  const clearFilters = (focusTo: RefObject<HTMLElement | null>) => {
+    update({ ...NO_FILTERS });
+    focusTo.current?.focus();
+  };
   const [data, setData] = useState<AvailabilityResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selection, setSelection] = useState<SlotSelection | null>(null);
@@ -171,7 +178,7 @@ export function FindSpacePage() {
           <form className={narrow ? styles.stack : styles.panel} role="search" aria-label="Filter spaces" onSubmit={(e) => e.preventDefault()}>
             {narrow ? (
               <div>
-                <Button variant="secondary" aria-expanded={filtersOpen} aria-controls="find-filters" onClick={() => setFiltersOpen((o) => !o)}>
+                <Button ref={filtersToggleRef} variant="secondary" aria-expanded={filtersOpen} aria-controls="find-filters" onClick={() => setFiltersOpen((o) => !o)}>
                   {activeFilters > 0 ? `Filters (${activeFilters} active)` : "Filters"}
                 </Button>
               </div>
@@ -249,7 +256,7 @@ export function FindSpacePage() {
               </div>
               {narrow && activeFilters > 0 ? (
                 <div>
-                  <Button variant="secondary" onClick={clearFilters}>
+                  <Button variant="secondary" onClick={() => clearFilters(filtersToggleRef)}>
                     Clear filters
                   </Button>
                 </div>
@@ -265,7 +272,7 @@ export function FindSpacePage() {
             {() => (
               <div className={styles.stack}>
                 <div id="slots" ref={slotsRef} tabIndex={-1} className={`${styles.stack} ${styles.slotArea}`}>
-                {loadError ? <LoadError message={loadError} onRetry={retry} /> : null}
+                {loadError ? <LoadError message={loadError} onRetry={retry} focusAfter={slotsRef} /> : null}
                 {data === null && !loadError ? <p role="status">Loading availability…</p> : null}
                 {data !== null && !loadError ? (
                   <>
@@ -291,7 +298,7 @@ export function FindSpacePage() {
                     ) : (
                       <div className={styles.row}>
                         <p>No spaces match these filters.</p>
-                        <Button variant="secondary" onClick={clearFilters}>
+                        <Button variant="secondary" onClick={() => clearFilters(slotsRef)}>
                           Clear filters
                         </Button>
                       </div>

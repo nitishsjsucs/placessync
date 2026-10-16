@@ -311,6 +311,8 @@ describe("Find a space (SPEC 14.1)", () => {
     expect(await screen.findByRole("grid", { name: /^Availability on/ })).toBeTruthy();
     expect(availabilityCalls(api).length).toBe(before + 1);
     expect(screen.queryByText("Availability could not be loaded.")).toBeNull();
+    // Focus is on the slot area that replaced the message, not on nothing.
+    expect(document.activeElement).toBe(document.getElementById("slots"));
   });
 });
 
@@ -502,6 +504,8 @@ describe("Find a space below 1024 px puts availability first (UX-12)", () => {
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(await screen.findByRole("button", { name: "Filters" })).toBeTruthy();
     await waitFor(() => expect(router.state.location.search).toBe(""));
+    // Clear filters is gone with the filters; focus is on the toggle that opened them.
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Filters" }));
     const last = availabilityCalls(api).at(-1)?.url ?? "";
     expect(last).not.toContain("floor=");
     expect(last).not.toContain("amenity=");
@@ -523,6 +527,7 @@ describe("Find a space below 1024 px puts availability first (UX-12)", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Clear filters" }));
     await screen.findByRole("grid", { name: /^Availability on/ });
     expect(availabilityCalls(api).at(-1)?.url).not.toContain("q=");
+    expect(document.activeElement).toBe(document.getElementById("slots"));
   });
 });
 
