@@ -228,7 +228,7 @@ describe("DayTimeline (VIZ-02)", () => {
     expect(onRefetch).toHaveBeenCalledTimes(2);
   });
 
-  it("under 640 px lists the spaces as cards that say the same in words", () => {
+  it("under 640 px gives each space a card with its state now and its number of bookings; the table lists each booking", () => {
     setMediaMatches("(max-width: 639px)", true);
     renderTimeline();
     const cards = within(screen.getByRole("list", { name: /^Spaces today/ })).getAllByRole("listitem");
@@ -238,6 +238,14 @@ describe("DayTimeline (VIZ-02)", () => {
       "Desk 2A-02: free for the rest of the day" + "No bookings today",
     ]);
     expect(screen.queryByRole("group", { name: /^Bookings by space/ })).toBeNull();
+    // Each booking's time and name are in the table, which is one press away on a phone too.
+    fireEvent.click(screen.getByRole("button", { name: "Show as table" }));
+    const rows = within(screen.getByRole("table", { name: "Bookings today, 2026-10-08" })).getAllByRole("row").slice(1);
+    expect(rows.map((r) => within(r).getAllByRole("cell").slice(0, 3).map((c) => c.textContent))).toEqual([
+      ["07:30 to 09:00", "Desk 2A-01", "Fatima Bhatt"],
+      ["09:00 to 10:30", "Alder", "Zara Ali"],
+      ["12:30 to 13:30", "Alder", "Noah Yamamoto"],
+    ]);
   });
 
   describe("where the chart scrolls inside its frame (a tablet)", () => {

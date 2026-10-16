@@ -1,8 +1,9 @@
 // Today's bookings as a day timeline (VIZ-02), mounted only inside the staff page's
 // "Today's bookings" tab. One row per space (rooms first, then desks), a bar per booking
 // across open hours, a "Now" rule that moves every minute without a request, and a flag
-// on spaces with an open facilities request. Under 640 px the rows become cards that say
-// the same in words. "Show as table" swaps in the bookings table.
+// on spaces with an open facilities request. Under 640 px the rows become cards that give
+// each space's state now and its number of bookings; "Show as table" swaps in the bookings
+// table, which lists each booking, at any width.
 //
 // Live: useLiveAvailability for today lives here, so its socket exists only while this
 // tab is shown. Its snapshot decides which bookings exist (see day-timeline.ts); an
