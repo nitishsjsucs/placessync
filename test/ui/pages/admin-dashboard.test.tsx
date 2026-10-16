@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { formatDuration } from "../../../src/client/pages/AdminDashboardPage.tsx";
 import { generateResources } from "../../../src/shared/synthetic/resources.ts";
 import { type FakeApi, HEALTH, installFakeApi, me, respond } from "../fake-api.ts";
 import { renderAt } from "../render-app.tsx";
@@ -325,6 +326,15 @@ describe("Admin dashboard (SPEC 14.1)", () => {
     renderAt("/admin");
     await userEvent.setup().click(await screen.findByRole("tab", { name: "Requests" }));
     expect(await screen.findByText(/Median time to review: 13 h 4 min \(3 reviewed\)/)).toBeTruthy();
+  });
+
+  it("prints a median of two days or more in days and hours, as the request page does", async () => {
+    // 60 h 1 min: the request page and the staff views say "2 d 12 h" for the same wait.
+    api.set("GET /api/admin/reports/requests", { from: "x", to: "y", categories: [], agreement: [], medianMinutesToReview: 3600.6, reviewedCount: 24 });
+    renderAt("/admin");
+    await userEvent.setup().click(await screen.findByRole("tab", { name: "Requests" }));
+    expect(await screen.findByText("Median time to review: 2 d 12 h (24 reviewed).")).toBeTruthy();
+    expect([formatDuration(42.5), formatDuration(2879.4), formatDuration(2879.6), formatDuration(6720)]).toEqual(["43 min", "47 h 59 min", "2 d", "4 d 16 h"]);
   });
 
   it("counts booked ahead from the range's first date, and says so, when the range starts after today", async () => {

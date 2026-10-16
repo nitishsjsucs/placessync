@@ -34,7 +34,7 @@ import { Dialog } from "../ui/Dialog.tsx";
 import { Tabs } from "../ui/Tabs.tsx";
 import { TextField } from "../ui/TextField.tsx";
 import styles from "./pages.module.css";
-import { categoryLabel, statusLabel } from "./requests-ui.ts";
+import { categoryLabel, elapsed, statusLabel } from "./requests-ui.ts";
 import { useSite } from "./site.ts";
 import { usePageTitle } from "./usePageTitle.ts";
 
@@ -57,13 +57,12 @@ export function hourlyAverages(report: UtilizationReport): HourRow[] {
   return out;
 }
 
-/** "13 h 4 min", "13 h" or "42 min". */
+/**
+ * The median time to review, in the format the request progress and staff views use
+ * ("42 min", "13 h 4 min", "2 d 12 h"), rounded to the nearest minute first.
+ */
 export function formatDuration(minutes: number): string {
-  const total = Math.round(minutes);
-  if (total < 60) return `${total} min`;
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+  return elapsed(Math.round(minutes));
 }
 
 type AgreementRow = RequestsReport["agreement"][number];
