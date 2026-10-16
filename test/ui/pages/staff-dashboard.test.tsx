@@ -149,10 +149,14 @@ describe("Staff dashboard (SPEC 14.1)", () => {
     expect(await screen.findByRole("link", { name: "Lights out in Alder" })).toBeTruthy();
   });
 
-  it("shows today's bookings with employee names (Tier 2)", async () => {
+  it("shows today's bookings as a timeline, and with employee names as a table (Tier 2, VIZ-02)", async () => {
     renderAt("/staff");
     await screen.findByRole("link", { name: "Projector dead" });
-    await userEvent.setup().click(screen.getByRole("tab", { name: "Today's bookings" }));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Today's bookings" }));
+    const chart = await screen.findByRole("group", { name: "Bookings by space, Thursday, October 8, 2026" });
+    expect(within(chart).getAllByRole("listitem")[0]?.getAttribute("aria-label")).toMatch(/^Alder: booked 10:00 to 11:00 \(Noah Yamamoto, 4 attending, Planning\)/);
+    await user.click(screen.getByRole("button", { name: "Show as table" }));
     const table = await screen.findByRole("table", { name: "Bookings today, 2026-10-08" });
     await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(2));
     expect(within(table).getAllByRole("cell").map((c) => c.textContent)).toEqual(["10:00 to 11:00", "Alder", "Noah Yamamoto", "4 attending, Planning"]);
@@ -176,7 +180,7 @@ describe("Staff dashboard (SPEC 14.1)", () => {
     expect(screen.getByText("The queue could not be loaded.")).toBe(queueAlert);
     expect(screen.getAllByRole("button", { name: "Try again" })).toHaveLength(2);
     await user.click(within(todayAlert.closest("[role=alert]") as HTMLElement).getByRole("button", { name: "Try again" }));
-    expect(await screen.findByRole("table", { name: "Bookings today, 2026-10-08" })).toBeTruthy();
+    expect(await screen.findByRole("group", { name: /^Bookings by space/ })).toBeTruthy();
     expect(screen.getByText("The queue could not be loaded.")).toBeTruthy();
     await user.click(within(queueAlert.closest("[role=alert]") as HTMLElement).getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(screen.queryByText("The queue could not be loaded.")).toBeNull());
@@ -454,5 +458,58 @@ describe("Work at a glance (VIZ-01)", () => {
     queue = [...queue, { ...suggested, id: "req_new", title: "Lights out in Alder" }];
     await act(async () => ws.receive({ type: "staff_event", event: "triage_ready", requestId: "req_new", category: "electrical_av" }));
     await waitFor(() => expect(tile(/^Suggestions to review/).getAttribute("aria-label")).toMatch(/^Suggestions to review: 2 requests,/));
+  });
+});
+
+describe("Today's bookings timeline on the staff page (VIZ-02)", () => {
+  it("opens its own live socket only while the Today tab shows", async () => {
+    renderAt("/staff");
+    await screen.findByRole("link", { name: "Projector dead" });
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Today's bookings" }));
+    await screen.findByRole("group", { name: /^Bookings by space/ });
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    const ws = FakeWebSocket.last();
+    await act(async () => ws.open());
+    expect(ws.subscriptions()).toEqual(["2026-10-08"]);
+    await user.click(screen.getByRole("tab", { name: "Triage queue" }));
+    expect(ws.closedByClient).not.toBeNull();
+    expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
+  it("flags a space that has an open request from the queue", async () => {
+    queue = [{ ...suggested, resourceId: "res_alder", resourceName: "Alder" }];
+    renderAt("/staff?tab=today");
+    const chart = await screen.findByRole("group", { name: /^Bookings by space/ });
+    const link = within(chart).getByRole("link", { name: "1 open request" });
+    expect(link.getAttribute("href")).toBe("/requests/req_s");
+  });
+
+  it("a timeline refetch keeps the last render while it loads", async () => {
+    let release: (v: unknown) => void = () => {};
+    let gets = 0;
+    const body = {
+      date: "2026-10-08",
+      bookings: [{ id: "rsv_1", resourceId: "res_alder", resourceName: "Alder", kind: "room", employeeId: "emp_001", employeeName: "Noah Yamamoto", startMin: 600, endMin: 660, attendees: 4, title: "Planning" }],
+    };
+    api.set("GET /api/staff/bookings", () => {
+      gets += 1;
+      return gets === 1 ? body : new Promise((r) => (release = r)).then(() => body);
+    });
+    renderAt("/staff?tab=today");
+    await screen.findByRole("group", { name: /^Bookings by space/ });
+    const ws = FakeWebSocket.last();
+    await act(async () => ws.open());
+    // Someone books Alder at 13:00: the live snapshot has it, the fetch did not.
+    await act(async () =>
+      ws.receive({ type: "snapshot", date: "2026-10-08", dateVersion: 2, ledgerVersion: 2, busy: { res_alder: [{ startMin: 600, endMin: 660, mine: false }, { startMin: 780, endMin: 840, mine: false }] } }),
+    );
+    await waitFor(() => expect(gets).toBe(2));
+    const busy = document.querySelector("[aria-busy=true]");
+    expect(busy).toBeTruthy();
+    expect(within(busy as HTMLElement).getByRole("group", { name: /^Bookings by space/ })).toBeTruthy();
+    await act(async () => release(null));
+    await waitFor(() => expect(document.querySelector("[aria-busy=true]")).toBeNull());
   });
 });

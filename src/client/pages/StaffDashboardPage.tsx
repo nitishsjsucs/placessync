@@ -13,13 +13,15 @@
 // removes its row), so the notice takes focus once the dialog has closed.
 // Above the tabs, "Work at a glance" counts the four stages that need staff with their
 // oldest wait (charts/work-summary.ts), from the four lists the page already loads; a
-// queue row a day old or more carries an "Over 24 h" pill.
+// queue row a day old or more carries an "Over 24 h" pill. "Today's bookings" is a day
+// timeline per space (charts/DayTimeline.tsx) with its own live socket while it shows.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { StaffBookingsResponse, StaffQueueResponse } from "../../shared/api.ts";
 import { CATEGORIES } from "../../shared/triage/categories.ts";
 import { providerLabel } from "../../shared/triage/provider-labels.ts";
 import { ApiClientError, api } from "../api/client.ts";
+import { DayTimeline } from "../charts/DayTimeline.tsx";
 import { WorkSummary } from "../charts/WorkSummary.tsx";
 import chartStyles from "../charts/charts.module.css";
 import { WarningIcon } from "../charts/icons.tsx";
@@ -36,7 +38,7 @@ import { Tabs } from "../ui/Tabs.tsx";
 import { TextField } from "../ui/TextField.tsx";
 import styles from "./pages.module.css";
 import { categoryLabel, statusLabel } from "./requests-ui.ts";
-import { timeRange, useSite } from "./site.ts";
+import { useSite } from "./site.ts";
 import { usePageTitle } from "./usePageTitle.ts";
 
 type QueueItem = StaffQueueResponse["requests"][number];
@@ -55,7 +57,6 @@ const NOTE_MAX = 500;
 function hhmm(d: Date): string {
   return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 }
-type Booking = StaffBookingsResponse["bookings"][number];
 const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ value: c, label: categoryLabel(c) }));
 
 /** The tab a work-at-a-glance tile opens. */
@@ -89,7 +90,9 @@ export function StaffDashboardPage() {
   // Bumped to move focus to the notice; an effect, so it runs after a closing dialog's
   // focus restore in the same commit.
   const [noticeFocus, setNoticeFocus] = useState(0);
-  const [today, setToday] = useState<Booking[] | null>(null);
+  const [today, setToday] = useState<StaffBookingsResponse | null>(null);
+  // A refetch the timeline asked for (a live booking without a name yet): keep the last render.
+  const [todayRefreshing, setTodayRefreshing] = useState(false);
   // Today's bookings has its own error, so it never hides or replaces the queue's.
   const [todayError, setTodayError] = useState<string | null>(null);
   const [todayTick, setTodayTick] = useState(0);
@@ -104,11 +107,14 @@ export function StaffDashboardPage() {
       .get(`/api/staff/bookings?date=${site.today}`, StaffBookingsResponse)
       .then((r) => {
         if (cancelled) return;
-        setToday(r.bookings);
+        setToday(r);
         setTodayError(null);
       })
       .catch(() => {
         if (!cancelled) setTodayError("Today's bookings could not be loaded.");
+      })
+      .finally(() => {
+        if (!cancelled) setTodayRefreshing(false);
       });
     return () => {
       cancelled = true;
@@ -419,18 +425,18 @@ export function StaffDashboardPage() {
                 setTodayTick((t) => t + 1);
               }}
             />
+          ) : today === null ? (
+            <p role="status">Loading today's bookings…</p>
           ) : (
-            <DataTable
-              caption={`Bookings today, ${site.today}`}
-              columns={[
-                { key: "time", header: "Time", render: (b: Booking) => timeRange(b.startMin, b.endMin) },
-                { key: "space", header: "Space", render: (b: Booking) => b.resourceName },
-                { key: "who", header: "Booked by", render: (b: Booking) => b.employeeName },
-                { key: "details", header: "Details", render: (b: Booking) => (b.kind === "room" ? `${b.attendees} attending${b.title ? `, ${b.title}` : ""}` : "Desk") },
-              ]}
-              rows={today ?? []}
-              rowKey={(b) => b.id}
-              empty={today === null ? "Loading…" : "No bookings today."}
+            <DayTimeline
+              site={site}
+              data={today}
+              refreshing={todayRefreshing}
+              openRequests={[...(queue ?? []), ...working]}
+              onRefetch={() => {
+                setTodayRefreshing(true);
+                setTodayTick((t) => t + 1);
+              }}
             />
           )
         }
