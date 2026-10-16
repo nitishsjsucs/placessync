@@ -2,14 +2,25 @@
 // the request report, where suggestion agreement is shown per provider with that
 // provider's own label. Nothing aggregates across providers.
 //
-// Utilization shows one row per space by default, summed in the client from the
-// report's per-day rows (Show daily rows brings those back). The range has date inputs
-// and presets. Deactivating a space asks first; a failed toggle is shown on the page.
-import { useCallback, useEffect, useRef, useState } from "react";
-import { RequestsReport, type Resource, ResourcePatchResponse, ResourcesResponse, UtilizationReport } from "../../shared/api.ts";
-import { DATE_RE, addDays, isValidDate, isWeekday } from "../../shared/time.ts";
+// The Utilization tab opens on whether the reports include the latest bookings (the
+// projection status), four figures and a bookings-per-day chart, then one table per kind
+// with every space on a fixed 0 to 100% scale, held (past days) apart from booked ahead
+// (charts/held-ahead.ts). Show daily rows brings back the per-day rows; the long tables
+// fold behind Show table. The range has date inputs and presets and scopes everything.
+// Deactivating a space asks first and says how many upcoming bookings reports show for
+// it; a failed toggle is shown on the page.
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Link } from "react-router";
+import { ProjectionStatusResponse, RequestsReport, type Resource, ResourcePatchResponse, ResourcesResponse, UtilizationReport } from "../../shared/api.ts";
+import { DATE_RE, addDays, dayOfWeek, isValidDate } from "../../shared/time.ts";
 import { PROVIDER_LABELS, type SuggestionProvider } from "../../shared/triage/provider-labels.ts";
 import { ApiClientError, api, qs } from "../api/client.ts";
+import { DailyColumns, monthDay } from "../charts/DailyColumns.tsx";
+import { FixedBar } from "../charts/FixedBar.tsx";
+import { Freshness } from "../charts/Freshness.tsx";
+import { StatTiles } from "../charts/StatTiles.tsx";
+import chartStyles from "../charts/charts.module.css";
+import { type SpaceUse, percent, splitAtToday, weekdaysBetween } from "../charts/held-ahead.ts";
 import { useAnnounce } from "../shell/Announcer.tsx";
 import { LoadError } from "../shell/LoadError.tsx";
 import { useStatusBanner } from "../shell/StatusBanner.tsx";
@@ -32,18 +43,7 @@ interface HourRow {
   room: number;
 }
 
-/** One row per space over the whole range. */
-export interface SpaceRow {
-  resourceId: string;
-  name: string;
-  kind: "desk" | "room";
-  bookings: number;
-  bookedMin: number;
-  days: number;
-  utilization: number;
-}
-
-/** Average resources in use per hour, over the days in range that have any booking. */
+/** Bookings overlapping each hour (v_hourly_occupancy), averaged over the days in range that have any booking. */
 export function hourlyAverages(report: UtilizationReport): HourRow[] {
   const days = new Set(report.daily.map((d) => d.date)).size || 1;
   const out: HourRow[] = [];
@@ -52,26 +52,6 @@ export function hourlyAverages(report: UtilizationReport): HourRow[] {
     out.push({ hour, desk: Math.round((sum("desk") / days) * 10) / 10, room: Math.round((sum("room") / days) * 10) / 10 });
   }
   return out;
-}
-
-export function weekdaysBetween(from: string, to: string): number {
-  let n = 0;
-  for (let d = from; d <= to; d = addDays(d, 1)) if (isWeekday(d)) n++;
-  return n;
-}
-
-/** Sums the report's per-day rows per space; utilization is booked minutes over every open minute in the range. */
-export function perSpace(report: UtilizationReport, from: string, to: string): SpaceRow[] {
-  const open = weekdaysBetween(from, to) * report.totals.openMinutesPerDay;
-  const bySpace = new Map<string, SpaceRow>();
-  for (const r of report.rows) {
-    const s = bySpace.get(r.resourceId) ?? { resourceId: r.resourceId, name: r.name, kind: r.kind, bookings: 0, bookedMin: 0, days: 0, utilization: 0 };
-    s.bookings += r.bookings;
-    s.bookedMin += r.bookedMin;
-    s.days += 1;
-    bySpace.set(r.resourceId, s);
-  }
-  return [...bySpace.values()].map((s) => ({ ...s, utilization: open > 0 ? s.bookedMin / open : 0 })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** "13 h 4 min", "13 h" or "42 min". */
@@ -84,6 +64,13 @@ export function formatDuration(minutes: number): string {
 }
 
 type AgreementRow = RequestsReport["agreement"][number];
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+/** "Tuesday, October 20". */
+const dayAndDate = (date: string) => `${WEEKDAYS[dayOfWeek(date)]}, ${monthDay(date)}`;
+
+/** What the Deactivate dialog found in the reports for the space, from today on. */
+type Upcoming = { status: "loading" } | { status: "ok"; count: number; next: string | null } | { status: "error" };
 
 const TABS = [
   { id: "utilization", label: "Utilization" },
@@ -110,6 +97,16 @@ export function AdminDashboardPage() {
   const [range, setRange] = useState({ from, to });
   const [util, setUtil] = useState<UtilizationReport | null>(null);
   const [reqs, setReqs] = useState<RequestsReport | null>(null);
+  // Whether the reports include the latest bookings; null hides the line.
+  const [status, setStatus] = useState<ProjectionStatusResponse | null>(null);
+  // A refetch (new range, preset, Refresh) keeps the last render, dimmed.
+  const [reloading, setReloading] = useState(false);
+  const [showHourly, setShowHourly] = useState(false);
+  const hourlyId = useId();
+  const hourlyHeadingId = useId();
+  const spacesHeadingId = useId();
+  const [upcoming, setUpcoming] = useState<Upcoming | null>(null);
+  const upcomingSeq = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [resourcesError, setResourcesError] = useState<string | null>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
@@ -190,19 +187,48 @@ export function AdminDashboardPage() {
   }
 
   const load = useCallback(async () => {
+    setReloading(true);
+    const q = qs(range);
+    // Fetched beside the reports; if it fails, only the freshness line goes.
+    const statusRequest = api.get("/api/admin/projection/status", ProjectionStatusResponse).catch(() => null);
     try {
-      const q = qs(range);
-      const [u, r] = await Promise.all([
+      const [u, r, st] = await Promise.all([
         api.get(`/api/admin/reports/utilization${q}`, UtilizationReport),
         api.get(`/api/admin/reports/requests${q}`, RequestsReport),
+        statusRequest,
       ]);
       setUtil(u);
       setReqs(r);
+      setStatus(st);
       setError(null);
     } catch {
       setError("Reports could not be loaded.");
+    } finally {
+      setReloading(false);
     }
   }, [range]);
+
+  // The Deactivate dialog says what reports show from today on for that space: one report
+  // for today through the booking horizon, narrowed to the space's kind.
+  useEffect(() => {
+    if (!deactivating) {
+      setUpcoming(null);
+      return;
+    }
+    const seq = ++upcomingSeq.current;
+    setUpcoming({ status: "loading" });
+    const query = qs({ from: site.today, to: addDays(site.today, site.rules.horizonDays), kind: deactivating.kind });
+    api
+      .get(`/api/admin/reports/utilization${query}`, UtilizationReport)
+      .then((r) => {
+        if (seq !== upcomingSeq.current) return;
+        const days = r.rows.filter((row) => row.resourceId === deactivating.id && row.bookings > 0);
+        setUpcoming({ status: "ok", count: days.reduce((n, d) => n + d.bookings, 0), next: days.map((d) => d.date).sort()[0] ?? null });
+      })
+      .catch(() => {
+        if (seq === upcomingSeq.current) setUpcoming({ status: "error" });
+      });
+  }, [deactivating, site.today, site.rules.horizonDays]);
 
   useEffect(() => {
     void load();
@@ -222,8 +248,7 @@ export function AdminDashboardPage() {
     { label: site.rules.horizonDays === 14 ? "Next 2 weeks" : `Next ${site.rules.horizonDays} days`, from: site.today, to: addDays(site.today, site.rules.horizonDays) },
   ];
 
-  const spaces = util ? perSpace(util, range.from, range.to) : [];
-  const max = Math.max(1e-9, ...(daily ? (util?.rows ?? []).map((r) => r.utilization) : spaces.map((s) => s.utilization)));
+  const split = util && resources ? splitAtToday(util, resources, site.today, range) : null;
   const hours = util ? hourlyAverages(util) : [];
   const hourMax = Math.max(1, ...hours.flatMap((h) => [h.desk, h.room]));
   const bar = (value: number, top: number) => (
@@ -234,14 +259,61 @@ export function AdminDashboardPage() {
       {value}
     </span>
   );
-  const percentBar = (value: number) => (
-    <span className={styles.barCell}>
-      <span className={styles.barTrack} aria-hidden="true">
-        <span className={styles.bar} style={{ width: `${Math.round((value / max) * 100)}%` }} />
-      </span>
-      {Math.round(value * 100)}%
-    </span>
-  );
+  // Daily rows use the same fixed 0 to 100% scale as the per-space tables.
+  const percentBar = (value: number) => <FixedBar value={value} />;
+
+  const spaceTable = (kind: "desk" | "room") => {
+    if (!split) return null;
+    const k = split.kinds[kind];
+    const average = !split.held || split.held.weekdays === 0 ? "no past days" : k.heldUtilization === null ? "none bookable now" : `average held ${percent(k.heldUtilization)}`;
+    const noHeld = !split.held || split.held.weekdays === 0;
+    const noAhead = !split.ahead || split.ahead.weekdays === 0;
+    return (
+      <DataTable
+        caption={`${kind === "desk" ? "Desks" : "Rooms"}: utilization by space, ${longDate(range.from)} to ${longDate(range.to)} (${average})`}
+        columns={[
+          {
+            key: "name",
+            header: "Space",
+            sortValue: (s: SpaceUse) => s.name,
+            render: (s: SpaceUse) => (
+              <>
+                <Link to={`/resources/${s.id}`}>{s.name}</Link>
+                {s.active ? null : " (inactive)"}
+              </>
+            ),
+          },
+          {
+            key: "held",
+            header: "Held",
+            sortValue: (s: SpaceUse) => s.held.utilization ?? -1,
+            render: (s: SpaceUse) => (noHeld ? "No past days" : s.held.bookedMin === 0 ? "Not booked" : <FixedBar value={s.held.utilization ?? 0} />),
+          },
+          {
+            key: "ahead",
+            header: "Booked ahead",
+            sortValue: (s: SpaceUse) => s.ahead.utilization ?? -1,
+            render: (s: SpaceUse) => (noAhead ? "No days ahead" : s.ahead.bookedMin === 0 ? "Not booked" : <FixedBar value={s.ahead.utilization ?? 0} tone="context" />),
+          },
+          { key: "bookings", header: "Bookings", sortValue: (s: SpaceUse) => s.bookings, render: (s: SpaceUse) => s.bookings },
+          { key: "days", header: "Days booked", sortValue: (s: SpaceUse) => s.days, render: (s: SpaceUse) => s.days },
+        ]}
+        rows={split.spaces.filter((s) => s.kind === kind)}
+        rowKey={(s) => s.id}
+        defaultSort={{ key: "held", direction: "descending" }}
+        empty={`No ${kind === "desk" ? "desks" : "rooms"} in this range.`}
+      />
+    );
+  };
+
+  const upcomingText = (r: Resource): string => {
+    if (!upcoming || upcoming.status === "loading") return "Checking upcoming bookings…";
+    if (upcoming.status === "error") return "Upcoming bookings could not be checked.";
+    if (upcoming.count === 0) return `Reports show no bookings for ${r.name} from today on.`;
+    const next = upcoming.next ? (upcoming.next === site.today ? `today (${dayAndDate(upcoming.next)})` : dayAndDate(upcoming.next)) : null;
+    if (upcoming.count === 1) return `Reports show 1 booking for ${r.name} from today on${next ? `, on ${next}` : ""}. It stays booked, and My bookings marks the space (not bookable now).`;
+    return `Reports show ${upcoming.count} bookings for ${r.name} from today on${next ? `, the next on ${next}` : ""}. They stay booked, and My bookings marks the space (not bookable now).`;
+  };
 
   return (
     <section className={styles.stack}>
@@ -310,76 +382,85 @@ export function AdminDashboardPage() {
             />
           ) : id === "utilization" ? (
             <div className={styles.stack}>
-              {util ? (
-                <p>
-                  {util.totals.bookings} confirmed bookings, {Math.round(util.totals.bookedMin / 60)} booked hours across {util.totals.resourceDays} resource-days (each day
-                  has {util.totals.openMinutesPerDay / 60} bookable hours).
-                </p>
-              ) : null}
-              <div>
-                <Button variant="secondary" aria-pressed={daily} onClick={() => setDaily((d) => !d)}>
-                  Show daily rows
-                </Button>
-              </div>
-              {daily ? (
-                <DataTable
-                  caption={`Utilization, ${longDate(range.from)} to ${longDate(range.to)}`}
-                  columns={[
-                    { key: "name", header: "Space", render: (r: UtilizationRow) => r.name, sortValue: (r: UtilizationRow) => r.name },
-                    { key: "date", header: "Date", render: (r: UtilizationRow) => r.date, sortValue: (r: UtilizationRow) => r.date },
-                    { key: "bookings", header: "Bookings", render: (r: UtilizationRow) => r.bookings },
-                    { key: "hours", header: "Booked hours", render: (r: UtilizationRow) => (r.bookedMin / 60).toFixed(1) },
-                    { key: "utilization", header: "Utilization", sortValue: (r: UtilizationRow) => r.utilization, render: (r: UtilizationRow) => percentBar(r.utilization) },
-                  ]}
-                  rows={util?.rows ?? []}
-                  rowKey={(r) => `${r.resourceId}-${r.date}`}
-                  empty={util ? "No confirmed bookings in this range yet." : "Loading…"}
-                />
+              <Freshness status={status} timeZone={site.rules.timezone} today={site.today} onRefresh={() => void load()} refreshing={reloading} />
+              {util === null ? (
+                <p role="status">Loading the reports…</p>
               ) : (
-                <DataTable
-                  caption={`Utilization by space, ${longDate(range.from)} to ${longDate(range.to)}`}
-                  columns={[
-                    { key: "name", header: "Space", render: (r: SpaceRow) => r.name, sortValue: (r: SpaceRow) => r.name },
-                    { key: "bookings", header: "Bookings", render: (r: SpaceRow) => r.bookings, sortValue: (r: SpaceRow) => r.bookings },
-                    { key: "hours", header: "Booked hours", render: (r: SpaceRow) => (r.bookedMin / 60).toFixed(1) },
-                    { key: "days", header: "Days booked", render: (r: SpaceRow) => r.days },
-                    { key: "utilization", header: "Utilization", sortValue: (r: SpaceRow) => r.utilization, render: (r: SpaceRow) => percentBar(r.utilization) },
-                  ]}
-                  rows={spaces}
-                  rowKey={(r) => r.resourceId}
-                  empty={util ? "No confirmed bookings in this range yet." : "Loading…"}
-                />
+                <>
+                  <div className={reloading ? chartStyles.refreshing : undefined} aria-busy={reloading || undefined}>
+                    {resourcesError ? (
+                      <LoadError
+                        message={resourcesError}
+                        onRetry={() => {
+                          setResourcesError(null);
+                          return loadResources();
+                        }}
+                      />
+                    ) : split ? (
+                      <StatTiles split={split} to={range.to} />
+                    ) : (
+                      <p role="status">Loading spaces…</p>
+                    )}
+                  </div>
+                  <DailyColumns report={util} range={range} today={site.today} refreshing={reloading} />
+                  <section className={`${chartStyles.section} ${reloading ? chartStyles.refreshing : ""}`} aria-labelledby={spacesHeadingId}>
+                    <div className={chartStyles.sectionHead}>
+                      <h2 id={spacesHeadingId}>Utilization by space</h2>
+                      <Button variant="secondary" size="sm" aria-pressed={daily} onClick={() => setDaily((d) => !d)}>
+                        Show daily rows
+                      </Button>
+                    </div>
+                    {daily ? (
+                      <DataTable
+                        caption={`Utilization, ${longDate(range.from)} to ${longDate(range.to)}`}
+                        columns={[
+                          { key: "name", header: "Space", render: (r: UtilizationRow) => r.name, sortValue: (r: UtilizationRow) => r.name },
+                          { key: "date", header: "Date", render: (r: UtilizationRow) => r.date, sortValue: (r: UtilizationRow) => r.date },
+                          { key: "bookings", header: "Bookings", render: (r: UtilizationRow) => r.bookings },
+                          { key: "hours", header: "Booked hours", render: (r: UtilizationRow) => (r.bookedMin / 60).toFixed(1) },
+                          { key: "utilization", header: "Utilization", sortValue: (r: UtilizationRow) => r.utilization, render: (r: UtilizationRow) => percentBar(r.utilization) },
+                        ]}
+                        rows={util.rows}
+                        rowKey={(r) => `${r.resourceId}-${r.date}`}
+                        empty="No confirmed bookings in this range yet."
+                      />
+                    ) : split ? (
+                      <>
+                        {spaceTable("desk")}
+                        {spaceTable("room")}
+                      </>
+                    ) : null}
+                    <p className={styles.muted}>
+                      Held is booked hours over every bookable hour of the {split?.held?.weekdays ?? 0} weekdays before today in the range; booked ahead is the same for the{" "}
+                      {split?.ahead?.weekdays ?? 0} weekdays from today on, with the bookings made so far. Both are on a fixed 0 to 100% scale.
+                    </p>
+                  </section>
+                  <section className={`${chartStyles.section} ${reloading ? chartStyles.refreshing : ""}`} aria-labelledby={hourlyHeadingId}>
+                    <div className={chartStyles.sectionHead}>
+                      <h2 id={hourlyHeadingId}>Bookings by hour</h2>
+                      <Button variant="secondary" size="sm" aria-expanded={showHourly} aria-controls={hourlyId} onClick={() => setShowHourly((v) => !v)}>
+                        Show table<span className="visually-hidden">: bookings by hour</span>
+                      </Button>
+                    </div>
+                    <div id={hourlyId} hidden={!showHourly}>
+                      {showHourly ? (
+                        <DataTable
+                          caption="Bookings overlapping each hour, averaged over days with any booking in the range"
+                          columns={[
+                            { key: "hour", header: "Hour", render: (r: HourRow) => `${String(r.hour).padStart(2, "0")}:00` },
+                            { key: "desk", header: "Desk bookings", render: (r: HourRow) => bar(r.desk, hourMax) },
+                            { key: "room", header: "Room bookings", render: (r: HourRow) => bar(r.room, hourMax) },
+                          ]}
+                          rows={util.daily.length > 0 ? hours : []}
+                          rowKey={(r) => String(r.hour)}
+                          empty="No bookings in this range yet."
+                          stacked={false}
+                        />
+                      ) : null}
+                    </div>
+                  </section>
+                </>
               )}
-              {util && !daily ? (
-                <p className={styles.muted}>
-                  Utilization is booked hours over every bookable hour of the {weekdaysBetween(range.from, range.to)} weekdays in the range.
-                </p>
-              ) : null}
-              <DataTable
-                caption="Hourly occupancy: average desks and rooms in use"
-                columns={[
-                  { key: "hour", header: "Hour", render: (r: HourRow) => `${String(r.hour).padStart(2, "0")}:00` },
-                  { key: "desk", header: "Desks in use", render: (r: HourRow) => bar(r.desk, hourMax) },
-                  { key: "room", header: "Rooms in use", render: (r: HourRow) => bar(r.room, hourMax) },
-                ]}
-                rows={util && util.daily.length > 0 ? hours : []}
-                rowKey={(r) => String(r.hour)}
-                empty="No bookings in this range yet."
-                stacked={false}
-              />
-              <DataTable
-                caption="Bookings per day"
-                columns={[
-                  { key: "date", header: "Date", render: (r: DailyRow) => <span className={styles.nowrap}>{r.date}</span> },
-                  { key: "kind", header: "Kind", render: (r: DailyRow) => (r.resourceKind === "desk" ? "Desks" : "Rooms") },
-                  { key: "confirmed", header: "Confirmed", render: (r: DailyRow) => r.confirmed },
-                  { key: "cancelled", header: "Cancelled", render: (r: DailyRow) => r.cancelled },
-                ]}
-                rows={util?.daily ?? []}
-                rowKey={(r) => `${r.date}-${r.resourceKind}`}
-                empty="No bookings in this range yet."
-                stacked={false}
-              />
             </div>
           ) : id === "resources" ? (
             <DataTable
@@ -473,6 +554,7 @@ export function AdminDashboardPage() {
         }
       >
         <p>Existing bookings are kept. Nobody can book it until it is activated again.</p>
+        {deactivating ? <p role="status">{upcomingText(deactivating)}</p> : null}
       </Dialog>
       <Dialog
         open={editing !== null}

@@ -1,0 +1,46 @@
+/* Fixed-domain bars in the per-space utilization tables (VIZ-06). */
+.cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.track {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 3.5rem;
+  max-width: 10rem;
+  height: 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+.tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-border);
+}
+
+.bar {
+  position: relative;
+  display: block;
+  height: 100%;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--color-primary);
+}
+
+/* Booked ahead: context, not the headline measure; the column header says which. */
+.context {
+  background: var(--color-border-strong);
+}
+
+.value {
+  min-width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

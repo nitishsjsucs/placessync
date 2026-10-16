@@ -89,6 +89,10 @@
   .stacks {
     overflow-x: visible;
   }
+  /* The caption spans the width; as a table caption in a block table it shrank to a column. */
+  .stacks .caption {
+    display: block;
+  }
   .stacks .table thead {
     position: absolute;
     width: 1px;

@@ -337,6 +337,17 @@ export const RequestsReport = z.object({
 });
 export type RequestsReport = z.infer<typeof RequestsReport>;
 
+/** GET /api/admin/projection/status: the ledger's outbox and the D1 copy's last write. */
+export const ProjectionStatusResponse = z.object({
+  ledgerVersion: z.number(),
+  outboxDepth: z.number(),
+  backstopHits: z.number(),
+  lastFlushError: z.string().nullable(),
+  flushFailures: z.number(),
+  d1: z.object({ maxLedgerVersion: z.number(), updatedAt: z.string() }).nullable(),
+});
+export type ProjectionStatusResponse = z.infer<typeof ProjectionStatusResponse>;
+
 export const ResourcePatchBody = z
   .object({
     active: z.boolean().optional(),

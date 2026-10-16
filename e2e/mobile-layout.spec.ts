@@ -104,7 +104,7 @@ test.describe("Find a space and admin on small screens", () => {
     test("the admin page with seeded history is under 10,000 px tall", async ({ page }, testInfo) => {
       await page.goto("/admin");
       await expect(page.getByRole("heading", { level: 1, name: "Facilities admin" })).toBeVisible();
-      await expect(page.getByRole("table", { name: /^Utilization by space/ }).getByRole("row").nth(1)).toBeVisible();
+      await expect(page.getByRole("table", { name: /^Desks: utilization by space/ }).getByRole("row").nth(1)).toBeVisible();
       await page.waitForLoadState("networkidle");
       const height = await page.evaluate(() => document.documentElement.scrollHeight);
       await testInfo.attach("admin-375", { body: JSON.stringify({ height }), contentType: "application/json" });

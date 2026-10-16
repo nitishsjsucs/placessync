@@ -1,0 +1,199 @@
+/* Bookings per day (VIZ-07): small multiples on one weekday axis and one y scale.
+   Columns are at most 24 px wide with 4 px rounded tops and a 2 px surface gap; held
+   days are --color-primary, days from today on --color-border-strong under a label. */
+.multiples {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.caption {
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.frame {
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.yAxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: content-box;
+  height: 100px;
+  padding: 2rem 0 1.25rem;
+  min-width: 2ch;
+  font-size: var(--text-xs);
+  line-height: 1;
+  text-align: right;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.yAxis > span:first-child {
+  transform: translateY(-50%);
+}
+
+.yAxis > span:last-child {
+  transform: translateY(50%);
+}
+
+.plot {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-top: 2rem;
+}
+
+.plot:focus-visible {
+  outline-offset: 2px;
+}
+
+.group {
+  position: relative;
+  display: flex;
+  flex-basis: 0;
+  min-width: 0;
+}
+
+/* The Today rule: the left edge of the days from today on. */
+.today {
+  border-left: 2px solid var(--color-text);
+}
+
+/* Above the days from today on; it wraps to two lines on a narrow screen. */
+.region {
+  position: absolute;
+  top: -2rem;
+  left: var(--space-1);
+  right: 0;
+  height: 2rem;
+  display: flex;
+  align-items: flex-end;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Only a few days ahead: the label ends at the right edge and reads leftwards. */
+.regionEnd {
+  left: auto;
+  width: 6.5rem;
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.slot {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.area {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: 100px;
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.column {
+  display: block;
+  width: calc(100% - 2px);
+  max-width: 24px;
+  border-radius: 4px 4px 0 0;
+  background: var(--color-primary);
+}
+
+.column.ahead {
+  background: var(--color-border-strong);
+}
+
+.active .area {
+  background: var(--color-surface-2);
+}
+
+.active .column {
+  box-shadow: 0 0 0 2px var(--color-text);
+}
+
+.tick {
+  position: relative;
+  align-self: stretch;
+  height: 1.25rem;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.tick > span {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  white-space: nowrap;
+}
+
+.tickEnd > span {
+  left: auto;
+  right: 0;
+}
+
+.monday::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 4px;
+  background: var(--color-border-strong);
+}
+
+.tip {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  z-index: 3;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 14rem;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  pointer-events: none;
+  box-shadow: var(--shadow-dialog);
+}
+
+.tipStart {
+  left: 0;
+  transform: none;
+}
+
+.tipEnd {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
